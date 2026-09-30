@@ -6,7 +6,7 @@ Below is a breakdown of the project structure and the purpose of every file.
 
 ---
 
-## 📁 Project Tree
+## Project Tree
 
 ```text
 src/
@@ -47,13 +47,13 @@ src/
 
 ---
 
-## 🧠 State Management (`src/store`)
+## State Management (`src/store`)
 
 * **`useSimulatorStore.ts`**: The single source of truth for the application using Zustand. It acts as the bridge between the UI and the pure Core Engine. It holds the layout state (where nodes are), the simulation state (live 1s and 0s), and the UI state (dark mode, draft wires). **Crucially**, components import targeted selectors from this store (e.g., `state => state.theme`) to prevent unnecessary 60fps re-renders when the simulation ticks.
 
 ---
 
-## ⚙️ Core Engine (`src/core`)
+## Core Engine (`src/core`)
 This folder contains *zero* React or browser-specific code. It is entirely pure TypeScript.
 
 ### `core/models/`
@@ -74,7 +74,7 @@ This folder contains *zero* React or browser-specific code. It is entirely pure 
 
 ---
 
-## 🎨 User Interface (`src/ui`)
+## User Interface (`src/ui`)
 This folder contains all React components, Tailwind styling, and React-Konva canvas rendering.
 
 ### `ui/components/` (Standard HTML/DOM)
@@ -98,7 +98,7 @@ This folder contains all React components, Tailwind styling, and React-Konva can
 
 ---
 
-## 🚀 Entry Points
+## Entry Points
 * **`App.tsx`**: The master layout. It places the Topbar, Toolbox, and CanvasArea on the screen. It also contains the `useInterval` loop that triggers `stepSimulation` based on the user's chosen playback speed.
 * **`main.tsx`**: Standard Vite React mount point.
 * **`index.css`**: Configures Tailwind CSS and handles the global `.dark` class injection for dark mode.
