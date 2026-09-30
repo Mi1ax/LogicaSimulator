@@ -1,0 +1,108 @@
+import { LogicNode, NodeType, Pin, Wire } from '../models/types';
+import { getNodeDefinition } from './nodes';
+
+export interface CircuitState {
+  nodes: LogicNode[];
+  wires: Wire[];
+}
+
+export const GRID_SIZE = 20;
+
+export const addNode = (state: CircuitState, type: NodeType, x: number, y: number): CircuitState => {
+  const def = getNodeDefinition(type);
+  if (!def) {
+    console.error(`Unknown node type: ${type}`);
+    return state;
+  }
+
+  const id = `node-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  
+  const properties = def.defaultProperties ? { ...def.defaultProperties } : {};
+  
+  const inputs: Pin[] = Array.from({ length: def.numInputs }).map((_, i) => ({
+    id: `pin-${id}-in-${i}`,
+    nodeId: id,
+    type: 'input',
+    index: i,
+  }));
+  
+  const outputs: Pin[] = Array.from({ length: def.numOutputs }).map((_, i) => ({
+    id: `pin-${id}-out-${i}`,
+    nodeId: id,
+    type: 'output',
+    index: i,
+  }));
+  
+  const newNode: LogicNode = {
+    id,
+    type,
+    x: Math.round(x / GRID_SIZE) * GRID_SIZE,
+    y: Math.round(y / GRID_SIZE) * GRID_SIZE,
+    inputs,
+    outputs,
+    properties,
+  };
+  
+  return { ...state, nodes: [...state.nodes, newNode] };
+};
+
+export const updateNodeProperties = (state: CircuitState, id: string, props: Record<string, any>): CircuitState => {
+  return {
+    ...state,
+    nodes: state.nodes.map(n => n.id === id ? { ...n, properties: { ...n.properties, ...props } } : n)
+  };
+};
+
+export const moveNode = (state: CircuitState, id: string, x: number, y: number): CircuitState => {
+  return {
+    ...state,
+    nodes: state.nodes.map((node) => 
+      node.id === id 
+        ? { 
+            ...node, 
+            x: Math.round(x / GRID_SIZE) * GRID_SIZE, 
+            y: Math.round(y / GRID_SIZE) * GRID_SIZE 
+          } 
+        : node
+    )
+  };
+};
+
+export const deleteNode = (state: CircuitState, id: string): CircuitState => {
+  const nodes = state.nodes.filter(n => n.id !== id);
+  // Also delete all wires connected to this node
+  const wires = state.wires.filter(w => w.sourceNodeId !== id && w.targetNodeId !== id);
+  return { nodes, wires };
+};
+
+export const addWire = (
+  state: CircuitState, 
+  sourceNodeId: string, 
+  sourcePinId: string, 
+  targetNodeId: string, 
+  targetPinId: string
+): CircuitState => {
+  // Enforce 1 wire per input
+  const existingWires = state.wires.filter(w => w.targetPinId !== targetPinId);
+
+  const newWire: Wire = {
+    id: `wire-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    sourceNodeId,
+    sourcePinId,
+    targetNodeId,
+    targetPinId,
+  };
+
+  return { ...state, wires: [...existingWires, newWire] };
+};
+
+export const deleteWire = (state: CircuitState, id: string): CircuitState => {
+  return { ...state, wires: state.wires.filter(w => w.id !== id) };
+};
+
+export const setWireMidX = (state: CircuitState, wireId: string, midX: number): CircuitState => {
+  return {
+    ...state,
+    wires: state.wires.map(w => w.id === wireId ? { ...w, midX } : w)
+  };
+};
