@@ -4,6 +4,7 @@ import {
   NorNode,
   InputNode, OutputNode, ClockNode
 } from './basicNodes';
+import { IC74LS08 } from './icNodes';
 
 // The central registry for all available nodes in the simulator
 export const NodeRegistry: Record<string, NodeDefinition> = {
@@ -15,6 +16,7 @@ export const NodeRegistry: Record<string, NodeDefinition> = {
   [InputNode.type]: InputNode,
   [OutputNode.type]: OutputNode,
   [ClockNode.type]: ClockNode,
+  [IC74LS08.type]: IC74LS08,
 };
 
 export const getNodeDefinition = (type: string): NodeDefinition | undefined => {

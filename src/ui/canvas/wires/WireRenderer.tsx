@@ -26,15 +26,15 @@ export const WireRenderer: React.FC = () => {
       const sourceNode = nodes.find(n => n.id === draftWire.sourceNodeId);
       if (sourceNode) {
         const start = getPinPosition(sourceNode, draftWire.sourcePinId);
-        let outX, outY, inX, inY;
+        let outX, outY, outNx, inX, inY, inNx;
         if (draftWire.sourceType === 'output') {
-          outX = start.x; outY = start.y;
-          inX = draftWire.endX; inY = draftWire.endY;
+          outX = start.x; outY = start.y; outNx = start.nx;
+          inX = draftWire.endX; inY = draftWire.endY; inNx = -1;
         } else {
-          outX = draftWire.endX; outY = draftWire.endY;
-          inX = start.x; inY = start.y;
+          outX = draftWire.endX; outY = draftWire.endY; outNx = 1;
+          inX = start.x; inY = start.y; inNx = start.nx;
         }
-        draftWireSegments = getWireSegments({ x: outX, y: outY }, { x: inX, y: inY });
+        draftWireSegments = getWireSegments({ x: outX, y: outY, nx: outNx }, { x: inX, y: inY, nx: inNx }, undefined, draftWire.waypoints);
       }
     }
     return computeAllWirePaths(wires, nodes, draftWireSegments);
@@ -104,11 +104,23 @@ export const WireRenderer: React.FC = () => {
                   if (container) container.style.cursor = 'default';
                 }}
                 onDragMove={(e) => {
-                  setWireMidX(wire.id, e.target.x() + 10);
+                  const transform = e.target.getStage()?.getAbsoluteTransform().copy().invert();
+                  const pointer = e.target.getStage()?.getPointerPosition();
+                  if (transform && pointer) {
+                    const pos = transform.point(pointer);
+                    const nx = Math.round(pos.x / 20) * 20;
+                    e.target.x(nx - 10);
+                    setWireMidX(wire.id, nx);
+                  }
                 }}
                 onDragEnd={(e) => {
-                  setWireMidX(wire.id, e.target.x() + 10);
-                  // Reset React position logic if needed, but Zustand update covers it
+                  const transform = e.target.getStage()?.getAbsoluteTransform().copy().invert();
+                  const pointer = e.target.getStage()?.getPointerPosition();
+                  if (transform && pointer) {
+                    const pos = transform.point(pointer);
+                    const nx = Math.round(pos.x / 20) * 20;
+                    setWireMidX(wire.id, nx);
+                  }
                 }}
                 onClick={(e) => {
                   e.cancelBubble = true;
@@ -116,6 +128,52 @@ export const WireRenderer: React.FC = () => {
                 }}
               />
             )}
+            {/* Waypoint Handles */}
+            {isSelected && wire.waypoints && wire.waypoints.length > 0 && wire.waypoints.map((wp, idx) => (
+              <Rect
+                key={`wp-${wire.id}-${idx}`}
+                x={wp.x - 5}
+                y={wp.y - 5}
+                width={10}
+                height={10}
+                fill={canvasTheme.selectedWireColor}
+                draggable
+                onDragMove={(e) => {
+                  const store = useSimulatorStore.getState();
+                  if (store.updateWireWaypoints) {
+                    // Let's just use pointer pos for accurate snapping
+                    const transform = e.target.getStage()?.getAbsoluteTransform().copy().invert();
+                    const pointer = e.target.getStage()?.getPointerPosition();
+                    if (transform && pointer) {
+                      const pos = transform.point(pointer);
+                      const nx = Math.round(pos.x / 20) * 20;
+                      const ny = Math.round(pos.y / 20) * 20;
+                      e.target.position({ x: nx - 5, y: ny - 5 });
+                      const newWps = [...wire.waypoints!];
+                      newWps[idx] = { x: nx, y: ny };
+                      store.updateWireWaypoints(wire.id, newWps);
+                    }
+                  }
+                }}
+                onDblClick={(e) => {
+                  e.cancelBubble = true;
+                  const store = useSimulatorStore.getState();
+                  if (store.updateWireWaypoints) {
+                    const newWps = [...wire.waypoints!];
+                    newWps.splice(idx, 1);
+                    store.updateWireWaypoints(wire.id, newWps);
+                  }
+                }}
+                onMouseEnter={(e) => {
+                  const container = e.target.getStage()?.container();
+                  if (container) container.style.cursor = 'move';
+                }}
+                onMouseLeave={(e) => {
+                  const container = e.target.getStage()?.container();
+                  if (container) container.style.cursor = 'default';
+                }}
+              />
+            ))}
           </React.Fragment>
         );
       })}

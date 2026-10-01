@@ -41,6 +41,8 @@ interface SimulatorState {
   setSimRunning: (running: boolean) => void;
   setSimSpeed: (hz: number) => void;
   toggleInputNode: (nodeId: string) => void;
+  addWaypoint: (x: number, y: number) => void;
+  updateWireWaypoints: (wireId: string, waypoints: {x: number, y: number}[]) => void;
 }
 
 export const useSimulatorStore = create<SimulatorState>((set) => ({
@@ -54,7 +56,7 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
 
   simState: { tickCount: 0, pinStates: {}, wireStates: {} },
   simRunning: false,
-  simSpeed: 10, // Default 10 Hz
+  simSpeed: 10,
 
   select: (selection) => set({ selection }),
 
@@ -97,7 +99,7 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
   }),
 
   startWire: (nodeId, pinId, pinType, x, y) => set({
-    draftWire: { sourceNodeId: nodeId, sourcePinId: pinId, sourceType: pinType, endX: x, endY: y },
+    draftWire: { sourceNodeId: nodeId, sourcePinId: pinId, sourceType: pinType, endX: x, endY: y, waypoints: [] },
     selection: null
   }),
 
@@ -106,10 +108,15 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
     return { draftWire: { ...state.draftWire, endX: x, endY: y } };
   }),
 
+  addWaypoint: (x, y) => set((state) => {
+    if (!state.draftWire) return state;
+    return { draftWire: { ...state.draftWire, waypoints: [...(state.draftWire.waypoints || []), { x, y }] } };
+  }),
+
   completeWire: (nodeId, pinId, pinType) => set((state) => {
     if (!state.draftWire) return state;
     
-    const { sourceNodeId, sourcePinId, sourceType } = state.draftWire;
+    const { sourceNodeId, sourcePinId, sourceType, waypoints } = state.draftWire;
     
     if (sourceNodeId === nodeId || sourceType === pinType) {
       return { draftWire: null };
@@ -121,13 +128,25 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
     const inputPinId = isSourceOutput ? pinId : sourcePinId;
     const inputNodeId = isSourceOutput ? nodeId : sourceNodeId;
 
-    const nextCircuit = circuit.addWire(state, outputNodeId, outputPinId, inputNodeId, inputPinId);
+    let nextCircuit = circuit.addWire(state, outputNodeId, outputPinId, inputNodeId, inputPinId);
+    
+    // Reverse waypoints if we started drawing from an input to an output
+    const finalWaypoints = isSourceOutput ? (waypoints || []) : (waypoints ? [...waypoints].reverse() : []);
+    
+    if (finalWaypoints.length > 0) {
+      // Find the newly added wire (it's the last one)
+      const newWire = nextCircuit.wires[nextCircuit.wires.length - 1];
+      newWire.waypoints = finalWaypoints;
+    }
+
     return { ...nextCircuit, draftWire: null };
   }),
 
   cancelWire: () => set({ draftWire: null }),
 
   setWireMidX: (wireId, midX) => set((state) => circuit.setWireMidX(state, wireId, midX)),
+  
+  updateWireWaypoints: (wireId, waypoints) => set((state) => circuit.updateWireWaypoints(state, wireId, waypoints)),
 }));
 
 // Provide grid size constant exported from core

@@ -4,7 +4,9 @@ import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { Grid } from './Grid';
 import { GateNode } from './nodes/GateNode';
 import { IONode } from './nodes/IONode';
+import { ICNode } from './nodes/ICNode';
 import { WireRenderer } from './wires/WireRenderer';
+import { getNodeDefinition } from '../../core/engine/nodes';
 
 export const CanvasArea: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -15,7 +17,6 @@ export const CanvasArea: React.FC = () => {
   const nodes = useSimulatorStore(state => state.nodes);
   const draftWire = useSimulatorStore(state => state.draftWire);
   const updateDraftWire = useSimulatorStore(state => state.updateDraftWire);
-  const cancelWire = useSimulatorStore(state => state.cancelWire);
   const select = useSimulatorStore(state => state.select);
   const deleteSelection = useSimulatorStore(state => state.deleteSelection);
 
@@ -40,7 +41,10 @@ export const CanvasArea: React.FC = () => {
       className="flex-1 h-full bg-slate-50 dark:bg-slate-900 overflow-hidden outline-none"
       tabIndex={0}
       onKeyDown={(e) => {
-        if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (e.key === 'Escape') {
+          const store = useSimulatorStore.getState();
+          if (store.draftWire) store.cancelWire();
+        } else if (e.key === 'Delete' || e.key === 'Backspace') {
           deleteSelection();
         }
       }}
@@ -100,15 +104,39 @@ export const CanvasArea: React.FC = () => {
           }
         }}
         onMouseUp={(e) => {
-          if (draftWire) {
-            cancelWire();
-          }
           if (e.target === e.target.getStage()) {
             const container = e.target.getStage()?.container();
-            if (container) container.style.cursor = 'grab';
+            if (container && !draftWire) container.style.cursor = 'grab';
+          }
+        }}
+        onClick={(e) => {
+          const isBackground = e.target === e.target.getStage() || e.target.name() === 'grid';
+          if (isBackground) {
+            if (draftWire) {
+              const stage = e.target.getStage();
+              if (stage) {
+                const pointer = stage.getPointerPosition();
+                if (pointer) {
+                  const transform = stage.getAbsoluteTransform().copy().invert();
+                  const pos = transform.point(pointer);
+                  const store = useSimulatorStore.getState();
+                  if (store.addWaypoint) {
+                    store.addWaypoint(Math.round(pos.x / 20) * 20, Math.round(pos.y / 20) * 20);
+                  }
+                }
+              }
+            } else {
+              select(null);
+            }
           }
         }}
         onMouseDown={(e) => {
+          if (e.evt.button === 2) {
+            // Right click
+            const store = useSimulatorStore.getState();
+            if (store.draftWire) store.cancelWire();
+            return;
+          }
           if (e.target === e.target.getStage()) {
             select(null);
             if (!draftWire) {
@@ -117,6 +145,7 @@ export const CanvasArea: React.FC = () => {
             }
           }
         }}
+        onContextMenu={(e) => e.evt.preventDefault()}
         style={{ cursor: draftWire ? 'crosshair' : 'grab' }}
       >
         <Grid 
@@ -130,6 +159,10 @@ export const CanvasArea: React.FC = () => {
         <Layer>
           <WireRenderer />
           {nodes.map((node) => {
+            const def = getNodeDefinition(node.type);
+            if (def?.renderAs === 'DIP' || node.properties?.renderAs === 'DIP') {
+              return <ICNode key={node.id} node={node} />;
+            }
             if (node.type === 'INPUT' || node.type === 'OUTPUT' || node.type === 'CLOCK') {
               return <IONode key={node.id} node={node} />;
             }

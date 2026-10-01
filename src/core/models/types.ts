@@ -8,6 +8,8 @@ export interface Pin {
   nodeId: string;
   type: 'input' | 'output';
   index: number;
+  name?: string;
+  pinNumber?: number;
 }
 
 export interface Wire {
@@ -16,7 +18,8 @@ export interface Wire {
   sourcePinId: string;
   targetNodeId: string;
   targetPinId: string;
-  midX?: number;
+  midX?: number; // legacy draggable midX
+  waypoints?: { x: number; y: number }[]; // custom freeform route
 }
 
 export interface DraftWire {
@@ -25,6 +28,7 @@ export interface DraftWire {
   sourceType: 'input' | 'output';
   endX: number;
   endY: number;
+  waypoints?: { x: number; y: number }[];
 }
 
 export interface LogicNode {
