@@ -15,7 +15,7 @@ const ConnectedNode = React.memo(({ id }: { id: string }) => {
   if (!node) return null;
   const def = getNodeDefinition(node.type);
   if (def?.renderAs === 'DIP') return <ICNode node={node} />;
-  if (node.type === 'INPUT' || node.type === 'OUTPUT' || node.type === 'CLOCK') return <IONode node={node} />;
+  if (['INPUT', 'OUTPUT', 'CLOCK', 'VCC', 'GND'].includes(node.type)) return <IONode node={node} />;
   return <GateNode node={node} />;
 });
 
@@ -30,6 +30,7 @@ export const CanvasArea: React.FC = () => {
   const updateDraftWire = useSimulatorStore(state => state.updateDraftWire);
   const select = useSimulatorStore(state => state.select);
   const deleteSelection = useSimulatorStore(state => state.deleteSelection);
+  const settings = useSimulatorStore(state => state.settings);
 
   useEffect(() => {
     const handleResize = () => {
@@ -98,30 +99,55 @@ export const CanvasArea: React.FC = () => {
           const stage = e.target.getStage();
           if (!stage) return;
           
-          const oldScale = stage.scaleX();
-          const pointer = stage.getPointerPosition();
-          if (!pointer) return;
-          
-          const mousePointTo = {
-            x: (pointer.x - stage.x()) / oldScale,
-            y: (pointer.y - stage.y()) / oldScale,
-          };
+          const { deltaX, deltaY, ctrlKey, shiftKey } = e.evt;
 
-          let direction = e.evt.deltaY > 0 ? -1 : 1;
-          if (e.evt.ctrlKey) {
-            direction = -direction;
+          // Determine if we are zooming or panning based on settings and modifiers
+          const isTrackpadPinch = ctrlKey; // Browsers convert trackpad pinch to ctrlKey + wheel
+          const forceZoom = isTrackpadPinch || (settings.mouseWheelBehavior === 'zoom' && !shiftKey);
+          
+          if (forceZoom) {
+            // Zoom logic
+            const oldScale = stage.scaleX();
+            const pointer = stage.getPointerPosition();
+            if (!pointer) return;
+            
+            const mousePointTo = {
+              x: (pointer.x - stage.x()) / oldScale,
+              y: (pointer.y - stage.y()) / oldScale,
+            };
+
+            let direction = deltaY > 0 ? -1 : 1;
+            if (settings.invertZoom) direction = -direction;
+            
+            const zoomAmount = Math.max(0.01, Math.abs(deltaY) * 0.01 * settings.zoomSensitivity);
+            // Limit scaleBy to prevent extreme jumps on high-sensitivity mice
+            const scaleBy = 1 + Math.min(zoomAmount, 0.5);
+            
+            const newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
+            
+            if (newScale < 0.2 || newScale > 5) return;
+            
+            setScale(newScale);
+            setStagePos({
+              x: pointer.x - mousePointTo.x * newScale,
+              y: pointer.y - mousePointTo.y * newScale,
+            });
+          } else {
+            // Pan logic
+            let panX = deltaX;
+            let panY = deltaY;
+
+            // If shift is held on a regular mouse, scroll horizontally
+            if (shiftKey && !isTrackpadPinch) {
+              panX = deltaY;
+              panY = deltaX;
+            }
+
+            setStagePos((prev) => ({
+              x: prev.x - panX * settings.panSpeed,
+              y: prev.y - panY * settings.panSpeed,
+            }));
           }
-          
-          const scaleBy = 1.1;
-          const newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
-          
-          if (newScale < 0.2 || newScale > 5) return;
-          
-          setScale(newScale);
-          setStagePos({
-            x: pointer.x - mousePointTo.x * newScale,
-            y: pointer.y - mousePointTo.y * newScale,
-          });
         }}
         onMouseMove={(e) => {
           if (draftWire) {

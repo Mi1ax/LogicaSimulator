@@ -42,6 +42,28 @@ export const Grid: React.FC<GridProps> = ({ width, height, scale, x, y }) => {
           }
           context.fillStyle = canvasTheme.gridColor;
           context.fill();
+
+          // Draw logical center axes (origin)
+          context.beginPath();
+          if (startX <= 0 && endX >= 0) {
+            context.moveTo(0, startY);
+            context.lineTo(0, endY);
+          }
+          if (startY <= 0 && endY >= 0) {
+            context.moveTo(startX, 0);
+            context.lineTo(endX, 0);
+          }
+          context.strokeStyle = theme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.15)';
+          context.lineWidth = 2 / scale;
+          context.stroke();
+
+          // Add a distinct dot at exactly (0, 0)
+          if (startX <= 0 && endX >= 0 && startY <= 0 && endY >= 0) {
+            context.beginPath();
+            context.arc(0, 0, 4 / scale, 0, Math.PI * 2);
+            context.fillStyle = theme === 'dark' ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)';
+            context.fill();
+          }
         }}
         // We do not need hit detection on the grid dots
         listening={false}
