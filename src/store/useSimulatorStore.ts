@@ -44,7 +44,22 @@ interface SimulatorState {
   addWaypoint: (x: number, y: number) => void;
   updateWireWaypoints: (wireId: string, waypoints: {x: number, y: number}[]) => void;
   setNodeInputCount: (nodeId: string, count: number) => void;
+
+  // Undo / Redo
+  history: { nodes: LogicNode[], wires: Wire[] }[];
+  future: { nodes: LogicNode[], wires: Wire[] }[];
+  undo: () => void;
+  redo: () => void;
+  saveHistory: () => void;
 }
+
+const pushHistory = (state: SimulatorState) => ({
+  history: [...state.history, { 
+    nodes: JSON.parse(JSON.stringify(state.nodes)), 
+    wires: JSON.parse(JSON.stringify(state.wires)) 
+  }].slice(-50),
+  future: []
+});
 
 export const useSimulatorStore = create<SimulatorState>((set) => ({
   theme: 'dark',
@@ -59,23 +74,52 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
   simRunning: false,
   simSpeed: 10,
 
+  history: [],
+  future: [],
+
+  saveHistory: () => set((state) => pushHistory(state)),
+
+  undo: () => set((state) => {
+    if (state.history.length === 0) return state;
+    const previous = state.history[state.history.length - 1];
+    return {
+      nodes: JSON.parse(JSON.stringify(previous.nodes)),
+      wires: JSON.parse(JSON.stringify(previous.wires)),
+      selection: null,
+      history: state.history.slice(0, -1),
+      future: [{ nodes: state.nodes, wires: state.wires }, ...state.future],
+    };
+  }),
+
+  redo: () => set((state) => {
+    if (state.future.length === 0) return state;
+    const next = state.future[0];
+    return {
+      nodes: JSON.parse(JSON.stringify(next.nodes)),
+      wires: JSON.parse(JSON.stringify(next.wires)),
+      selection: null,
+      history: [...state.history, { nodes: state.nodes, wires: state.wires }],
+      future: state.future.slice(1),
+    };
+  }),
+
   select: (selection) => set({ selection }),
 
   deleteSelection: () => set((state) => {
     if (!state.selection) return state;
     if (state.selection.type === 'node') {
       const nextCircuit = circuit.deleteNode(state, state.selection.id);
-      return { ...nextCircuit, selection: null };
+      return { ...nextCircuit, ...pushHistory(state), selection: null };
     } else {
       const nextCircuit = circuit.deleteWire(state, state.selection.id);
-      return { ...nextCircuit, selection: null };
+      return { ...nextCircuit, ...pushHistory(state), selection: null };
     }
   }),
   
-  addNode: (type, x, y) => set((state) => circuit.addNode(state, type, x, y)),
-  updateNodePosition: (id, x, y) => set((state) => circuit.moveNode(state, id, x, y)),
-  updateNodeProperties: (id, props) => set((state) => circuit.updateNodeProperties(state, id, props)),
-  setNodeInputCount: (id, count) => set((state) => circuit.setNodeInputCount(state, id, count)),
+  addNode: (type, x, y) => set((state) => ({ ...circuit.addNode(state, type, x, y), ...pushHistory(state) })),
+  updateNodePosition: (id, x, y) => set((state) => circuit.moveNode(state, id, x, y)), // History saved on drag start
+  updateNodeProperties: (id, props) => set((state) => ({ ...circuit.updateNodeProperties(state, id, props), ...pushHistory(state) })),
+  setNodeInputCount: (id, count) => set((state) => ({ ...circuit.setNodeInputCount(state, id, count), ...pushHistory(state) })),
 
   clearNodes: () => set({ 
     nodes: [], 
@@ -141,7 +185,7 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
       newWire.waypoints = finalWaypoints;
     }
 
-    return { ...nextCircuit, draftWire: null };
+    return { ...nextCircuit, ...pushHistory(state), draftWire: null };
   }),
 
   cancelWire: () => set({ draftWire: null }),

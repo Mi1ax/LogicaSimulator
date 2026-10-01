@@ -103,6 +103,10 @@ export const WireRenderer: React.FC = () => {
                   const container = e.target.getStage()?.container();
                   if (container) container.style.cursor = 'default';
                 }}
+                onDragStart={() => {
+                  const store = useSimulatorStore.getState();
+                  if (store.saveHistory) store.saveHistory();
+                }}
                 onDragMove={(e) => {
                   const transform = e.target.getStage()?.getAbsoluteTransform().copy().invert();
                   const pointer = e.target.getStage()?.getPointerPosition();
@@ -138,6 +142,10 @@ export const WireRenderer: React.FC = () => {
                 height={10}
                 fill={canvasTheme.selectedWireColor}
                 draggable
+                onDragStart={() => {
+                  const store = useSimulatorStore.getState();
+                  if (store.saveHistory) store.saveHistory();
+                }}
                 onDragMove={(e) => {
                   const store = useSimulatorStore.getState();
                   if (store.updateWireWaypoints) {
@@ -158,6 +166,7 @@ export const WireRenderer: React.FC = () => {
                 onDblClick={(e) => {
                   e.cancelBubble = true;
                   const store = useSimulatorStore.getState();
+                  if (store.saveHistory) store.saveHistory();
                   if (store.updateWireWaypoints) {
                     const newWps = [...wire.waypoints!];
                     newWps.splice(idx, 1);
