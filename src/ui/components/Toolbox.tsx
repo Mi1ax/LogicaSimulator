@@ -32,6 +32,7 @@ const CATEGORIES: ToolCategory[] = [
     name: 'Integrated Circuits',
     items: [
       { type: '74LS08', icon: <Cpu size={18} /> },
+      { type: '74LS161', icon: <Cpu size={18} /> },
     ]
   }
 ];

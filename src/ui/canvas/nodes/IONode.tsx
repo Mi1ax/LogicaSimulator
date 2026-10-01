@@ -71,6 +71,8 @@ export const IONode: React.FC<IONodeProps> = ({ node }) => {
         if (container) container.style.cursor = 'default';
       }}
       onDragStart={(e) => {
+        const store = useSimulatorStore.getState();
+        if (store.saveHistory) store.saveHistory();
         const container = e.target.getStage()?.container();
         if (container) container.style.cursor = 'grabbing';
       }}

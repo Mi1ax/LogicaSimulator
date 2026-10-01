@@ -41,8 +41,28 @@ export const CanvasArea: React.FC = () => {
       className="flex-1 h-full bg-slate-50 dark:bg-slate-900 overflow-hidden outline-none"
       tabIndex={0}
       onKeyDown={(e) => {
+        if (e.repeat) return; // Prevent holding down the key from firing rapidly
+        
+        const store = useSimulatorStore.getState();
+        
+        if (e.ctrlKey || e.metaKey) {
+          if (e.key.toLowerCase() === 'z') {
+            e.preventDefault();
+            if (e.shiftKey) {
+              store.redo();
+            } else {
+              store.undo();
+            }
+            return;
+          }
+          if (e.key.toLowerCase() === 'y') {
+            e.preventDefault();
+            store.redo();
+            return;
+          }
+        }
+        
         if (e.key === 'Escape') {
-          const store = useSimulatorStore.getState();
           if (store.draftWire) store.cancelWire();
         } else if (e.key === 'Delete' || e.key === 'Backspace') {
           deleteSelection();

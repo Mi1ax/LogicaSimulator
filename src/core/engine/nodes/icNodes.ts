@@ -45,3 +45,80 @@ export const IC74LS08: NodeDefinition = {
     return [res1, res2, res4, res3];
   }
 };
+
+export const IC74LS161: NodeDefinition = {
+  type: '74LS161',
+  label: '74LS161 (4-bit Counter)',
+  renderAs: 'DIP',
+  numInputs: 11,
+  numOutputs: 5,
+  defaultProperties: { counter: 0, lastClk: 0 },
+  customPins: [
+    { name: '~CLR', type: 'input', pinNumber: 1 },
+    { name: 'CLK', type: 'input', pinNumber: 2 },
+    { name: 'A', type: 'input', pinNumber: 3 },
+    { name: 'B', type: 'input', pinNumber: 4 },
+    { name: 'C', type: 'input', pinNumber: 5 },
+    { name: 'D', type: 'input', pinNumber: 6 },
+    { name: 'ENP', type: 'input', pinNumber: 7 },
+    { name: 'GND', type: 'input', pinNumber: 8 },
+    { name: '~LOAD', type: 'input', pinNumber: 9 },
+    { name: 'ENT', type: 'input', pinNumber: 10 },
+    { name: 'QD', type: 'output', pinNumber: 11 },
+    { name: 'QC', type: 'output', pinNumber: 12 },
+    { name: 'QB', type: 'output', pinNumber: 13 },
+    { name: 'QA', type: 'output', pinNumber: 14 },
+    { name: 'RCO', type: 'output', pinNumber: 15 },
+    { name: 'VCC', type: 'input', pinNumber: 16 }
+  ],
+  evaluate: (inputs, props) => {
+    // Inputs:
+    // 0: ~CLR, 1: CLK, 2: A, 3: B, 4: C, 5: D, 6: ENP, 7: GND, 8: ~LOAD, 9: ENT, 10: VCC
+    const [clrN, clk, a, b, c, d, enp, , loadN, ent] = inputs;
+    
+    if (!props) return [undefined, undefined, undefined, undefined, undefined];
+    
+    if (props.counter === undefined) props.counter = 0;
+    if (props.lastClk === undefined) props.lastClk = 0;
+
+    // Apply User-Friendly Simulator Defaults for floating pins
+    const safeClrN = clrN ?? 1;   // Default 1: Don't clear
+    const safeLoadN = loadN ?? 1; // Default 1: Don't load
+    const safeEnp = enp ?? 1;     // Default 1: Enable counting
+    const safeEnt = ent ?? 1;     // Default 1: Enable counting
+    
+    // Async clear (active low)
+    if (safeClrN === 0) {
+      props.counter = 0;
+    } 
+    // Synchronous operations on rising edge
+    else if (clk === 1 && props.lastClk === 0) {
+      // Synchronous load (active low)
+      if (safeLoadN === 0) {
+        // Parallel data defaults to 0 if floating
+        props.counter = ((d ?? 0) << 3) | ((c ?? 0) << 2) | ((b ?? 0) << 1) | ((a ?? 0));
+      } 
+      // Count enable (both ENP and ENT must be high to count)
+      else if (safeEnp === 1 && safeEnt === 1) {
+        props.counter = (props.counter + 1) % 16;
+      }
+    }
+    
+    props.lastClk = clk || 0;
+    
+    // Outputs:
+    // 0: QD, 1: QC, 2: QB, 3: QA, 4: RCO
+    const qa = (props.counter & 1) ? 1 : 0;
+    const qb = (props.counter & 2) ? 1 : 0;
+    const qc = (props.counter & 4) ? 1 : 0;
+    const qd = (props.counter & 8) ? 1 : 0;
+    
+    // Ripple Carry Output (high when counter is 15 and ENT is high)
+    const rco = (props.counter === 15 && safeEnt === 1) ? 1 : 0;
+    
+    // Output floating state if VCC/GND are not connected properly? 
+    // In many software sims we ignore power pins unless strict. 
+    // Here we'll just output the logic state unconditionally for ease of use.
+    return [qd, qc, qb, qa, rco];
+  }
+};
