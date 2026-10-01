@@ -8,13 +8,24 @@ import { ICNode } from './nodes/ICNode';
 import { WireRenderer } from './wires/WireRenderer';
 import { getNodeDefinition } from '../../core/engine/nodes';
 
+import { useShallow } from 'zustand/react/shallow';
+
+const ConnectedNode = React.memo(({ id }: { id: string }) => {
+  const node = useSimulatorStore(state => state.nodes.find(n => n.id === id));
+  if (!node) return null;
+  const def = getNodeDefinition(node.type);
+  if (def?.renderAs === 'DIP') return <ICNode node={node} />;
+  if (node.type === 'INPUT' || node.type === 'OUTPUT' || node.type === 'CLOCK') return <IONode node={node} />;
+  return <GateNode node={node} />;
+});
+
 export const CanvasArea: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
   
-  const nodes = useSimulatorStore(state => state.nodes);
+  const nodeIds = useSimulatorStore(useShallow(state => state.nodes.map(n => n.id)));
   const draftWire = useSimulatorStore(state => state.draftWire);
   const updateDraftWire = useSimulatorStore(state => state.updateDraftWire);
   const select = useSimulatorStore(state => state.select);
@@ -178,16 +189,9 @@ export const CanvasArea: React.FC = () => {
 
         <Layer>
           <WireRenderer />
-          {nodes.map((node) => {
-            const def = getNodeDefinition(node.type);
-            if (def?.renderAs === 'DIP' || node.properties?.renderAs === 'DIP') {
-              return <ICNode key={node.id} node={node} />;
-            }
-            if (node.type === 'INPUT' || node.type === 'OUTPUT' || node.type === 'CLOCK') {
-              return <IONode key={node.id} node={node} />;
-            }
-            return <GateNode key={node.id} node={node} />;
-          })}
+          {nodeIds.map((id) => (
+            <ConnectedNode key={id} id={id} />
+          ))}
         </Layer>
       </Stage>
     </div>

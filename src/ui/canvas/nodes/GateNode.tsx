@@ -10,7 +10,7 @@ interface GateNodeProps {
   node: LogicNode;
 }
 
-export const GateNode: React.FC<GateNodeProps> = ({ node }) => {
+export const GateNode: React.FC<GateNodeProps> = React.memo(({ node }) => {
   const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
   const theme = useSimulatorStore(state => state.theme);
   const selection = useSimulatorStore(state => state.selection);
@@ -109,4 +109,4 @@ export const GateNode: React.FC<GateNodeProps> = ({ node }) => {
       })}
     </Group>
   );
-};
+});
