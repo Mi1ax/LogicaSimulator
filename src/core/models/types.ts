@@ -1,4 +1,6 @@
-export type NodeType = 'AND' | 'OR' | 'NOT' | 'INPUT' | 'OUTPUT' | 'CLOCK';
+export type BuiltinNodeType = 'AND' | 'OR' | 'NOR' | 'NOT' | 'XOR' | 'INPUT' | 'OUTPUT' | 'CLOCK';
+// Allows IDE autocomplete for built-ins, but accepts ANY string for custom ICs
+export type NodeType = BuiltinNodeType | (string & {});
 export type Signal = 0 | 1 | undefined;
 
 export interface Pin {

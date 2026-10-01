@@ -22,6 +22,17 @@ export const OrNode: NodeDefinition = {
   }
 };
 
+export const NorNode: NodeDefinition = {
+  type: 'NOR',
+  label: 'NOR Gate',
+  numInputs: 2,
+  numOutputs: 1,
+  evaluate: (inputs) => {
+    if (inputs.includes(undefined)) return [undefined];
+    return [inputs.every(i => i === 0) ? 1 : 0];
+  }
+};
+
 export const NotNode: NodeDefinition = {
   type: 'NOT',
   label: 'NOT Gate',
@@ -30,6 +41,19 @@ export const NotNode: NodeDefinition = {
   evaluate: (inputs) => {
     if (inputs[0] === undefined) return [undefined];
     return [inputs[0] === 1 ? 0 : 1];
+  }
+};
+
+export const XorNode: NodeDefinition = {
+  type: 'XOR',
+  label: 'XOR Gate',
+  numInputs: 2,
+  numOutputs: 1,
+  evaluate: (inputs) => {
+    if (inputs.includes(undefined)) return [undefined];
+    // XOR is true if the inputs are different (or if an odd number of inputs are 1)
+    const count = inputs.filter(i => i === 1).length;
+    return [count % 2 === 1 ? 1 : 0];
   }
 };
 
