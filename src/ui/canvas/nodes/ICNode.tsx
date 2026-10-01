@@ -11,7 +11,7 @@ interface ICNodeProps {
   node: LogicNode;
 }
 
-export const ICNode: React.FC<ICNodeProps> = ({ node }) => {
+export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
   const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
   const theme = useSimulatorStore(state => state.theme);
   const selection = useSimulatorStore(state => state.selection);
@@ -162,4 +162,4 @@ export const ICNode: React.FC<ICNodeProps> = ({ node }) => {
       })}
     </Group>
   );
-};
+});

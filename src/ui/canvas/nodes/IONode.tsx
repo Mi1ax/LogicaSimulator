@@ -10,7 +10,7 @@ interface IONodeProps {
   node: LogicNode;
 }
 
-export const IONode: React.FC<IONodeProps> = ({ node }) => {
+export const IONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
   const theme = useSimulatorStore(state => state.theme);
   const selection = useSimulatorStore(state => state.selection);
@@ -186,4 +186,4 @@ export const IONode: React.FC<IONodeProps> = ({ node }) => {
       ))}
     </Group>
   );
-};
+});
