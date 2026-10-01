@@ -17,10 +17,11 @@ export const IONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   const select = useSimulatorStore(state => state.select);
   const simState = useSimulatorStore(state => state.simState);
   const toggleInputNode = useSimulatorStore(state => state.toggleInputNode);
-
-  const canvasTheme = getCanvasTheme(theme === 'dark');
+  const appMode = useSimulatorStore(state => state.appMode);
   
-  const { width, height } = getGateDimensions(node);
+  const canvasTheme = getCanvasTheme(theme === 'dark');
+  const isSchematic = appMode === 'schematic';
+  const { width, height } = getGateDimensions(node, isSchematic);
   const isInput = node.type === 'INPUT';
   const isOutput = node.type === 'OUTPUT';
   const isClock = node.type === 'CLOCK';
@@ -52,7 +53,7 @@ export const IONode: React.FC<IONodeProps> = React.memo(({ node }) => {
     <Group
       x={node.x}
       y={node.y}
-      draggable
+      draggable={isSelected}
       onClick={(e) => {
         e.cancelBubble = true;
         select({ type: 'node', id: node.id });

@@ -20,6 +20,13 @@ export interface Wire {
   targetPinId: string;
   midX?: number; // legacy draggable midX
   waypoints?: { x: number; y: number }[]; // custom freeform route
+  wireType?: 'solder' | 'jumper'; // board mode routing type
+}
+
+export interface BoardTrace {
+  id: string;
+  type: 'solder' | 'jumper';
+  points: { x: number; y: number }[];
 }
 
 export interface DraftWire {
@@ -36,6 +43,8 @@ export interface LogicNode {
   type: NodeType;
   x: number;
   y: number;
+  boardX?: number;
+  boardY?: number;
   inputs: Pin[];
   outputs: Pin[];
   properties?: Record<string, any>;

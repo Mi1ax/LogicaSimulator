@@ -15,17 +15,18 @@ export const GateNode: React.FC<GateNodeProps> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
   const selection = useSimulatorStore(state => state.selection);
   const select = useSimulatorStore(state => state.select);
+  const appMode = useSimulatorStore(state => state.appMode);
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
-  
-  const { width, height } = getGateDimensions(node);
+  const isSchematic = appMode === 'schematic';
+  const { width, height } = getGateDimensions(node, isSchematic);
   const isSelected = selection?.type === 'node' && selection.id === node.id;
 
   return (
     <Group
       x={node.x}
       y={node.y}
-      draggable
+      draggable={isSelected}
       onClick={(e) => {
         e.cancelBubble = true;
         select({ type: 'node', id: node.id });

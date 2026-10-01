@@ -16,14 +16,14 @@ export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
   const selection = useSimulatorStore(state => state.selection);
   const select = useSimulatorStore(state => state.select);
+  const appMode = useSimulatorStore(state => state.appMode);
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
-  const { width, height } = getGateDimensions(node);
+  const isSchematic = appMode === 'schematic';
+  const { width, height } = getGateDimensions(node, isSchematic);
   
   const isSelected = selection?.type === 'node' && selection.id === node.id;
   const def = getNodeDefinition(node.type);
-
-  const isSchematic = node.properties?.schematicView !== false;
   
   const visibleInputs = isSchematic ? node.inputs.filter(p => p.name !== 'VCC' && p.name !== 'GND') : node.inputs;
   const visibleOutputs = isSchematic ? node.outputs.filter(p => p.name !== 'VCC' && p.name !== 'GND') : node.outputs;
@@ -37,15 +37,30 @@ export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
     pinsPerSide = Math.max(Math.ceil(allPins.length / 2), Math.ceil(maxPinNumber / 2));
   }
 
-  // Draw the semi-circle notch at the top
-  const notchPath = `M ${width / 2 - 10} 0 a 10 10 0 0 0 20 0`;
 
   return (
     <Group
       x={node.x}
       y={node.y}
-      draggable
+      draggable={isSelected}
       onClick={(e) => {
+        const store = useSimulatorStore.getState();
+        if (store.appMode === 'board' && store.interactionMode === 'wire') {
+          // In board mode, if we are in wire mode, let clicks on pins fall through to start a trace!
+          const pos = e.target.getStage()?.getPointerPosition();
+          if (pos) {
+            const transform = e.target.getStage()?.getAbsoluteTransform().copy().invert();
+            const localPos = transform?.point(pos);
+            if (localPos) {
+              const dx = localPos.x % 20;
+              const dy = localPos.y % 20;
+              // If they clicked very close to a hole (within 5px)
+              if ((dx < 5 || dx > 15) && (dy < 5 || dy > 15)) {
+                return; // Fall through to canvas to start/end trace!
+              }
+            }
+          }
+        }
         e.cancelBubble = true;
         select({ type: 'node', id: node.id });
       }}
@@ -80,23 +95,37 @@ export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
       <Rect
         width={width}
         height={height}
-        fill={canvasTheme.nodeBg}
-        stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
+        fill={isSchematic ? canvasTheme.nodeBg : '#171717'}
+        stroke={isSelected ? canvasTheme.selectedNodeColor : (isSchematic ? canvasTheme.nodeBorder : '#0a0a0a')}
         strokeWidth={isSelected ? 3 : 2}
-        cornerRadius={4}
-        shadowColor="#0f172a"
-        shadowBlur={4}
-        shadowOpacity={0.15}
-        shadowOffset={{ x: 0, y: 2 }}
+        cornerRadius={isSchematic ? 4 : 2}
+        shadowColor={isSchematic ? "#0f172a" : "#000000"}
+        shadowBlur={isSchematic ? 4 : 8}
+        shadowOpacity={isSchematic ? 0.15 : 0.5}
+        shadowOffset={{ x: 0, y: isSchematic ? 2 : 4 }}
       />
+
+      {/* DIP Socket Inner Tray */}
+      {!isSchematic && (
+        <Rect
+          x={12}
+          y={10}
+          width={width - 24}
+          height={height - 20}
+          fill="#111111"
+          stroke="#0a0a0a"
+          strokeWidth={1}
+          cornerRadius={1}
+        />
+      )}
 
       {/* IC Notch */}
       {!isSchematic && (
         <Path
-          data={notchPath}
-          fill={canvasTheme.nodeBg}
-          stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
-          strokeWidth={isSelected ? 3 : 2}
+          data={`M ${width / 2 - 8} 0 a 8 8 0 0 0 16 0`}
+          fill="#111111"
+          stroke="#0a0a0a"
+          strokeWidth={1}
         />
       )}
 
@@ -112,22 +141,22 @@ export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
         />
       )}
 
-      {/* IC Label (Rotated vertically to fit perfectly) */}
+      {/* IC Label */}
       <Text
         text={def?.type || 'IC'}
-        x={width / 2}
-        y={height / 2}
-        offsetX={50} // half of max text width to center it
-        offsetY={7} // half of text height
-        width={100}
+        x={0}
+        y={isSchematic ? 10 : height / 2}
+        offsetX={0}
+        offsetY={isSchematic ? 0 : 7}
+        width={width}
         align="center"
-        verticalAlign="middle"
-        rotation={90}
+        verticalAlign={isSchematic ? "top" : "middle"}
+        rotation={isSchematic ? 0 : 90}
         fontSize={14}
         fontFamily="monospace"
         fontStyle="bold"
-        fill={canvasTheme.nodeBorder}
-        opacity={0.7}
+        fill={isSchematic ? canvasTheme.textColor : canvasTheme.nodeBorder}
+        opacity={isSchematic ? 1 : 0.7}
       />
 
       {/* Render Pins and Labels */}
@@ -146,7 +175,7 @@ export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
           row = isLeft ? safePinNum : (totalPins - safePinNum + 1);
         }
 
-        const yOffset = 20 + ((row - 1) * 20) + 10;
+        const yOffset = 20 + ((row - 1) * 20);
         
         return (
           <Group key={pin.id}>
@@ -176,7 +205,7 @@ export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
               );
             })()}
             {/* Logical Pin Name Label (e.g. 1A, VCC) */}
-            {pin.name && (
+            {isSchematic && pin.name && (
               <Text
                 text={pin.name}
                 x={isLeft ? 26 : width - 56}

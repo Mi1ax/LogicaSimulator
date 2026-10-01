@@ -72,18 +72,19 @@ export const updateNodeProperties = (state: CircuitState, id: string, props: Rec
   };
 };
 
-export const moveNode = (state: CircuitState, id: string, x: number, y: number): CircuitState => {
+export const moveNode = (state: CircuitState, id: string, x: number, y: number, isBoardCoords: boolean = false): CircuitState => {
   return {
     ...state,
-    nodes: state.nodes.map((node) => 
-      node.id === id 
-        ? { 
-            ...node, 
-            x: Math.round(x / GRID_SIZE) * GRID_SIZE, 
-            y: Math.round(y / GRID_SIZE) * GRID_SIZE 
-          } 
-        : node
-    )
+    nodes: state.nodes.map((node) => {
+      if (node.id === id) {
+        const snappedX = Math.round(x / GRID_SIZE) * GRID_SIZE;
+        const snappedY = Math.round(y / GRID_SIZE) * GRID_SIZE;
+        return isBoardCoords
+          ? { ...node, boardX: snappedX, boardY: snappedY }
+          : { ...node, x: snappedX, y: snappedY };
+      }
+      return node;
+    })
   };
 };
 
@@ -99,7 +100,8 @@ export const addWire = (
   sourceNodeId: string, 
   sourcePinId: string, 
   targetNodeId: string, 
-  targetPinId: string
+  targetPinId: string,
+  wireType?: 'solder' | 'jumper'
 ): CircuitState => {
   // Enforce 1 wire per input
   const existingWires = state.wires.filter(w => w.targetPinId !== targetPinId);
@@ -110,6 +112,7 @@ export const addWire = (
     sourcePinId,
     targetNodeId,
     targetPinId,
+    wireType
   };
 
   return { ...state, wires: [...existingWires, newWire] };
