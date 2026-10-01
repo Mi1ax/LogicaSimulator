@@ -15,6 +15,8 @@ export const getCanvasTheme = (isDark: boolean) => ({
   draftWireColor: isDark ? '#94a3b8' : '#94a3b8', // slate-400
   signalHigh: isDark ? '#4ade80' : '#22c55e', // green-400 : green-500
   signalLow: isDark ? '#475569' : '#94a3b8', // slate-600 : slate-400
-  pinFill: isDark ? '#3b82f6' : '#3b82f6',
-  pinStroke: isDark ? '#1e3a8a' : '#1e3a8a',
+  pinInputFill: isDark ? '#3b82f6' : '#2563eb', // blue
+  pinInputStroke: isDark ? '#1e3a8a' : '#1e3a8a',
+  pinOutputFill: isDark ? '#f43f5e' : '#e11d48', // rose
+  pinOutputStroke: isDark ? '#881337' : '#881337',
 });

@@ -81,6 +81,18 @@ export const GateNode: React.FC<GateNodeProps> = ({ node }) => {
         fontStyle="bold"
         fill={canvasTheme.textColor}
       />
+      
+      {/* Custom Name Label */}
+      {node.properties?.label && (
+        <Text
+          text={node.properties.label}
+          y={-20}
+          width={width}
+          align="center"
+          fontSize={12}
+          fill={canvasTheme.textColor}
+        />
+      )}
 
       {/* Input Pins */}
       {node.inputs.map((pin, i) => {

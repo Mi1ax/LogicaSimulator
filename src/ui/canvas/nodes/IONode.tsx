@@ -48,9 +48,6 @@ export const IONode: React.FC<IONodeProps> = ({ node }) => {
       draggable
       onClick={(e) => {
         e.cancelBubble = true;
-        if (isInput) {
-          toggleInputNode(node.id);
-        }
         select({ type: 'node', id: node.id });
       }}
       onDragMove={(e) => {
@@ -67,7 +64,7 @@ export const IONode: React.FC<IONodeProps> = ({ node }) => {
       }}
       onMouseEnter={(e) => {
         const container = e.target.getStage()?.container();
-        if (container) container.style.cursor = isInput ? 'pointer' : 'grab';
+        if (container) container.style.cursor = 'grab';
       }}
       onMouseLeave={(e) => {
         const container = e.target.getStage()?.container();
@@ -84,22 +81,88 @@ export const IONode: React.FC<IONodeProps> = ({ node }) => {
         fill={bgFill}
         stroke={isSelected ? canvasTheme.selectedNodeColor : borderStroke}
         strokeWidth={isSelected ? 3 : 2}
-        cornerRadius={30}
+        cornerRadius={isInput ? 8 : 30}
         shadowColor="#0f172a"
         shadowBlur={4}
         shadowOpacity={0.1}
         shadowOffset={{ x: 0, y: 2 }}
       />
+
+      {/* Custom Name Label */}
+      {node.properties?.label && (
+        <Text
+          text={node.properties.label}
+          y={-20}
+          width={width}
+          align="center"
+          fontSize={12}
+          fill={canvasTheme.textColor}
+        />
+      )}
       
-      {/* Visual indicator */}
-      <Circle
-        x={width / 2}
-        y={height / 2 - 5}
-        radius={12}
-        fill={indicatorFill}
-        stroke={borderStroke}
-        strokeWidth={1}
-      />
+      {/* Switch Track (Inputs Only) */}
+      {isInput && (
+        <Group
+          onClick={(e) => {
+            e.cancelBubble = true; // prevent selecting the node
+            toggleInputNode(node.id);
+          }}
+          onMouseEnter={(e) => {
+            const container = e.target.getStage()?.container();
+            if (container) container.style.cursor = 'pointer';
+          }}
+          onMouseLeave={(e) => {
+            const container = e.target.getStage()?.container();
+            if (container) container.style.cursor = 'default';
+          }}
+        >
+          {/* Invisible larger hit area for easier clicking */}
+          <Rect
+            x={width / 2 - 20}
+            y={height / 2 - 25}
+            width={40}
+            height={50}
+            fill="transparent"
+          />
+          <Rect
+            x={width / 2 - 8}
+            y={height / 2 - 12 - 5}
+            width={16}
+            height={24}
+            fill={canvasTheme.gridColor}
+            cornerRadius={2}
+            stroke={borderStroke}
+            strokeWidth={1}
+          />
+          {/* Knob */}
+          <Rect
+            x={width / 2 - 12}
+            y={val === 1 ? (height / 2 - 14 - 5) : (height / 2 + 2 - 5)}
+            width={24}
+            height={12}
+            fill={indicatorFill}
+            stroke={borderStroke}
+            strokeWidth={1}
+            cornerRadius={2}
+            shadowColor="#000"
+            shadowBlur={2}
+            shadowOpacity={0.3}
+            shadowOffset={{ x: 0, y: 1 }}
+          />
+        </Group>
+      )}
+
+      {/* Visual indicator (LED for Output/Clock) */}
+      {!isInput && (
+        <Circle
+          x={width / 2}
+          y={height / 2 - 5}
+          radius={12}
+          fill={indicatorFill}
+          stroke={borderStroke}
+          strokeWidth={1}
+        />
+      )}
       
       <Text
         text={isInput ? "IN" : isOutput ? "OUT" : "CLK"}

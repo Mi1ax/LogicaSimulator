@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Topbar } from './ui/components/Topbar';
 import { Toolbox } from './ui/components/Toolbox';
 import { CanvasArea } from './ui/canvas/CanvasArea';
+import { PropertiesPanel } from './ui/components/PropertiesPanel';
 import { useSimulatorStore } from './store/useSimulatorStore';
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
       <div className="flex flex-1 overflow-hidden relative">
         <Toolbox />
         <CanvasArea />
+        <PropertiesPanel />
       </div>
     </div>
   );
