@@ -24,6 +24,8 @@ export const IONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   const isInput = node.type === 'INPUT';
   const isOutput = node.type === 'OUTPUT';
   const isClock = node.type === 'CLOCK';
+  const isVcc = node.type === 'VCC';
+  const isGnd = node.type === 'GND';
   
   const isSelected = selection?.type === 'node' && selection.id === node.id;
 
@@ -35,11 +37,16 @@ export const IONode: React.FC<IONodeProps> = React.memo(({ node }) => {
     val = simState.pinStates[node.inputs[0]?.id];
   } else if (isClock) {
     val = simState.pinStates[node.outputs[0]?.id];
+  } else if (isVcc) {
+    val = 1;
+  } else if (isGnd) {
+    val = 0;
   }
 
-  const indicatorFill = val === 1 ? canvasTheme.signalHigh : (isInput || isClock ? canvasTheme.inputIndicator : canvasTheme.outputIndicator);
-  const bgFill = isInput || isClock ? canvasTheme.inputNodeBg : canvasTheme.outputNodeBg;
-  const borderStroke = isInput || isClock ? canvasTheme.inputNodeBorder : canvasTheme.outputNodeBorder;
+  const isInputLike = isInput || isClock || isVcc || isGnd;
+  const indicatorFill = val === 1 ? canvasTheme.signalHigh : (isInputLike ? canvasTheme.inputIndicator : canvasTheme.outputIndicator);
+  const bgFill = isInputLike ? canvasTheme.inputNodeBg : canvasTheme.outputNodeBg;
+  const borderStroke = isInputLike ? canvasTheme.inputNodeBorder : canvasTheme.outputNodeBorder;
 
   return (
     <Group
@@ -167,7 +174,7 @@ export const IONode: React.FC<IONodeProps> = React.memo(({ node }) => {
       )}
       
       <Text
-        text={isInput ? "IN" : isOutput ? "OUT" : "CLK"}
+        text={isInput ? "IN" : isOutput ? "OUT" : isClock ? "CLK" : isVcc ? "VCC" : isGnd ? "GND" : ""}
         y={height - 20}
         width={width}
         align="center"
@@ -177,7 +184,7 @@ export const IONode: React.FC<IONodeProps> = React.memo(({ node }) => {
         fill={borderStroke}
       />
 
-      {(isInput || isClock) && node.outputs.map((pin) => (
+      {isInputLike && node.outputs.map((pin) => (
         <Pin key={pin.id} id={pin.id} nodeId={node.id} x={width} y={height / 2} type="output" />
       ))}
       

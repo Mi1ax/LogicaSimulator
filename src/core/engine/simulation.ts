@@ -21,14 +21,29 @@ export const computeNextState = (
     if (!def) return;
 
     const inVals = node.inputs.map(p => prevState.pinStates[p.id]);
-    const outVals = def.evaluate(inVals, node.properties, prevState.tickCount);
     
-    // Apply outputs
-    node.outputs.forEach((pin, idx) => {
-      if (outVals[idx] !== undefined) {
-        nextPinStates[pin.id] = outVals[idx];
-      }
-    });
+    let isPowered = true;
+    if (def.renderAs === 'DIP' && node.properties?.schematicView === false) {
+      node.inputs.forEach((pin, idx) => {
+        if (pin.name === 'VCC' && inVals[idx] !== 1) isPowered = false;
+        if (pin.name === 'GND' && inVals[idx] !== 0) isPowered = false;
+      });
+    }
+
+    if (!isPowered) {
+      // Unpowered IC outputs high-Z (undefined)
+      node.outputs.forEach((pin) => {
+        nextPinStates[pin.id] = undefined;
+      });
+    } else {
+      const outVals = def.evaluate(inVals, node.properties, prevState.tickCount);
+      // Apply outputs
+      node.outputs.forEach((pin, idx) => {
+        if (outVals[idx] !== undefined) {
+          nextPinStates[pin.id] = outVals[idx];
+        }
+      });
+    }
   });
 
   // 2. Propagate through wires (1-tick delay for wire travel, or instant)

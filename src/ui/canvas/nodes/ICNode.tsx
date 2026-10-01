@@ -23,11 +23,15 @@ export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
   const isSelected = selection?.type === 'node' && selection.id === node.id;
   const def = getNodeDefinition(node.type);
 
-  const allPins = [...node.inputs, ...node.outputs];
   const isSchematic = node.properties?.schematicView !== false;
+  
+  const visibleInputs = isSchematic ? node.inputs.filter(p => p.name !== 'VCC' && p.name !== 'GND') : node.inputs;
+  const visibleOutputs = isSchematic ? node.outputs.filter(p => p.name !== 'VCC' && p.name !== 'GND') : node.outputs;
+  const allPins = isSchematic ? [...visibleInputs, ...visibleOutputs] : [...node.inputs, ...node.outputs];
+
   let pinsPerSide = 4;
   if (isSchematic) {
-    pinsPerSide = Math.max(node.inputs.length, node.outputs.length);
+    pinsPerSide = Math.max(visibleInputs.length, visibleOutputs.length);
   } else {
     const maxPinNumber = allPins.reduce((max, p) => Math.max(max, getSafePinNumber(node.type, p) ?? 0), 0);
     pinsPerSide = Math.max(Math.ceil(allPins.length / 2), Math.ceil(maxPinNumber / 2));
@@ -133,7 +137,7 @@ export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
 
         if (isSchematic) {
           isLeft = pin.type === 'input';
-          const index = isLeft ? node.inputs.findIndex(p => p.id === pin.id) : node.outputs.findIndex(p => p.id === pin.id);
+          const index = isLeft ? visibleInputs.findIndex(p => p.id === pin.id) : visibleOutputs.findIndex(p => p.id === pin.id);
           row = index + 1;
         } else {
           const safePinNum = getSafePinNumber(node.type, pin) ?? 1;

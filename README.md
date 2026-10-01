@@ -5,6 +5,7 @@ Logica is a modern, high-performance digital logic and 74LS chip simulator built
 ![Logica Simulator Preview](https://via.placeholder.com/800x450?text=Logica+Simulator)
 
 ## Features
+- **Strict Separation of Concerns**: Core engine logic and simulation state are completely decoupled from UI components.
 - **Extensible Node Registry**: Easily add new logic gates or custom ICs without touching the core simulation loop.
 - **High-Performance Canvas**: Utilizes targeted Zustand selectors, heavy SVG geometry memoization, and adaptive rendering to easily handle thousands of components at 60fps.
 - **Manhattan Routing**: Wires automatically map orthogonal segments and generate visual U-bridge jumpers when crossing without intersecting.

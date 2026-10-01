@@ -5,9 +5,20 @@ import { computeNextState } from '../core/engine/simulation';
 
 export type Selection = { type: 'node' | 'wire', id: string } | null;
 
+export interface PointerSettings {
+  mouseWheelBehavior: 'zoom' | 'pan'; // 'zoom' = CAD style, 'pan' = Figma style
+  panSpeed: number;
+  zoomSensitivity: number;
+  invertZoom: boolean;
+}
+
 interface SimulatorState {
   theme: 'light' | 'dark';
   toggleTheme: () => void;
+
+  // Settings
+  settings: PointerSettings;
+  updateSettings: (newSettings: Partial<PointerSettings>) => void;
 
   // UI state for drawing wires
   draftWire: DraftWire | null;
@@ -24,12 +35,12 @@ interface SimulatorState {
   // Core circuit state (delegated to pure logic)
   nodes: LogicNode[];
   wires: Wire[];
-  
+
   // Simulation State
   simState: import('../core/engine/simulation').SimulationState;
   simRunning: boolean;
   simSpeed: number; // Hz (ticks per second)
-  
+
   addNode: (type: NodeType, x: number, y: number) => void;
   updateNodePosition: (id: string, x: number, y: number) => void;
   updateNodeProperties: (id: string, props: Record<string, any>) => void;
@@ -54,9 +65,9 @@ interface SimulatorState {
 }
 
 const pushHistory = (state: SimulatorState) => ({
-  history: [...state.history, { 
-    nodes: JSON.parse(JSON.stringify(state.nodes)), 
-    wires: JSON.parse(JSON.stringify(state.wires)) 
+  history: [...state.history, {
+    nodes: structuredClone(state.nodes),
+    wires: structuredClone(state.wires)
   }].slice(-50),
   future: []
 });
@@ -64,6 +75,16 @@ const pushHistory = (state: SimulatorState) => ({
 export const useSimulatorStore = create<SimulatorState>((set) => ({
   theme: 'dark',
   toggleTheme: () => set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
+
+  settings: {
+    mouseWheelBehavior: 'zoom',
+    panSpeed: 1.0,
+    zoomSensitivity: 1.0,
+    invertZoom: false,
+  },
+  updateSettings: (newSettings) => set((state) => ({
+    settings: { ...state.settings, ...newSettings }
+  })),
 
   nodes: [],
   wires: [],
@@ -83,8 +104,8 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
     if (state.history.length === 0) return state;
     const previous = state.history[state.history.length - 1];
     return {
-      nodes: JSON.parse(JSON.stringify(previous.nodes)),
-      wires: JSON.parse(JSON.stringify(previous.wires)),
+      nodes: structuredClone(previous.nodes),
+      wires: structuredClone(previous.wires),
       selection: null,
       history: state.history.slice(0, -1),
       future: [{ nodes: state.nodes, wires: state.wires }, ...state.future],
@@ -95,8 +116,8 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
     if (state.future.length === 0) return state;
     const next = state.future[0];
     return {
-      nodes: JSON.parse(JSON.stringify(next.nodes)),
-      wires: JSON.parse(JSON.stringify(next.wires)),
+      nodes: structuredClone(next.nodes),
+      wires: structuredClone(next.wires),
       selection: null,
       history: [...state.history, { nodes: state.nodes, wires: state.wires }],
       future: state.future.slice(1),
@@ -115,23 +136,23 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
       return { ...nextCircuit, ...pushHistory(state), selection: null };
     }
   }),
-  
+
   addNode: (type, x, y) => set((state) => ({ ...circuit.addNode(state, type, x, y), ...pushHistory(state) })),
   updateNodePosition: (id, x, y) => set((state) => circuit.moveNode(state, id, x, y)), // History saved on drag start
   updateNodeProperties: (id, props) => set((state) => ({ ...circuit.updateNodeProperties(state, id, props), ...pushHistory(state) })),
   setNodeInputCount: (id, count) => set((state) => ({ ...circuit.setNodeInputCount(state, id, count), ...pushHistory(state) })),
 
-  clearNodes: () => set({ 
-    nodes: [], 
-    wires: [], 
-    draftWire: null, 
+  clearNodes: () => set({
+    nodes: [],
+    wires: [],
+    draftWire: null,
     selection: null,
     simState: { tickCount: 0, pinStates: {}, wireStates: {} },
-    simRunning: false 
+    simRunning: false
   }),
 
-  stepSimulation: () => set((state) => ({ 
-    simState: computeNextState(state.nodes, state.wires, state.simState) 
+  stepSimulation: () => set((state) => ({
+    simState: computeNextState(state.nodes, state.wires, state.simState)
   })),
 
   setSimRunning: (running) => set({ simRunning: running }),
@@ -161,9 +182,9 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
 
   completeWire: (nodeId, pinId, pinType) => set((state) => {
     if (!state.draftWire) return state;
-    
+
     const { sourceNodeId, sourcePinId, sourceType, waypoints } = state.draftWire;
-    
+
     if (sourceNodeId === nodeId || sourceType === pinType) {
       return { draftWire: null };
     }
@@ -175,10 +196,10 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
     const inputNodeId = isSourceOutput ? nodeId : sourceNodeId;
 
     let nextCircuit = circuit.addWire(state, outputNodeId, outputPinId, inputNodeId, inputPinId);
-    
+
     // Reverse waypoints if we started drawing from an input to an output
     const finalWaypoints = isSourceOutput ? (waypoints || []) : (waypoints ? [...waypoints].reverse() : []);
-    
+
     if (finalWaypoints.length > 0) {
       // Find the newly added wire (it's the last one)
       const newWire = nextCircuit.wires[nextCircuit.wires.length - 1];
@@ -191,7 +212,7 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
   cancelWire: () => set({ draftWire: null }),
 
   setWireMidX: (wireId, midX) => set((state) => circuit.setWireMidX(state, wireId, midX)),
-  
+
   updateWireWaypoints: (wireId, waypoints) => set((state) => circuit.updateWireWaypoints(state, wireId, waypoints)),
 }));
 

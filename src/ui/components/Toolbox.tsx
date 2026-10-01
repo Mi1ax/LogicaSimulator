@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { NodeType } from '../../core/models/types';
-import { BoxSelect, Cpu, ToggleLeft, Lightbulb, Timer } from 'lucide-react';
+import { BoxSelect, Cpu, ToggleLeft, Lightbulb, Timer, Zap } from 'lucide-react';
 import { getNodeDefinition } from '../../core/engine/nodes';
 
 interface ToolCategory {
@@ -11,8 +11,10 @@ interface ToolCategory {
 
 const CATEGORIES: ToolCategory[] = [
   {
-    name: 'I/O & Timing',
+    name: 'Power & I/O',
     items: [
+      { type: 'VCC', icon: <Zap size={18} /> },
+      { type: 'GND', icon: <Zap size={18} /> },
       { type: 'INPUT', icon: <ToggleLeft size={18} /> },
       { type: 'OUTPUT', icon: <Lightbulb size={18} /> },
       { type: 'CLOCK', icon: <Timer size={18} /> },

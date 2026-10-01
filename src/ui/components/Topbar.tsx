@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
-import { Trash2, Sun, Moon, Play, Pause, StepForward } from 'lucide-react';
+import { Trash2, Sun, Moon, Play, Pause, StepForward, Settings } from 'lucide-react';
 
 export const Topbar: React.FC = () => {
+  const [showSettings, setShowSettings] = useState(false);
   const clearNodes = useSimulatorStore(state => state.clearNodes);
   const theme = useSimulatorStore(state => state.theme);
   const toggleTheme = useSimulatorStore(state => state.toggleTheme);
@@ -11,6 +12,8 @@ export const Topbar: React.FC = () => {
   const stepSimulation = useSimulatorStore(state => state.stepSimulation);
   const simSpeed = useSimulatorStore(state => state.simSpeed);
   const setSimSpeed = useSimulatorStore(state => state.setSimSpeed);
+  const settings = useSimulatorStore(state => state.settings);
+  const updateSettings = useSimulatorStore(state => state.updateSettings);
 
   return (
     <div className="h-14 bg-white dark:bg-slate-800 border-b border-gray-300 dark:border-slate-700 flex items-center justify-between px-6 shadow-sm z-10 relative transition-colors">
@@ -74,6 +77,88 @@ export const Topbar: React.FC = () => {
         >
           {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
         </button>
+        
+        <div className="relative">
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className={`p-2 rounded-md transition-colors ${showSettings ? 'bg-gray-200 dark:bg-slate-600 text-gray-800 dark:text-slate-100' : 'text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700'}`}
+            title="Settings"
+          >
+            <Settings size={20} />
+          </button>
+          
+          {showSettings && (
+            <>
+              <div 
+                className="fixed inset-0 z-40" 
+                onClick={() => setShowSettings(false)}
+              />
+              <div className="absolute right-0 top-full mt-2 w-72 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 p-4 z-50">
+              <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-100 mb-3 border-b border-gray-200 dark:border-slate-700 pb-2">Canvas Settings</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Mouse Wheel Action</label>
+                  <div className="flex bg-gray-100 dark:bg-slate-900 p-1 rounded-md">
+                    <button
+                      className={`flex-1 text-xs py-1 rounded transition-colors ${settings.mouseWheelBehavior === 'pan' ? 'bg-white dark:bg-slate-700 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'}`}
+                      onClick={() => updateSettings({ mouseWheelBehavior: 'pan' })}
+                    >
+                      Pan (Figma)
+                    </button>
+                    <button
+                      className={`flex-1 text-xs py-1 rounded transition-colors ${settings.mouseWheelBehavior === 'zoom' ? 'bg-white dark:bg-slate-700 shadow-sm text-gray-900 dark:text-white' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'}`}
+                      onClick={() => updateSettings({ mouseWheelBehavior: 'zoom' })}
+                    >
+                      Zoom (CAD)
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <label className="text-xs font-medium text-gray-500 dark:text-slate-400">Pan Speed</label>
+                    <span className="text-xs text-gray-400">{settings.panSpeed.toFixed(1)}x</span>
+                  </div>
+                  <input
+                    type="range" min="0.1" max="3" step="0.1"
+                    value={settings.panSpeed}
+                    onChange={(e) => updateSettings({ panSpeed: Number(e.target.value) })}
+                    className="w-full h-1 bg-gray-300 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <label className="text-xs font-medium text-gray-500 dark:text-slate-400">Zoom Sensitivity</label>
+                    <span className="text-xs text-gray-400">{settings.zoomSensitivity.toFixed(1)}x</span>
+                  </div>
+                  <input
+                    type="range" min="0.1" max="3" step="0.1"
+                    value={settings.zoomSensitivity}
+                    onChange={(e) => updateSettings({ zoomSensitivity: Number(e.target.value) })}
+                    className="w-full h-1 bg-gray-300 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <label className="text-xs font-medium text-gray-500 dark:text-slate-400">Invert Zoom</label>
+                  <button
+                    onClick={() => updateSettings({ invertZoom: !settings.invertZoom })}
+                    className={`w-8 h-4 rounded-full p-0.5 transition-colors ${settings.invertZoom ? 'bg-blue-500' : 'bg-gray-300 dark:bg-slate-600'}`}
+                  >
+                    <div className={`w-3 h-3 rounded-full bg-white transition-transform ${settings.invertZoom ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+                
+                <p className="text-[10px] text-gray-400 dark:text-slate-500 pt-2 border-t border-gray-200 dark:border-slate-700">
+                  Tip: Trackpad pinch-to-zoom and two-finger pan are automatically detected on modern browsers.
+                </p>
+              </div>
+            </div>
+            </>
+          )}
+        </div>
         
         <div className="w-px h-6 bg-gray-200 dark:bg-slate-700" />
         

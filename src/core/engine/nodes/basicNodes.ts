@@ -79,18 +79,21 @@ export const OutputNode: NodeDefinition = {
 export const ClockNode: NodeDefinition = {
   type: 'CLOCK',
   label: '555 OSC',
-  numInputs: 1,
+  numInputs: 3,
   numOutputs: 1,
   renderAs: 'DIP',
   customPins: [
-    { type: 'input', name: 'EN', pinNumber: 4 }, // Acting like RESET on a 555
+    { type: 'input', name: 'GND', pinNumber: 1 },
     { type: 'output', name: 'OUT', pinNumber: 3 }, // 555 OUT pin
+    { type: 'input', name: 'EN', pinNumber: 4 }, // Acting like RESET on a 555
+    { type: 'input', name: 'VCC', pinNumber: 8 },
   ],
   defaultProperties: { interval: 10, label: '555 CLK' },
   evaluate: (inputs, props, tickCount) => {
-    // EN is pin 4 (active high enable for simplicity in this logic sim, or active low reset)
-    // Let's treat it as an Enable. Default to 1 (running) if disconnected.
-    const en = inputs[0] ?? 1;
+    // Legacy nodes have 1 input (EN). New nodes have 3 (GND, EN, VCC).
+    const isLegacy = inputs.length === 1;
+    const en = isLegacy ? (inputs[0] ?? 1) : (inputs[1] ?? 1);
+    
     if (en === 0) {
       return [0];
     }
@@ -99,4 +102,20 @@ export const ClockNode: NodeDefinition = {
     const val = Math.floor((tickCount ?? 0) / interval) % 2 === 0 ? 0 : 1;
     return [val];
   }
+};
+
+export const VccNode: NodeDefinition = {
+  type: 'VCC',
+  label: 'Power (VCC)',
+  numInputs: 0,
+  numOutputs: 1,
+  evaluate: () => [1] // Always outputs 1
+};
+
+export const GndNode: NodeDefinition = {
+  type: 'GND',
+  label: 'Ground (GND)',
+  numInputs: 0,
+  numOutputs: 1,
+  evaluate: () => [0] // Always outputs 0
 };
