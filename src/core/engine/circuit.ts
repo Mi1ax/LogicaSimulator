@@ -18,20 +18,39 @@ export const addNode = (state: CircuitState, type: NodeType, x: number, y: numbe
   const id = `node-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   
   const properties = def.defaultProperties ? { ...def.defaultProperties } : {};
+  if (def.renderAs) properties.renderAs = def.renderAs;
   
-  const inputs: Pin[] = Array.from({ length: def.numInputs }).map((_, i) => ({
-    id: `pin-${id}-in-${i}`,
-    nodeId: id,
-    type: 'input',
-    index: i,
-  }));
-  
-  const outputs: Pin[] = Array.from({ length: def.numOutputs }).map((_, i) => ({
-    id: `pin-${id}-out-${i}`,
-    nodeId: id,
-    type: 'output',
-    index: i,
-  }));
+  let inputs: Pin[] = [];
+  let outputs: Pin[] = [];
+
+  if (def.customPins) {
+    def.customPins.forEach((cp) => {
+      const pin: Pin = {
+        id: `pin-${id}-${cp.type}-${cp.name}`,
+        nodeId: id,
+        type: cp.type,
+        index: cp.type === 'input' ? inputs.length : outputs.length,
+        name: cp.name,
+        pinNumber: cp.pinNumber,
+      };
+      if (cp.type === 'input') inputs.push(pin);
+      else outputs.push(pin);
+    });
+  } else {
+    inputs = Array.from({ length: def.numInputs }).map((_, i) => ({
+      id: `pin-${id}-in-${i}`,
+      nodeId: id,
+      type: 'input',
+      index: i,
+    }));
+    
+    outputs = Array.from({ length: def.numOutputs }).map((_, i) => ({
+      id: `pin-${id}-out-${i}`,
+      nodeId: id,
+      type: 'output',
+      index: i,
+    }));
+  }
   
   const newNode: LogicNode = {
     id,
@@ -104,5 +123,12 @@ export const setWireMidX = (state: CircuitState, wireId: string, midX: number): 
   return {
     ...state,
     wires: state.wires.map(w => w.id === wireId ? { ...w, midX } : w)
+  };
+};
+
+export const updateWireWaypoints = (state: CircuitState, wireId: string, waypoints: {x: number, y: number}[]): CircuitState => {
+  return {
+    ...state,
+    wires: state.wires.map(w => w.id === wireId ? { ...w, waypoints } : w)
   };
 };

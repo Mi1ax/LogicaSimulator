@@ -39,21 +39,22 @@ export const Pin: React.FC<PinProps> = ({ x, y, type, id, nodeId }) => {
         if (container) container.style.cursor = 'default';
         e.target.scale({ x: 1, y: 1 });
       }}
-      onMouseDown={(e) => {
+      onClick={(e) => {
         e.cancelBubble = true;
-        const stage = e.target.getStage();
-        if (!stage) return;
-        const pointer = stage.getPointerPosition();
-        if (!pointer) return;
-        
-        const transform = stage.getAbsoluteTransform().copy().invert();
-        const pos = transform.point(pointer);
-        
-        startWire(nodeId, id, type, pos.x, pos.y);
-      }}
-      onMouseUp={(e) => {
-        e.cancelBubble = true;
-        completeWire(nodeId, id, type);
+        const state = useSimulatorStore.getState();
+        if (!state.draftWire) {
+          const stage = e.target.getStage();
+          if (!stage) return;
+          const pointer = stage.getPointerPosition();
+          if (!pointer) return;
+          
+          const transform = stage.getAbsoluteTransform().copy().invert();
+          const pos = transform.point(pointer);
+          
+          startWire(nodeId, id, type, pos.x, pos.y);
+        } else {
+          completeWire(nodeId, id, type);
+        }
       }}
     />
   );

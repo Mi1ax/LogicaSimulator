@@ -27,6 +27,12 @@ const CATEGORIES: ToolCategory[] = [
       { type: 'NOT', icon: <BoxSelect size={18} /> },
       { type: 'XOR', icon: <Cpu size={18} /> },
     ]
+  },
+  {
+    name: 'Integrated Circuits',
+    items: [
+      { type: '74LS08', icon: <Cpu size={18} /> },
+    ]
   }
 ];
 
@@ -34,9 +40,9 @@ export const Toolbox: React.FC = () => {
   const addNode = useSimulatorStore((state) => state.addNode);
 
   const handleAddNode = (type: NodeType) => {
-    // Add to center of screen roughly
-    const centerX = window.innerWidth / 2;
-    const centerY = window.innerHeight / 2;
+    // Add to center of screen roughly, snapped to 20px grid
+    const centerX = Math.round((window.innerWidth / 2) / 20) * 20;
+    const centerY = Math.round((window.innerHeight / 2) / 20) * 20;
     addNode(type, centerX, centerY);
   };
 

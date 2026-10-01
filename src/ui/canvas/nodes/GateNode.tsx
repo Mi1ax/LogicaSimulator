@@ -30,18 +30,17 @@ export const GateNode: React.FC<GateNodeProps> = ({ node }) => {
         e.cancelBubble = true;
         select({ type: 'node', id: node.id });
       }}
-      dragBoundFunc={(pos) => {
-        const GRID_SIZE = 20;
-        return {
-          x: Math.round(pos.x / GRID_SIZE) * GRID_SIZE,
-          y: Math.round(pos.y / GRID_SIZE) * GRID_SIZE,
-        };
-      }}
       onDragMove={(e) => {
-        updateNodePosition(node.id, e.target.x(), e.target.y());
+        const localX = Math.round(e.target.x() / 20) * 20;
+        const localY = Math.round(e.target.y() / 20) * 20;
+        e.target.position({ x: localX, y: localY });
+        updateNodePosition(node.id, localX, localY);
       }}
       onDragEnd={(e) => {
-        updateNodePosition(node.id, e.target.x(), e.target.y());
+        const localX = Math.round(e.target.x() / 20) * 20;
+        const localY = Math.round(e.target.y() / 20) * 20;
+        e.target.position({ x: localX, y: localY });
+        updateNodePosition(node.id, localX, localY);
       }}
       onMouseEnter={(e) => {
         const container = e.target.getStage()?.container();
