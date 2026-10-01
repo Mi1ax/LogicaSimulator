@@ -11,7 +11,8 @@ Logica is a modern, high-performance digital logic and 74LS chip simulator built
 - **Live Simulation Playback**: Real-time tick engine with adjustable execution speeds (1Hz to 50Hz) and step-by-step debugging.
 
 ## Documentation
-- For a deep dive into the separation of concerns, the node registry, and the simulation loop, please read the [Architecture Documentation](./ARCHITECTURE.md).
+- [Architecture Overview](./docs/architecture.md): Deep dive into the UI vs Engine separation of concerns.
+- [Components & Properties](./docs/components.md): How to build new components and configure their internal logic and memory properties.
 
 ## Getting Started
 
