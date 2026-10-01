@@ -104,3 +104,11 @@ Instead, the `evaluate` function intentionally mutates `props` **in-place**:
 3. If the state changes, simply mutate the object: `props.lastClock = 1`.
 
 Because the simulation engine passes `node.properties` by reference, this provides extremely fast internal memory that survives across ticks without triggering heavy React UI reconciliations.
+
+---
+
+## Testing Components
+
+Since all simulation logic and state mutations strictly reside outside of React, they are incredibly easy to test via Vitest in a pure Node environment.
+
+For detailed instructions on testing combinational logic gates (using visual ASCII Truth Tables) or sequential stateful ICs, please see [Testing Components](./testing.md).
