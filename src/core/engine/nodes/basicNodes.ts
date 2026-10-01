@@ -78,11 +78,23 @@ export const OutputNode: NodeDefinition = {
 
 export const ClockNode: NodeDefinition = {
   type: 'CLOCK',
-  label: 'Clock',
-  numInputs: 0,
+  label: '555 OSC',
+  numInputs: 1,
   numOutputs: 1,
-  defaultProperties: { interval: 10 },
-  evaluate: (_, props, tickCount) => {
+  renderAs: 'DIP',
+  customPins: [
+    { type: 'input', name: 'EN', pinNumber: 4 }, // Acting like RESET on a 555
+    { type: 'output', name: 'OUT', pinNumber: 3 }, // 555 OUT pin
+  ],
+  defaultProperties: { interval: 10, label: '555 CLK' },
+  evaluate: (inputs, props, tickCount) => {
+    // EN is pin 4 (active high enable for simplicity in this logic sim, or active low reset)
+    // Let's treat it as an Enable. Default to 1 (running) if disconnected.
+    const en = inputs[0] ?? 1;
+    if (en === 0) {
+      return [0];
+    }
+
     const interval = props?.interval ?? 10;
     const val = Math.floor((tickCount ?? 0) / interval) % 2 === 0 ? 0 : 1;
     return [val];

@@ -52,6 +52,21 @@ export const PropertiesPanel: React.FC = () => {
           />
         </div>
 
+        {/* Schematic View Toggle (For DIPs) */}
+        {(node.properties?.renderAs === 'DIP' || def.renderAs === 'DIP') && (
+          <label className="flex items-center space-x-2 cursor-pointer">
+            <input
+              type="checkbox"
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 bg-gray-50 dark:bg-slate-900 dark:border-slate-600"
+              checked={node.properties?.schematicView !== false}
+              onChange={(e) => updateNodeProperties(node.id, { schematicView: e.target.checked })}
+            />
+            <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
+              Schematic View
+            </span>
+          </label>
+        )}
+
         {/* Variable Inputs */}
         {isVariableInputGate && (
           <div>

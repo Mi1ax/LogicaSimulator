@@ -2,7 +2,7 @@ import React from 'react';
 import { Group, Rect, Text, Path } from 'react-konva';
 import { LogicNode } from '../../../core/models/types';
 import { useSimulatorStore } from '../../../store/useSimulatorStore';
-import { getGateDimensions } from '../../../core/utils/nodeLayout';
+import { getGateDimensions, getSafePinNumber } from '../../../core/utils/nodeLayout';
 import { getCanvasTheme } from '../theme';
 import { Pin } from '../primitives/Pin';
 import { getNodeDefinition } from '../../../core/engine/nodes';
@@ -23,9 +23,15 @@ export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
   const isSelected = selection?.type === 'node' && selection.id === node.id;
   const def = getNodeDefinition(node.type);
 
-  // Combine pins
   const allPins = [...node.inputs, ...node.outputs];
-  const pinsPerSide = Math.ceil(allPins.length / 2);
+  const isSchematic = node.properties?.schematicView !== false;
+  let pinsPerSide = 4;
+  if (isSchematic) {
+    pinsPerSide = Math.max(node.inputs.length, node.outputs.length);
+  } else {
+    const maxPinNumber = allPins.reduce((max, p) => Math.max(max, getSafePinNumber(node.type, p) ?? 0), 0);
+    pinsPerSide = Math.max(Math.ceil(allPins.length / 2), Math.ceil(maxPinNumber / 2));
+  }
 
   // Draw the semi-circle notch at the top
   const notchPath = `M ${width / 2 - 10} 0 a 10 10 0 0 0 20 0`;
@@ -81,12 +87,14 @@ export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
       />
 
       {/* IC Notch */}
-      <Path
-        data={notchPath}
-        fill={canvasTheme.nodeBg}
-        stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
-        strokeWidth={isSelected ? 3 : 2}
-      />
+      {!isSchematic && (
+        <Path
+          data={notchPath}
+          fill={canvasTheme.nodeBg}
+          stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
+          strokeWidth={isSelected ? 3 : 2}
+        />
+      )}
 
       {/* Custom Name Label */}
       {node.properties?.label && (
@@ -120,8 +128,20 @@ export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
 
       {/* Render Pins and Labels */}
       {allPins.map((pin) => {
-        const isLeft = (pin.pinNumber ?? 1) <= pinsPerSide;
-        const row = isLeft ? (pin.pinNumber ?? 1) : (allPins.length - (pin.pinNumber ?? 1) + 1);
+        let isLeft = true;
+        let row = 1;
+
+        if (isSchematic) {
+          isLeft = pin.type === 'input';
+          const index = isLeft ? node.inputs.findIndex(p => p.id === pin.id) : node.outputs.findIndex(p => p.id === pin.id);
+          row = index + 1;
+        } else {
+          const safePinNum = getSafePinNumber(node.type, pin) ?? 1;
+          isLeft = safePinNum <= pinsPerSide;
+          const totalPins = pinsPerSide * 2;
+          row = isLeft ? safePinNum : (totalPins - safePinNum + 1);
+        }
+
         const yOffset = 20 + ((row - 1) * 20) + 10;
         
         return (
@@ -135,15 +155,22 @@ export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
               type={pin.type}
             />
             {/* Physical Pin Number Label */}
-            <Text
-              text={String(pin.pinNumber)}
-              x={isLeft ? 8 : width - 24}
-              y={yOffset - 5}
-              width={16}
-              align={isLeft ? 'left' : 'right'}
-              fontSize={10}
-              fill={canvasTheme.nodeBorder}
-            />
+            {(() => {
+              const safePin = getSafePinNumber(node.type, pin);
+              if (safePin === undefined) return null;
+              return (
+                <Text
+                  text={String(safePin)}
+                  x={isLeft ? 8 : width - 24}
+                  y={yOffset - 5}
+                  width={16}
+                  align={isLeft ? 'left' : 'right'}
+                  fontSize={10}
+                  fill={canvasTheme.nodeBorder}
+                  opacity={isSchematic ? 0.4 : 1}
+                />
+              );
+            })()}
             {/* Logical Pin Name Label (e.g. 1A, VCC) */}
             {pin.name && (
               <Text

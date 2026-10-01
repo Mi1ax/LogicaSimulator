@@ -36,23 +36,19 @@ export const MyCustomChip: NodeDefinition = {
   /**
    * The evaluation function. Runs on every simulation tick.
    * @param inputs Array of input values (0, 1, or undefined/High-Z)
-   * @param props The node's current properties/state
-   * @param dt Delta time since last tick
-   * @returns An object containing output states and (optionally) updated properties.
+   * @param props The node's current properties/state (you may mutate this for stateful logic)
+   * @param tickCount The current global tick count
+   * @returns An array of output signals ordered by pin index
    */
-  evaluate: (inputs, props, dt) => {
+  evaluate: (inputs, props, tickCount) => {
     const A = inputs[0] ?? 0; // Read input A, default to 0 if floating
     
-    // Read and update internal state via properties
-    let memory = props.internalMemory || 0;
+    // Read and mutate internal state via properties in-place
     if (A === 1) {
-        memory += 1;
+        props.internalMemory = (props.internalMemory || 0) + 1;
     }
 
-    return { 
-      outputs: { 0: memory % 2 }, // Output 1 or 0 based on memory
-      properties: { ...props, internalMemory: memory } // Persist the new memory state
-    };
+    return [ props.internalMemory % 2 ]; // Output array
   }
 };
 ```
@@ -100,12 +96,11 @@ useSimulatorStore.getState().setNodeInputCount(nodeId, newCount);
 This strictly modifies the structural blueprint, triggering the UI to instantly redraw the gate with the new pin layout.
 
 ### Stateful Memory Properties
-Because the simulator's `evaluate` function must remain pure in relation to the React UI, you cannot store variables directly inside the function scope. 
+Because the simulator runs continuously at a high frequency (e.g. 60Hz), you cannot dispatch Zustand store updates on every tick without cratering UI performance.
 
-Instead, use `props` to persist state across simulation ticks:
+Instead, the `evaluate` function intentionally mutates `props` **in-place**:
 1. Define a default value in `defaultProperties: { lastClock: 0 }`.
-2. In `evaluate(inputs, props)`, read `props.lastClock`.
-3. If the state changes, return it inside the evaluation object: 
-   `return { outputs: { ... }, properties: { ...props, lastClock: 1 } }`.
+2. In `evaluate(inputs, props, tickCount)`, read `props.lastClock`.
+3. If the state changes, simply mutate the object: `props.lastClock = 1`.
 
-The simulation engine will automatically detect the returned `properties` object, securely update the node's internal state, and make it available on the very next tick.
+Because the simulation engine passes `node.properties` by reference, this provides extremely fast internal memory that survives across ticks without triggering heavy React UI reconciliations.
