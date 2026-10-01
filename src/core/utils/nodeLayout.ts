@@ -1,9 +1,28 @@
-import { LogicNode } from '../models/types';
+import { LogicNode, Pin } from '../models/types';
+import { getNodeDefinition } from '../engine/nodes';
+
+export const getSafePinNumber = (nodeType: string, pin: Pick<Pin, 'name' | 'type' | 'pinNumber'>): number | undefined => {
+  if (pin.pinNumber !== undefined) return pin.pinNumber;
+  const def = getNodeDefinition(nodeType);
+  if (def?.customPins) {
+    const cp = def.customPins.find(c => c.name === pin.name && c.type === pin.type);
+    return cp?.pinNumber;
+  }
+  return undefined;
+};
 
 export const getGateDimensions = (node: LogicNode) => {
-  if (node.properties?.renderAs === 'DIP') {
-    const totalPins = node.inputs.length + node.outputs.length;
-    const pinsPerSide = Math.ceil(totalPins / 2);
+  const def = getNodeDefinition(node.type);
+  if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
+    const allPins = [...node.inputs, ...node.outputs];
+    const isSchematic = node.properties?.schematicView !== false;
+    let pinsPerSide = 4;
+    if (isSchematic) {
+      pinsPerSide = Math.max(node.inputs.length, node.outputs.length);
+    } else {
+      const maxPinNumber = allPins.reduce((max, p) => Math.max(max, getSafePinNumber(node.type, p) ?? 0), 0);
+      pinsPerSide = Math.max(Math.ceil(allPins.length / 2), Math.ceil(maxPinNumber / 2));
+    }
     // 20px per pin row + 40px padding top/bottom
     return { width: 120, height: pinsPerSide * 20 + 40 };
   }
@@ -19,15 +38,30 @@ export const getGateDimensions = (node: LogicNode) => {
 
 export const getPinPosition = (node: LogicNode, pinId: string) => {
   const { width, height } = getGateDimensions(node);
+  const def = getNodeDefinition(node.type);
   
-  if (node.properties?.renderAs === 'DIP') {
+  if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
     const allPins = [...node.inputs, ...node.outputs];
     const pin = allPins.find(p => p.id === pinId);
-    if (pin && pin.pinNumber !== undefined) {
-      const totalPins = allPins.length;
-      const pinsPerSide = Math.ceil(totalPins / 2);
-      const isLeft = pin.pinNumber <= pinsPerSide;
-      const row = isLeft ? pin.pinNumber : (totalPins - pin.pinNumber + 1);
+    if (pin) {
+      const isSchematic = node.properties?.schematicView !== false;
+      const safePinNum = getSafePinNumber(node.type, pin) ?? 1;
+      
+      let isLeft = true;
+      let row = 1;
+
+      if (isSchematic) {
+        isLeft = pin.type === 'input';
+        const collection = isLeft ? node.inputs : node.outputs;
+        const index = collection.findIndex(p => p.id === pinId);
+        row = index + 1;
+      } else {
+        const maxPinNumber = allPins.reduce((max, p) => Math.max(max, getSafePinNumber(node.type, p) ?? 0), 0);
+        const pinsPerSide = Math.max(Math.ceil(allPins.length / 2), Math.ceil(maxPinNumber / 2));
+        const totalPins = pinsPerSide * 2;
+        isLeft = safePinNum <= pinsPerSide;
+        row = isLeft ? safePinNum : (totalPins - safePinNum + 1);
+      }
       
       const x = isLeft ? node.x : node.x + width;
       const y = node.y + 20 + ((row - 1) * 20) + 10;
