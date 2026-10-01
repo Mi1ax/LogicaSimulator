@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { addNode, moveNode, deleteNode, addWire, deleteWire, CircuitState, setNodeInputCount } from '../circuit';
-import { NodeType } from '../../models/types';
+import { addNode, deleteNode, addWire, CircuitState, setNodeInputCount } from '../circuit';
 
 // Mock the node registry
 vi.mock('../nodes', () => {
@@ -50,7 +49,7 @@ describe('Circuit Store Core Mutators', () => {
     expect(node.y).toBe(40); // 30 / 20 = 2 * 20 = 40 (wait 30 / 20 = 1.5 -> Math.round is 2 * 20 = 40)
     expect(node.inputs.length).toBe(2);
     expect(node.outputs.length).toBe(1);
-    expect(node.properties.label).toBe('AndGate');
+    expect(node.properties?.label).toBe('AndGate');
   });
 
   it('should add a node with customPins correctly mapped', () => {
@@ -64,7 +63,7 @@ describe('Circuit Store Core Mutators', () => {
     expect(node.inputs[0].pinNumber).toBe(1);
     expect(node.outputs[0].name).toBe('QD');
     expect(node.outputs[0].pinNumber).toBe(11);
-    expect(node.properties.renderAs).toBe('DIP');
+    expect(node.properties?.renderAs).toBe('DIP');
   });
 
   it('should delete a node and its connected wires', () => {

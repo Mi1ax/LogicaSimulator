@@ -11,11 +11,11 @@ const generateTruthTable = (gateType: string, numInputs: number = 2) => {
 
   for (let i = 0; i < numCombinations; i++) {
     // Generate binary array for inputs (e.g., 0, 1 for 1; 1, 1 for 3)
-    const inputs = [];
+    const inputs: (0 | 1 | undefined)[] = [];
     for (let j = 0; j < numInputs; j++) {
       // Extract the j-th bit from the integer i (MSB first or LSB first? Let's do standard MSB-left A,B,C)
       const bit = (i >> (numInputs - 1 - j)) & 1;
-      inputs.push(bit);
+      inputs.push(bit as 0 | 1);
     }
 
     const outputs = def.evaluate(inputs, def.defaultProperties || {}, 0);
