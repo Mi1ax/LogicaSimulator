@@ -180,9 +180,9 @@ export const WireRenderer: React.FC = React.memo(() => {
         let outX, outY, outNx, inX, inY, inNx;
         if (draftWire.sourceType === 'output') {
           outX = start.x; outY = start.y; outNx = start.nx;
-          inX = draftWire.endX; inY = draftWire.endY; inNx = -1;
+          inX = draftWire.endX; inY = draftWire.endY; inNx = 0; // 0 normal for floating cursor
         } else {
-          outX = draftWire.endX; outY = draftWire.endY; outNx = 1;
+          outX = draftWire.endX; outY = draftWire.endY; outNx = 0; // 0 normal for floating cursor
           inX = start.x; inY = start.y; inNx = start.nx;
         }
         draftWireSegments = getWireSegments({ x: outX, y: outY, nx: outNx }, { x: inX, y: inY, nx: inNx }, undefined, draftWire.waypoints);

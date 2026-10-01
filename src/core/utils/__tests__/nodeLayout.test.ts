@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { getGateDimensions, getPinPosition, getSafePinNumber } from '../nodeLayout';
 import { LogicNode } from '../../models/types';
-import * as nodesModule from '../../engine/nodes';
 
 vi.mock('../../engine/nodes', () => {
   return {

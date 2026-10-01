@@ -36,10 +36,8 @@ export const getWireSegments = (outPos: Point, inPos: Point, midX?: number, wayp
   const p1 = outStub;
   const p2 = inStub;
 
-  const isSimpleX = (snx === 1 && enx === -1 && p1.x <= p2.x) ||
-                    (snx === -1 && enx === 1 && p1.x >= p2.x) ||
-                    (snx === 1 && enx === 1 && p1.x <= p2.x) ||
-                    (snx === -1 && enx === -1 && p1.x >= p2.x);
+  const isSimpleX = ((snx === 1 || snx === 0) && p1.x <= p2.x) ||
+                    ((snx === -1 || snx === 0) && p1.x >= p2.x);
 
   if (isSimpleX) {
     const defaultMidX = (p1.x + p2.x) / 2;

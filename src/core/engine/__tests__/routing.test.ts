@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getWireSegments, Point, Segment } from '../routing';
+import { getWireSegments, Point } from '../routing';
 
 describe('Wire Routing', () => {
   describe('getWireSegments (Manhattan Routing)', () => {

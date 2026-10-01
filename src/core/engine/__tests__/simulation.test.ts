@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { computeNextState, SimulationState } from '../simulation';
 import { LogicNode, Wire } from '../../models/types';
-import * as nodesModule from '../nodes';
 
 // Mock the node registry
 vi.mock('../nodes', () => {
