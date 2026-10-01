@@ -59,6 +59,55 @@ export const Toolbox: React.FC = () => {
     })
   })).filter(category => category.items.length > 0);
 
+  const appMode = useSimulatorStore(state => state.appMode);
+  const nodes = useSimulatorStore(state => state.nodes);
+  const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
+
+  if (appMode === 'board') {
+    const unplacedNodes = nodes.filter(n => n.boardX === undefined || n.boardY === undefined);
+    
+    return (
+      <div className="w-64 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 flex flex-col shadow-lg z-10 relative">
+        <div className="p-4 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/50">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-700 dark:text-slate-300">
+            Unplaced Components
+          </h2>
+        </div>
+        <div className="p-4 flex-1 overflow-y-auto">
+          {unplacedNodes.length === 0 ? (
+            <div className="text-sm text-gray-500 dark:text-slate-400 text-center mt-4">
+              <p>No components to place.</p>
+              <p className="mt-2 text-xs">Switch to Schematic mode to add more.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {unplacedNodes.map(node => {
+                const def = getNodeDefinition(node.type);
+                const label = node.properties?.label || def?.label || node.type;
+                return (
+                  <button
+                    key={node.id}
+                    onClick={() => updateNodePosition(node.id, 100, 100)}
+                    className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded shadow-sm hover:border-blue-500 hover:shadow-md transition-all text-left group"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-gray-800 dark:text-slate-100 truncate">
+                        {label}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400">
+                        {def?.label || node.type}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-64 bg-gray-100 dark:bg-slate-800 border-r border-gray-300 dark:border-slate-700 h-full flex flex-col shadow-sm z-10 relative transition-colors overflow-y-auto">
       <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex flex-col gap-3">

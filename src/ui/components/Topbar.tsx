@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
-import { Trash2, Sun, Moon, Play, Pause, StepForward, Settings } from 'lucide-react';
+import { Trash2, Sun, Moon, Play, Pause, StepForward, Settings, MousePointer2, PenTool } from 'lucide-react';
 
 export const Topbar: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
@@ -15,13 +15,72 @@ export const Topbar: React.FC = () => {
   const settings = useSimulatorStore(state => state.settings);
   const updateSettings = useSimulatorStore(state => state.updateSettings);
 
+  const appMode = useSimulatorStore(state => state.appMode);
+  const setAppMode = useSimulatorStore(state => state.setAppMode);
+  const activeWireType = useSimulatorStore(state => state.activeWireType);
+  const setWireType = useSimulatorStore(state => state.setActiveWireType);
+  const interactionMode = useSimulatorStore(state => state.interactionMode);
+  const setInteractionMode = useSimulatorStore(state => state.setInteractionMode);
+
   return (
     <div className="h-14 bg-white dark:bg-slate-800 border-b border-gray-300 dark:border-slate-700 flex items-center justify-between px-6 shadow-sm z-10 relative transition-colors">
       <div className="flex items-center gap-2">
         <div className="w-8 h-8 bg-blue-600 dark:bg-blue-500 rounded flex items-center justify-center text-white font-bold text-xl">
           L
         </div>
-        <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100">Logica Simulator</h1>
+        <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100 mr-4">Logica Simulator</h1>
+        
+        {/* Mode Switcher */}
+        <div className="flex bg-gray-100 dark:bg-slate-900 p-1 rounded-md border border-gray-200 dark:border-slate-700">
+          <button
+            onClick={() => setAppMode('schematic')}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${appMode === 'schematic' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
+          >
+            Schematic
+          </button>
+          <button
+            onClick={() => setAppMode('board')}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${appMode === 'board' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
+          >
+            Board
+          </button>
+        </div>
+        
+        {/* Interaction Mode Switcher */}
+        <div className="flex bg-gray-100 dark:bg-slate-900 p-1 rounded-md border border-gray-200 dark:border-slate-700 ml-4">
+          <button
+            onClick={() => setInteractionMode('cursor')}
+            className={`px-3 py-1 flex items-center justify-center rounded transition-colors ${interactionMode === 'cursor' ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
+            title="Cursor Mode (M)"
+          >
+            <MousePointer2 size={16} />
+          </button>
+          <button
+            onClick={() => setInteractionMode('wire')}
+            className={`px-3 py-1 flex items-center justify-center rounded transition-colors ${interactionMode === 'wire' ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
+            title="Wire Mode (W)"
+          >
+            <PenTool size={16} />
+          </button>
+        </div>
+
+        {/* Wire Type Switcher (Board Mode Only) */}
+        {appMode === 'board' && (
+          <div className="flex bg-gray-100 dark:bg-slate-900 p-1 rounded-md border border-gray-200 dark:border-slate-700 ml-2">
+            <button
+              onClick={() => setWireType('solder')}
+              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${activeWireType === 'solder' ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-500 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
+            >
+              Solder
+            </button>
+            <button
+              onClick={() => setWireType('jumper')}
+              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${activeWireType === 'jumper' ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
+            >
+              Jumper
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Simulation Controls (Center) */}
@@ -149,6 +208,32 @@ export const Topbar: React.FC = () => {
                   >
                     <div className={`w-3 h-3 rounded-full bg-white transition-transform ${settings.invertZoom ? 'translate-x-4' : 'translate-x-0'}`} />
                   </button>
+                </div>
+
+                <div className="pt-2 border-t border-gray-200 dark:border-slate-700">
+                  <h4 className="text-xs font-semibold text-gray-700 dark:text-slate-300 mb-2">Board Dimensions</h4>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="block text-[10px] text-gray-500 dark:text-slate-400 mb-1">Width (mm)</label>
+                      <input
+                        type="number"
+                        min="10" max="1000"
+                        value={settings.boardWidthMm}
+                        onChange={(e) => updateSettings({ boardWidthMm: Number(e.target.value) || 50 })}
+                        className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-[10px] text-gray-500 dark:text-slate-400 mb-1">Height (mm)</label>
+                      <input
+                        type="number"
+                        min="10" max="1000"
+                        value={settings.boardHeightMm}
+                        onChange={(e) => updateSettings({ boardHeightMm: Number(e.target.value) || 70 })}
+                        className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
+                      />
+                    </div>
+                  </div>
                 </div>
                 
                 <p className="text-[10px] text-gray-400 dark:text-slate-500 pt-2 border-t border-gray-200 dark:border-slate-700">

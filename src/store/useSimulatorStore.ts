@@ -10,9 +10,14 @@ export interface PointerSettings {
   panSpeed: number;
   zoomSensitivity: number;
   invertZoom: boolean;
+  boardWidthMm: number;
+  boardHeightMm: number;
 }
 
 interface SimulatorState {
+  appMode: 'schematic' | 'board';
+  setAppMode: (mode: 'schematic' | 'board') => void;
+
   theme: 'light' | 'dark';
   toggleTheme: () => void;
 
@@ -20,7 +25,13 @@ interface SimulatorState {
   settings: PointerSettings;
   updateSettings: (newSettings: Partial<PointerSettings>) => void;
 
+  // Global Interaction Mode (Cursor vs Wire drawing)
+  interactionMode: 'cursor' | 'wire';
+  setInteractionMode: (mode: 'cursor' | 'wire') => void;
+
   // UI state for drawing wires
+  activeWireType: 'solder' | 'jumper';
+  setActiveWireType: (type: 'solder' | 'jumper') => void;
   draftWire: DraftWire | null;
   startWire: (nodeId: string, pinId: string, pinType: 'input' | 'output', x: number, y: number) => void;
   updateDraftWire: (x: number, y: number) => void;
@@ -35,6 +46,15 @@ interface SimulatorState {
   // Core circuit state (delegated to pure logic)
   nodes: LogicNode[];
   wires: Wire[];
+  boardTraces: import('../core/models/types').BoardTrace[];
+
+  // Board drawing state
+  draftBoardTrace: import('../core/models/types').BoardTrace | null;
+  startBoardTrace: (x: number, y: number) => void;
+  updateDraftBoardTrace: (x: number, y: number) => void;
+  addBoardTraceWaypoint: () => void;
+  completeBoardTrace: () => void;
+  cancelBoardTrace: () => void;
 
   // Simulation State
   simState: import('../core/engine/simulation').SimulationState;
@@ -57,8 +77,8 @@ interface SimulatorState {
   setNodeInputCount: (nodeId: string, count: number) => void;
 
   // Undo / Redo
-  history: { nodes: LogicNode[], wires: Wire[] }[];
-  future: { nodes: LogicNode[], wires: Wire[] }[];
+  history: { nodes: LogicNode[], wires: Wire[], boardTraces: import('../core/models/types').BoardTrace[] }[];
+  future: { nodes: LogicNode[], wires: Wire[], boardTraces: import('../core/models/types').BoardTrace[] }[];
   undo: () => void;
   redo: () => void;
   saveHistory: () => void;
@@ -67,12 +87,16 @@ interface SimulatorState {
 const pushHistory = (state: SimulatorState) => ({
   history: [...state.history, {
     nodes: structuredClone(state.nodes),
-    wires: structuredClone(state.wires)
+    wires: structuredClone(state.wires),
+    boardTraces: structuredClone(state.boardTraces || [])
   }].slice(-50),
   future: []
 });
 
 export const useSimulatorStore = create<SimulatorState>((set) => ({
+  appMode: 'schematic',
+  setAppMode: (mode) => set({ appMode: mode }),
+
   theme: 'dark',
   toggleTheme: () => set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
 
@@ -81,14 +105,30 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
     panSpeed: 1.0,
     zoomSensitivity: 1.0,
     invertZoom: false,
+    boardWidthMm: 50,
+    boardHeightMm: 70,
   },
   updateSettings: (newSettings) => set((state) => ({
     settings: { ...state.settings, ...newSettings }
   })),
 
+  activeWireType: 'solder',
+  setActiveWireType: (type) => set({ activeWireType: type }),
+
+  interactionMode: 'cursor',
+  setInteractionMode: (mode) => set(() => {
+    // If switching to cursor, cancel any in-progress wires
+    if (mode === 'cursor') {
+      return { interactionMode: mode, draftWire: null, draftBoardTrace: null };
+    }
+    return { interactionMode: mode };
+  }),
+
   nodes: [],
   wires: [],
+  boardTraces: [],
   draftWire: null,
+  draftBoardTrace: null,
   selection: null,
 
   simState: { tickCount: 0, pinStates: {}, wireStates: {} },
@@ -106,9 +146,10 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
     return {
       nodes: structuredClone(previous.nodes),
       wires: structuredClone(previous.wires),
+      boardTraces: structuredClone(previous.boardTraces),
       selection: null,
       history: state.history.slice(0, -1),
-      future: [{ nodes: state.nodes, wires: state.wires }, ...state.future],
+      future: [{ nodes: state.nodes, wires: state.wires, boardTraces: state.boardTraces }, ...state.future],
     };
   }),
 
@@ -118,8 +159,9 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
     return {
       nodes: structuredClone(next.nodes),
       wires: structuredClone(next.wires),
+      boardTraces: structuredClone(next.boardTraces),
       selection: null,
-      history: [...state.history, { nodes: state.nodes, wires: state.wires }],
+      history: [...state.history, { nodes: state.nodes, wires: state.wires, boardTraces: state.boardTraces }],
       future: state.future.slice(1),
     };
   }),
@@ -138,7 +180,7 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
   }),
 
   addNode: (type, x, y) => set((state) => ({ ...circuit.addNode(state, type, x, y), ...pushHistory(state) })),
-  updateNodePosition: (id, x, y) => set((state) => circuit.moveNode(state, id, x, y)), // History saved on drag start
+  updateNodePosition: (id, x, y) => set((state) => circuit.moveNode(state, id, x, y, state.appMode === 'board')), // History saved on drag start
   updateNodeProperties: (id, props) => set((state) => ({ ...circuit.updateNodeProperties(state, id, props), ...pushHistory(state) })),
   setNodeInputCount: (id, count) => set((state) => ({ ...circuit.setNodeInputCount(state, id, count), ...pushHistory(state) })),
 
@@ -152,7 +194,7 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
   }),
 
   stepSimulation: () => set((state) => ({
-    simState: computeNextState(state.nodes, state.wires, state.simState)
+    simState: computeNextState(state.nodes, state.wires, state.simState, state.appMode)
   })),
 
   setSimRunning: (running) => set({ simRunning: running }),
@@ -195,7 +237,14 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
     const inputPinId = isSourceOutput ? pinId : sourcePinId;
     const inputNodeId = isSourceOutput ? nodeId : sourceNodeId;
 
-    let nextCircuit = circuit.addWire(state, outputNodeId, outputPinId, inputNodeId, inputPinId);
+    let nextCircuit = circuit.addWire(
+      state, 
+      outputNodeId, 
+      outputPinId, 
+      inputNodeId, 
+      inputPinId, 
+      state.appMode === 'board' ? state.activeWireType : undefined
+    );
 
     // Reverse waypoints if we started drawing from an input to an output
     const finalWaypoints = isSourceOutput ? (waypoints || []) : (waypoints ? [...waypoints].reverse() : []);
@@ -214,6 +263,50 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
   setWireMidX: (wireId, midX) => set((state) => circuit.setWireMidX(state, wireId, midX)),
 
   updateWireWaypoints: (wireId, waypoints) => set((state) => circuit.updateWireWaypoints(state, wireId, waypoints)),
+
+  startBoardTrace: (x, y) => set((state) => {
+    // Provide TWO points so updateDraftBoardTrace can replace the second one as the floating preview!
+    return { draftBoardTrace: { id: 'draft', type: state.activeWireType, points: [{ x, y }, { x, y }] } };
+  }),
+
+  updateDraftBoardTrace: (x, y) => set((state) => {
+    if (!state.draftBoardTrace) return state;
+    
+    // We keep points as the fixed waypoints, and the UI can append the floating cursor point
+    // Let's store the floating cursor directly in the store to make it easy.
+    return { 
+      draftBoardTrace: { 
+        ...state.draftBoardTrace, 
+        // We'll treat the last point as the floating point, or let's add a separate property `previewPoint: {x,y}`
+        // For simplicity, let's just make points include the floating point at the end!
+        points: [...state.draftBoardTrace.points.slice(0, -1), { x, y }] 
+      } 
+    };
+  }),
+
+  addBoardTraceWaypoint: () => set((state) => {
+    if (!state.draftBoardTrace) return state;
+    const points = state.draftBoardTrace.points;
+    const last = points[points.length - 1];
+    return {
+      draftBoardTrace: {
+        ...state.draftBoardTrace,
+        points: [...points, { ...last }] // Duplicate the last point so updateDraft modifies the new tail
+      }
+    };
+  }),
+
+  completeBoardTrace: () => set((state) => {
+    if (!state.draftBoardTrace || state.draftBoardTrace.points.length < 2) return { draftBoardTrace: null };
+    const newTrace: import('../core/models/types').BoardTrace = {
+      id: `trace-${Date.now()}`,
+      type: state.draftBoardTrace.type,
+      points: [...state.draftBoardTrace.points]
+    };
+    return { boardTraces: [...state.boardTraces, newTrace], ...pushHistory(state), draftBoardTrace: null };
+  }),
+
+  cancelBoardTrace: () => set({ draftBoardTrace: null }),
 }));
 
 // Provide grid size constant exported from core

@@ -113,9 +113,10 @@ export const computeAllWirePaths = (wires: Wire[], nodes: LogicNode[], draftWire
     const end = getPinPosition(targetNode, wire.targetPinId);
 
     const segments = getWireSegments(start, end, wire.midX, wire.waypoints);
-    wireSegmentsMap.set(wire.id, segments);
-    
-    segments.filter(s => !s.isHorizontal).forEach(s => allVerticals.push(s));
+    if (wire.wireType !== 'jumper') {
+      wireSegmentsMap.set(wire.id, segments);
+      segments.filter(s => !s.isHorizontal).forEach(s => allVerticals.push(s));
+    }
   });
 
   if (draftWireSegments) {
@@ -125,9 +126,34 @@ export const computeAllWirePaths = (wires: Wire[], nodes: LogicNode[], draftWire
   // 2. Generate SVG paths with jumps
   const wirePaths = new Map<string, string>();
   wires.forEach(wire => {
-    const segments = wireSegmentsMap.get(wire.id);
-    if (segments) {
-      wirePaths.set(wire.id, generateWirePath(segments, allVerticals));
+    if (wire.wireType === 'jumper') {
+      const sourceNode = nodes.find(n => n.id === wire.sourceNodeId);
+      const targetNode = nodes.find(n => n.id === wire.targetNodeId);
+      if (sourceNode && targetNode) {
+        const start = getPinPosition(sourceNode, wire.sourcePinId);
+        const end = getPinPosition(targetNode, wire.targetPinId);
+        
+        // Jumper is a bezier curve or simple line (over everything)
+        if (wire.waypoints && wire.waypoints.length > 0) {
+          // If jumpers have waypoints (which they can if the user routed them)
+          let path = `M ${start.x} ${start.y}`;
+          for (const wp of wire.waypoints) {
+            path += ` L ${wp.x} ${wp.y}`;
+          }
+          path += ` L ${end.x} ${end.y}`;
+          wirePaths.set(wire.id, path);
+        } else {
+          // Simple bezier curve for un-routed jumpers
+          const dx = end.x - start.x;
+          // Curve bows out based on horizontal distance
+          wirePaths.set(wire.id, `M ${start.x} ${start.y} C ${start.x + dx/2} ${start.y - 40}, ${end.x - dx/2} ${end.y - 40}, ${end.x} ${end.y}`);
+        }
+      }
+    } else {
+      const segments = wireSegmentsMap.get(wire.id);
+      if (segments) {
+        wirePaths.set(wire.id, generateWirePath(segments, allVerticals));
+      }
     }
   });
 

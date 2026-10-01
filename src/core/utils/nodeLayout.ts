@@ -11,20 +11,24 @@ export const getSafePinNumber = (nodeType: string, pin: Pick<Pin, 'name' | 'type
   return undefined;
 };
 
-export const getGateDimensions = (node: LogicNode) => {
+export const getGateDimensions = (node: LogicNode, isSchematic: boolean = true) => {
   const def = getNodeDefinition(node.type);
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
     const allPins = [...node.inputs, ...node.outputs];
-    const isSchematic = node.properties?.schematicView !== false;
+
     let pinsPerSide = 4;
     if (isSchematic) {
-      pinsPerSide = Math.max(node.inputs.length, node.outputs.length);
+      const visibleInputs = node.inputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
+      const visibleOutputs = node.outputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
+      pinsPerSide = Math.max(visibleInputs.length, visibleOutputs.length);
+      return { width: 120, height: (pinsPerSide + 1) * 20 };
     } else {
       const maxPinNumber = allPins.reduce((max, p) => Math.max(max, getSafePinNumber(node.type, p) ?? 0), 0);
       pinsPerSide = Math.max(Math.ceil(allPins.length / 2), Math.ceil(maxPinNumber / 2));
+      // Standard narrow DIP is 0.3" (60px) wide. 
+      // Pins start at y=20. So total height should be (pinsPerSide + 1) * 20 to be symmetrical.
+      return { width: 60, height: (pinsPerSide + 1) * 20 };
     }
-    // 20px per pin row + 40px padding top/bottom
-    return { width: 120, height: pinsPerSide * 20 + 40 };
   }
 
   if (node.type === 'INPUT' || node.type === 'OUTPUT' || node.type === 'CLOCK') {
@@ -36,15 +40,14 @@ export const getGateDimensions = (node: LogicNode) => {
   };
 };
 
-export const getPinPosition = (node: LogicNode, pinId: string) => {
-  const { width, height } = getGateDimensions(node);
+export const getPinPosition = (node: LogicNode, pinId: string, isSchematic: boolean = true) => {
+  const { width, height } = getGateDimensions(node, isSchematic);
   const def = getNodeDefinition(node.type);
   
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
     const allPins = [...node.inputs, ...node.outputs];
     const pin = allPins.find(p => p.id === pinId);
     if (pin) {
-      const isSchematic = node.properties?.schematicView !== false;
       const safePinNum = getSafePinNumber(node.type, pin) ?? 1;
       
       let isLeft = true;
@@ -52,7 +55,9 @@ export const getPinPosition = (node: LogicNode, pinId: string) => {
 
       if (isSchematic) {
         isLeft = pin.type === 'input';
-        const collection = isLeft ? node.inputs : node.outputs;
+        const visibleInputs = node.inputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
+        const visibleOutputs = node.outputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
+        const collection = isLeft ? visibleInputs : visibleOutputs;
         const index = collection.findIndex(p => p.id === pinId);
         row = index + 1;
       } else {
@@ -64,7 +69,8 @@ export const getPinPosition = (node: LogicNode, pinId: string) => {
       }
       
       const x = isLeft ? node.x : node.x + width;
-      const y = node.y + 20 + ((row - 1) * 20) + 10;
+      const yOffset = 20 + ((row - 1) * 20);
+      const y = node.y + yOffset;
       return { x, y, nx: isLeft ? -1 : 1, ny: 0 };
     }
   }

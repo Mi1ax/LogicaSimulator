@@ -1,6 +1,7 @@
 import React from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { getNodeDefinition } from '../../core/engine/nodes';
+import { getSafePinNumber } from '../../core/utils/nodeLayout';
 
 export const PropertiesPanel: React.FC = () => {
   const selection = useSimulatorStore(state => state.selection);
@@ -52,20 +53,7 @@ export const PropertiesPanel: React.FC = () => {
           />
         </div>
 
-        {/* Schematic View Toggle (For DIPs) */}
-        {(node.properties?.renderAs === 'DIP' || def.renderAs === 'DIP') && (
-          <label className="flex items-center space-x-2 cursor-pointer">
-            <input
-              type="checkbox"
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 bg-gray-50 dark:bg-slate-900 dark:border-slate-600"
-              checked={node.properties?.schematicView !== false}
-              onChange={(e) => updateNodeProperties(node.id, { schematicView: e.target.checked })}
-            />
-            <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
-              Schematic View
-            </span>
-          </label>
-        )}
+
 
         {/* Variable Inputs */}
         {isVariableInputGate && (
@@ -108,6 +96,61 @@ export const PropertiesPanel: React.FC = () => {
                 }
               }}
             />
+          </div>
+        )}
+        {/* DIP Pinout Diagram */}
+        {(node.properties?.renderAs === 'DIP' || def.renderAs === 'DIP') && (
+          <div className="mt-6 pt-4 border-t border-gray-200 dark:border-slate-700">
+            <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-3 text-center">
+              DIP Pinout
+            </label>
+            <div className="flex justify-center">
+              <div className="relative bg-slate-800 rounded-md border border-slate-900 shadow-inner w-32 py-2">
+                {/* Notch */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-gray-50 dark:bg-slate-900 rounded-full"></div>
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 border border-slate-900 rounded-full clip-notch"></div>
+
+                <div className="flex justify-between px-1">
+                  {/* Left Pins */}
+                  <div className="flex flex-col gap-1 items-start">
+                    {(() => {
+                      const allPins = [...node.inputs, ...node.outputs];
+                      const maxPinNumber = allPins.reduce((max, p) => Math.max(max, getSafePinNumber(node.type, p) ?? 0), 0);
+                      const pinsPerSide = Math.max(Math.ceil(allPins.length / 2), Math.ceil(maxPinNumber / 2));
+                      const leftPins = Array.from({ length: pinsPerSide }, (_, i) => i + 1);
+                      return leftPins.map(pinNum => {
+                        const p = allPins.find(pin => getSafePinNumber(node.type, pin) === pinNum);
+                        return (
+                          <div key={`L${pinNum}`} className="flex items-center gap-1 text-[10px]">
+                            <div className="w-4 h-2 bg-slate-300 rounded-sm flex items-center justify-center text-[8px] font-bold text-slate-800 -ml-3 z-10 border border-slate-400">{pinNum}</div>
+                            <span className="text-slate-300 ml-1 font-mono">{p?.name || 'NC'}</span>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                  
+                  {/* Right Pins */}
+                  <div className="flex flex-col gap-1 items-end">
+                    {(() => {
+                      const allPins = [...node.inputs, ...node.outputs];
+                      const maxPinNumber = allPins.reduce((max, p) => Math.max(max, getSafePinNumber(node.type, p) ?? 0), 0);
+                      const pinsPerSide = Math.max(Math.ceil(allPins.length / 2), Math.ceil(maxPinNumber / 2));
+                      const rightPins = Array.from({ length: pinsPerSide }, (_, i) => pinsPerSide * 2 - i);
+                      return rightPins.map(pinNum => {
+                        const p = allPins.find(pin => getSafePinNumber(node.type, pin) === pinNum);
+                        return (
+                          <div key={`R${pinNum}`} className="flex items-center gap-1 text-[10px]">
+                            <span className="text-slate-300 mr-1 font-mono">{p?.name || 'NC'}</span>
+                            <div className="w-4 h-2 bg-slate-300 rounded-sm flex items-center justify-center text-[8px] font-bold text-slate-800 -mr-3 z-10 border border-slate-400">{pinNum}</div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -10,7 +10,8 @@ export interface SimulationState {
 export const computeNextState = (
   nodes: LogicNode[],
   wires: Wire[],
-  prevState: SimulationState
+  prevState: SimulationState,
+  appMode: 'schematic' | 'board'
 ): SimulationState => {
   const nextPinStates: Record<string, Signal> = { ...prevState.pinStates };
   const nextWireStates: Record<string, Signal> = {};
@@ -23,7 +24,7 @@ export const computeNextState = (
     const inVals = node.inputs.map(p => prevState.pinStates[p.id]);
     
     let isPowered = true;
-    if (def.renderAs === 'DIP' && node.properties?.schematicView === false) {
+    if (def.renderAs === 'DIP' && appMode === 'board') {
       node.inputs.forEach((pin, idx) => {
         if (pin.name === 'VCC' && inVals[idx] !== 1) isPowered = false;
         if (pin.name === 'GND' && inVals[idx] !== 0) isPowered = false;
