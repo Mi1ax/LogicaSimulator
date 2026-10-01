@@ -43,6 +43,7 @@ interface SimulatorState {
   toggleInputNode: (nodeId: string) => void;
   addWaypoint: (x: number, y: number) => void;
   updateWireWaypoints: (wireId: string, waypoints: {x: number, y: number}[]) => void;
+  setNodeInputCount: (nodeId: string, count: number) => void;
 }
 
 export const useSimulatorStore = create<SimulatorState>((set) => ({
@@ -74,6 +75,7 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
   addNode: (type, x, y) => set((state) => circuit.addNode(state, type, x, y)),
   updateNodePosition: (id, x, y) => set((state) => circuit.moveNode(state, id, x, y)),
   updateNodeProperties: (id, props) => set((state) => circuit.updateNodeProperties(state, id, props)),
+  setNodeInputCount: (id, count) => set((state) => circuit.setNodeInputCount(state, id, count)),
 
   clearNodes: () => set({ 
     nodes: [], 

@@ -132,3 +132,40 @@ export const updateWireWaypoints = (state: CircuitState, wireId: string, waypoin
     wires: state.wires.map(w => w.id === wireId ? { ...w, waypoints } : w)
   };
 };
+
+export const setNodeInputCount = (state: CircuitState, nodeId: string, count: number): CircuitState => {
+  let wiresToDelete = new Set<string>();
+
+  const nodes = state.nodes.map(node => {
+    if (node.id !== nodeId) return node;
+    
+    const currentCount = node.inputs.length;
+    let newInputs = [...node.inputs];
+    
+    if (count > currentCount) {
+      for (let i = currentCount; i < count; i++) {
+        newInputs.push({
+          id: `pin-${node.id}-in-${i}`,
+          nodeId: node.id,
+          type: 'input',
+          index: i
+        });
+      }
+    } else if (count < currentCount) {
+      const removedPins = newInputs.splice(count, currentCount - count);
+      const removedPinIds = new Set(removedPins.map(p => p.id));
+      
+      state.wires.forEach(w => {
+        if (removedPinIds.has(w.targetPinId)) {
+          wiresToDelete.add(w.id);
+        }
+      });
+    }
+    
+    return { ...node, inputs: newInputs };
+  });
+
+  const wires = state.wires.filter(w => !wiresToDelete.has(w.id));
+
+  return { ...state, nodes, wires };
+};

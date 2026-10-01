@@ -25,8 +25,8 @@ export const Pin: React.FC<PinProps> = ({ x, y, type, id, nodeId }) => {
       x={x}
       y={y}
       radius={5}
-      fill={canvasTheme.pinFill}
-      stroke={canvasTheme.pinStroke}
+      fill={type === 'input' ? canvasTheme.pinInputFill : canvasTheme.pinOutputFill}
+      stroke={type === 'input' ? canvasTheme.pinInputStroke : canvasTheme.pinOutputStroke}
       strokeWidth={1}
       hitStrokeWidth={15}
       onMouseEnter={(e) => {

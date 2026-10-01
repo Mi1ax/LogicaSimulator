@@ -86,6 +86,18 @@ export const ICNode: React.FC<ICNodeProps> = ({ node }) => {
         strokeWidth={isSelected ? 3 : 2}
       />
 
+      {/* Custom Name Label */}
+      {node.properties?.label && (
+        <Text
+          text={node.properties.label}
+          y={-20}
+          width={width}
+          align="center"
+          fontSize={12}
+          fill={canvasTheme.textColor}
+        />
+      )}
+
       {/* IC Label (Rotated vertically to fit perfectly) */}
       <Text
         text={def?.type || 'IC'}
