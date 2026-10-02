@@ -7,6 +7,7 @@ import { IONode } from './nodes/IONode';
 import { ICNode } from './nodes/ICNode';
 import { BoardTraceRenderer } from './wires/BoardTraceRenderer';
 import { getNodeDefinition } from '../../core/engine/nodes';
+import { getGateDimensions } from '../../core/utils/nodeLayout';
 
 import { useShallow } from 'zustand/react/shallow';
 import { isTraceValid } from '../../core/utils/geometry';
@@ -45,13 +46,18 @@ export const BoardCanvas: React.FC = () => {
   const deleteSelection = useSimulatorStore(state => state.deleteSelection);
   const settings = useSimulatorStore(state => state.settings);
 
+  const initializedRef = useRef(false);
+
   useEffect(() => {
     const handleResize = () => {
       if (containerRef.current) {
-        setDimensions({
-          width: containerRef.current.offsetWidth,
-          height: containerRef.current.offsetHeight,
-        });
+        const w = containerRef.current.offsetWidth;
+        const h = containerRef.current.offsetHeight;
+        setDimensions({ width: w, height: h });
+        if (!initializedRef.current && w > 0 && h > 0) {
+          setStagePos({ x: w / 2, y: h / 2 });
+          initializedRef.current = true;
+        }
       }
     };
 
@@ -89,6 +95,7 @@ export const BoardCanvas: React.FC = () => {
         
         if (e.key === 'Escape') {
           if (store.draftBoardTrace) store.cancelBoardTrace();
+          if (store.placingNodeId) store.cancelPlacingNode();
         } else if (e.key === 'Delete' || e.key === 'Backspace') {
           deleteSelection();
         } else if (e.key.toLowerCase() === 'm' || e.key.toLowerCase() === 'v') {
@@ -168,17 +175,17 @@ export const BoardCanvas: React.FC = () => {
           }
         }}
         onMouseMove={(e) => {
-          if (draftBoardTrace) {
-            const stage = e.target.getStage();
-            if (!stage) return;
-            const pointer = stage.getPointerPosition();
-            if (!pointer) return;
-            const transform = stage.getAbsoluteTransform().copy().invert();
-            const pos = transform.point(pointer);
-            
-            let gridX = Math.round(pos.x / 20) * 20;
-            let gridY = Math.round(pos.y / 20) * 20;
+          const store = useSimulatorStore.getState();
+          const stage = e.target.getStage();
+          if (!stage) return;
+          const pointer = stage.getPointerPosition();
+          if (!pointer) return;
+          const transform = stage.getAbsoluteTransform().copy().invert();
+          const pos = transform.point(pointer);
+          let gridX = Math.round(pos.x / 20) * 20;
+          let gridY = Math.round(pos.y / 20) * 20;
 
+          if (draftBoardTrace) {
             // Enforce strictly orthogonal 90-degree lines ONLY for solder
             if (draftBoardTrace.type === 'solder' && draftBoardTrace.points.length >= 2) {
               const lastCommitted = draftBoardTrace.points[draftBoardTrace.points.length - 2];
@@ -193,15 +200,31 @@ export const BoardCanvas: React.FC = () => {
             }
             
             updateDraftBoardTrace(gridX, gridY);
+          } else if (store.placingNodeId) {
+            const node = store.nodes.find(n => n.id === store.placingNodeId);
+            let offsetX = 0;
+            let offsetY = 0;
+            if (node) {
+              const { width, height } = getGateDimensions(node, false); // false for board mode
+              offsetX = width / 2;
+              offsetY = height / 2;
+            }
+            store.updatePlacingNode(pos.x - offsetX, pos.y - offsetY);
           }
         }}
         onMouseUp={(e) => {
           if (e.target === e.target.getStage()) {
             const container = e.target.getStage()?.container();
-            if (container && !draftBoardTrace) container.style.cursor = 'grab';
+            if (container && !draftBoardTrace && !useSimulatorStore.getState().placingNodeId) container.style.cursor = 'grab';
           }
         }}
         onClick={(e) => {
+          const store = useSimulatorStore.getState();
+          if (store.placingNodeId) {
+            store.finishPlacingNode();
+            return;
+          }
+
           const isBackground = e.target === e.target.getStage() || e.target.name() === 'grid';
           if (isBackground) {
             const stage = e.target.getStage();

@@ -40,14 +40,11 @@ const CATEGORIES: ToolCategory[] = [
 ];
 
 export const Toolbox: React.FC = () => {
-  const addNode = useSimulatorStore((state) => state.addNode);
+  const startPlacingNode = useSimulatorStore((state) => state.startPlacingNode);
   const [search, setSearch] = React.useState('');
 
   const handleAddNode = (type: NodeType) => {
-    // Add to center of screen roughly, snapped to 20px grid
-    const centerX = Math.round((window.innerWidth / 2) / 20) * 20;
-    const centerY = Math.round((window.innerHeight / 2) / 20) * 20;
-    addNode(type, centerX, centerY);
+    startPlacingNode(type);
   };
 
   const filteredCategories = CATEGORIES.map(category => ({
@@ -61,7 +58,6 @@ export const Toolbox: React.FC = () => {
 
   const appMode = useSimulatorStore(state => state.appMode);
   const nodes = useSimulatorStore(state => state.nodes);
-  const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
 
   if (appMode === 'board') {
     const unplacedNodes = nodes.filter(n => n.boardX === undefined || n.boardY === undefined);
@@ -87,7 +83,10 @@ export const Toolbox: React.FC = () => {
                 return (
                   <button
                     key={node.id}
-                    onClick={() => updateNodePosition(node.id, 100, 100)}
+                    onClick={() => {
+                      const startPlacingBoardNode = useSimulatorStore.getState().startPlacingBoardNode;
+                      startPlacingBoardNode(node.id);
+                    }}
                     className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded shadow-sm hover:border-blue-500 hover:shadow-md transition-all text-left group"
                   >
                     <div className="flex-1 min-w-0">

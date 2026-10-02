@@ -22,13 +22,21 @@ export const GateNode: React.FC<GateNodeProps> = React.memo(({ node }) => {
   const { width, height } = getGateDimensions(node, isSchematic);
   const isSelected = selection?.type === 'node' && selection.id === node.id;
 
+  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
+
   return (
     <Group
       x={node.x}
       y={node.y}
+      opacity={isPlacing ? 0.6 : 1}
       draggable={isSelected}
       onClick={(e) => {
         e.cancelBubble = true;
+        const store = useSimulatorStore.getState();
+        if (store.placingNodeId === node.id) {
+          store.finishPlacingNode();
+          return;
+        }
         select({ type: 'node', id: node.id });
       }}
       onDragMove={(e) => {
