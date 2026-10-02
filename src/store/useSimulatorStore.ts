@@ -81,6 +81,7 @@ interface SimulatorState {
   setWireMidX: (wireId: string, midX: number) => void;
 
   // Simulation Controls
+  resetSimulation: () => void;
   stepSimulation: () => void;
   setSimRunning: (running: boolean) => void;
   setSimSpeed: (hz: number) => void;
@@ -248,6 +249,19 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
     selection: null,
     simState: { tickCount: 0, pinStates: {}, wireStates: {} },
     simRunning: false
+  }),
+
+  resetSimulation: () => set((state) => {
+    const resetNodes = state.nodes.map(n => {
+      if (n.properties) {
+        const newProps = { ...n.properties };
+        if (newProps.counter !== undefined) newProps.counter = 0;
+        if (newProps.lastClk !== undefined) newProps.lastClk = 0;
+        return { ...n, properties: newProps };
+      }
+      return n;
+    });
+    return { nodes: resetNodes, simState: { tickCount: 0, pinStates: {}, wireStates: {} } };
   }),
 
   stepSimulation: () => set((state) => ({

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Topbar } from './ui/components/Topbar';
+import { Bottombar } from './ui/components/Bottombar';
 import { Toolbox } from './ui/components/Toolbox';
 import { CanvasArea } from './ui/canvas/CanvasArea';
 import { PropertiesPanel } from './ui/components/PropertiesPanel';
@@ -39,6 +40,7 @@ function App() {
         </ErrorBoundary>
         <PropertiesPanel />
       </div>
+      <Bottombar />
     </div>
   );
 }
