@@ -49,13 +49,21 @@ export const IONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   const bgFill = isInputLike ? canvasTheme.inputNodeBg : canvasTheme.outputNodeBg;
   const borderStroke = isInputLike ? canvasTheme.inputNodeBorder : canvasTheme.outputNodeBorder;
 
+  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
+
   return (
     <Group
       x={node.x}
       y={node.y}
+      opacity={isPlacing ? 0.6 : 1}
       draggable={isSelected}
       onClick={(e) => {
         e.cancelBubble = true;
+        const store = useSimulatorStore.getState();
+        if (store.placingNodeId === node.id) {
+          store.finishPlacingNode();
+          return;
+        }
         select({ type: 'node', id: node.id });
       }}
       onDragMove={(e) => {

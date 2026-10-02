@@ -7,6 +7,7 @@ import { IONode } from './nodes/IONode';
 import { ICNode } from './nodes/ICNode';
 import { WireRenderer } from './wires/WireRenderer';
 import { getNodeDefinition } from '../../core/engine/nodes';
+import { getGateDimensions } from '../../core/utils/nodeLayout';
 
 import { useShallow } from 'zustand/react/shallow';
 
@@ -32,13 +33,18 @@ export const SchematicCanvas: React.FC = () => {
   const deleteSelection = useSimulatorStore(state => state.deleteSelection);
   const settings = useSimulatorStore(state => state.settings);
 
+  const initializedRef = useRef(false);
+
   useEffect(() => {
     const handleResize = () => {
       if (containerRef.current) {
-        setDimensions({
-          width: containerRef.current.offsetWidth,
-          height: containerRef.current.offsetHeight,
-        });
+        const w = containerRef.current.offsetWidth;
+        const h = containerRef.current.offsetHeight;
+        setDimensions({ width: w, height: h });
+        if (!initializedRef.current && w > 0 && h > 0) {
+          setStagePos({ x: w / 2, y: h / 2 });
+          initializedRef.current = true;
+        }
       }
     };
 
@@ -76,6 +82,7 @@ export const SchematicCanvas: React.FC = () => {
         
         if (e.key === 'Escape') {
           if (store.draftWire) store.cancelWire();
+          if (store.placingNodeId) store.cancelPlacingNode();
         } else if (e.key === 'Delete' || e.key === 'Backspace') {
           deleteSelection();
         }
@@ -151,23 +158,41 @@ export const SchematicCanvas: React.FC = () => {
           }
         }}
         onMouseMove={(e) => {
+          const store = useSimulatorStore.getState();
+          const stage = e.target.getStage();
+          if (!stage) return;
+          const pointer = stage.getPointerPosition();
+          if (!pointer) return;
+          const transform = stage.getAbsoluteTransform().copy().invert();
+          const pos = transform.point(pointer);
+
           if (draftWire) {
-            const stage = e.target.getStage();
-            if (!stage) return;
-            const pointer = stage.getPointerPosition();
-            if (!pointer) return;
-            const transform = stage.getAbsoluteTransform().copy().invert();
-            const pos = transform.point(pointer);
             updateDraftWire(pos.x, pos.y);
+          } else if (store.placingNodeId) {
+            const node = store.nodes.find(n => n.id === store.placingNodeId);
+            let offsetX = 0;
+            let offsetY = 0;
+            if (node) {
+              const { width, height } = getGateDimensions(node, true);
+              offsetX = width / 2;
+              offsetY = height / 2;
+            }
+            store.updatePlacingNode(pos.x - offsetX, pos.y - offsetY);
           }
         }}
         onMouseUp={(e) => {
           if (e.target === e.target.getStage()) {
             const container = e.target.getStage()?.container();
-            if (container && !draftWire) container.style.cursor = 'grab';
+            if (container && !draftWire && !useSimulatorStore.getState().placingNodeId) container.style.cursor = 'grab';
           }
         }}
         onClick={(e) => {
+          const store = useSimulatorStore.getState();
+          if (store.placingNodeId) {
+            store.finishPlacingNode();
+            return;
+          }
+
           const isBackground = e.target === e.target.getStage() || e.target.name() === 'grid';
           if (isBackground) {
             if (draftWire) {
@@ -177,7 +202,6 @@ export const SchematicCanvas: React.FC = () => {
                 if (pointer) {
                   const transform = stage.getAbsoluteTransform().copy().invert();
                   const pos = transform.point(pointer);
-                  const store = useSimulatorStore.getState();
                   if (store.addWaypoint) {
                     store.addWaypoint(Math.round(pos.x / 20) * 20, Math.round(pos.y / 20) * 20);
                   }

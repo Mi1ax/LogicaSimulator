@@ -43,6 +43,14 @@ interface SimulatorState {
   select: (selection: Selection) => void;
   deleteSelection: () => void;
 
+  // UI state for node placement
+  placingNodeId: string | null;
+  startPlacingNode: (type: NodeType) => void;
+  startPlacingBoardNode: (id: string) => void;
+  updatePlacingNode: (x: number, y: number) => void;
+  finishPlacingNode: () => void;
+  cancelPlacingNode: () => void;
+
   // Core circuit state (delegated to pure logic)
   nodes: LogicNode[];
   wires: Wire[];
@@ -176,6 +184,42 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
     } else {
       const nextCircuit = circuit.deleteWire(state, state.selection.id);
       return { ...nextCircuit, ...pushHistory(state), selection: null };
+    }
+  }),
+
+  placingNodeId: null,
+  
+  startPlacingNode: (type) => set((state) => {
+    const nextState = circuit.addNode(state, type, 0, 0);
+    const newNode = nextState.nodes[nextState.nodes.length - 1];
+    return { ...nextState, placingNodeId: newNode.id };
+  }),
+
+  startPlacingBoardNode: (id) => set((state) => {
+    const nextState = circuit.moveNode(state, id, 0, 0, true);
+    return { ...nextState, placingNodeId: id };
+  }),
+
+  updatePlacingNode: (x, y) => set((state) => {
+    if (!state.placingNodeId) return state;
+    return circuit.moveNode(state, state.placingNodeId, x, y, state.appMode === 'board');
+  }),
+
+  finishPlacingNode: () => set((state) => {
+    if (!state.placingNodeId) return state;
+    return { placingNodeId: null, ...pushHistory(state) };
+  }),
+
+  cancelPlacingNode: () => set((state) => {
+    if (!state.placingNodeId) return state;
+    if (state.appMode === 'schematic') {
+      return { ...circuit.deleteNode(state, state.placingNodeId), placingNodeId: null };
+    } else {
+      return {
+        ...state,
+        nodes: state.nodes.map(n => n.id === state.placingNodeId ? { ...n, boardX: undefined, boardY: undefined } : n),
+        placingNodeId: null
+      };
     }
   }),
 

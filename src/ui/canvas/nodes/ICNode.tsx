@@ -38,13 +38,23 @@ export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
   }
 
 
+  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
+
   return (
     <Group
       x={node.x}
       y={node.y}
+      opacity={isPlacing ? 0.6 : 1}
       draggable={isSelected}
       onClick={(e) => {
         const store = useSimulatorStore.getState();
+        
+        if (store.placingNodeId === node.id) {
+          e.cancelBubble = true;
+          store.finishPlacingNode();
+          return;
+        }
+
         if (store.appMode === 'board' && store.interactionMode === 'wire') {
           // In board mode, if we are in wire mode, let clicks on pins fall through to start a trace!
           const pos = e.target.getStage()?.getPointerPosition();
