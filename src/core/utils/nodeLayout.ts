@@ -21,7 +21,7 @@ export const getGateDimensions = (node: LogicNode, isSchematic: boolean = true) 
       const visibleInputs = node.inputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
       const visibleOutputs = node.outputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
       pinsPerSide = Math.max(visibleInputs.length, visibleOutputs.length);
-      return { width: 120, height: (pinsPerSide + 1) * 20 };
+      return { width: 160, height: (pinsPerSide + 1) * 40 };
     } else {
       const maxPinNumber = allPins.reduce((max, p) => Math.max(max, getSafePinNumber(node.type, p) ?? 0), 0);
       pinsPerSide = Math.max(Math.ceil(allPins.length / 2), Math.ceil(maxPinNumber / 2));
@@ -67,9 +67,10 @@ export const getPinPosition = (node: LogicNode, pinId: string, isSchematic: bool
         isLeft = safePinNum <= pinsPerSide;
         row = isLeft ? safePinNum : (totalPins - safePinNum + 1);
       }
-      
-      const x = isLeft ? node.x : node.x + width;
-      const yOffset = 20 + ((row - 1) * 20);
+      const spacing = isSchematic ? 40 : 20;
+      const legLength = isSchematic ? 20 : 0;
+      const x = isLeft ? node.x - legLength : node.x + width + legLength;
+      const yOffset = spacing + ((row - 1) * spacing);
       const y = node.y + yOffset;
       return { x, y, nx: isLeft ? -1 : 1, ny: 0 };
     }

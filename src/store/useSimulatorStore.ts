@@ -68,6 +68,10 @@ interface SimulatorState {
   simState: import('../core/engine/simulation').SimulationState;
   simRunning: boolean;
   simSpeed: number; // Hz (ticks per second)
+  
+  // View State
+  boardScale: number;
+  setBoardScale: (scale: number) => void;
 
   addNode: (type: NodeType, x: number, y: number) => void;
   updateNodePosition: (id: string, x: number, y: number) => void;
@@ -138,6 +142,9 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
   draftWire: null,
   draftBoardTrace: null,
   selection: null,
+  
+  boardScale: 1,
+  setBoardScale: (scale) => set({ boardScale: scale }),
 
   simState: { tickCount: 0, pinStates: {}, wireStates: {} },
   simRunning: false,
@@ -179,11 +186,16 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
   deleteSelection: () => set((state) => {
     if (!state.selection) return state;
     if (state.selection.type === 'node') {
-      const nextCircuit = circuit.deleteNode(state, state.selection.id);
-      return { ...nextCircuit, ...pushHistory(state), selection: null };
+      if (state.appMode === 'board') {
+        const nodes = state.nodes.map(n => n.id === state.selection!.id ? { ...n, boardX: undefined, boardY: undefined } : n);
+        return { ...state, nodes, ...pushHistory(state), selection: null };
+      } else {
+        const nextCircuit = circuit.deleteNode(state, state.selection.id);
+        return { ...state, ...nextCircuit, ...pushHistory(state), selection: null };
+      }
     } else {
       const nextCircuit = circuit.deleteWire(state, state.selection.id);
-      return { ...nextCircuit, ...pushHistory(state), selection: null };
+      return { ...state, ...nextCircuit, ...pushHistory(state), selection: null };
     }
   }),
 
@@ -213,7 +225,7 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
   cancelPlacingNode: () => set((state) => {
     if (!state.placingNodeId) return state;
     if (state.appMode === 'schematic') {
-      return { ...circuit.deleteNode(state, state.placingNodeId), placingNodeId: null };
+      return { ...state, ...circuit.deleteNode(state, state.placingNodeId), placingNodeId: null };
     } else {
       return {
         ...state,
