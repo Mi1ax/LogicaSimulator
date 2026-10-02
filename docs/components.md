@@ -7,21 +7,24 @@ Logica's component system is designed to be highly modular. You can add new logi
 To add a new component, you must define it in the Core Engine and then expose it to the UI.
 
 ### 1. Define the Electrical Logic
-Navigate to `src/core/engine/nodes/`. You will find definition files like `gates.ts` and `icNodes.ts`.
+Navigate to `src/core/engine/nodes/`. You will find definition files like `basicNodes.ts` and `icNodes.ts`.
 
 A node definition must conform to the `NodeDefinition` interface:
 ```typescript
-import { NodeDefinition } from '../../models/types';
+import { NodeDefinition } from './NodeDefinition';
 
 export const MyCustomChip: NodeDefinition = {
   type: 'MY_CHIP',
-  name: 'My Custom Chip',
-  description: 'Does something cool',
+  label: 'My Custom Chip',
+  
+  // Ignored if customPins is provided, but required by interface
+  numInputs: 0,
+  numOutputs: 0,
   
   // Choose how it looks in the UI ('GATE', 'DIP', or omitted for default)
   renderAs: 'DIP', 
   
-  // Define custom pins (required for DIP ICs to specify top/bottom layout)
+  // Define custom pins (required for DIP ICs to specify standard counter-clockwise pin layout)
   customPins: [
     { type: 'input', name: 'A', pinNumber: 1 },
     { type: 'output', name: 'Q', pinNumber: 2 }
@@ -44,11 +47,13 @@ export const MyCustomChip: NodeDefinition = {
     const A = inputs[0] ?? 0; // Read input A, default to 0 if floating
     
     // Read and mutate internal state via properties in-place
-    if (A === 1) {
-        props.internalMemory = (props.internalMemory || 0) + 1;
+    if (props) {
+      if (A === 1) {
+          props.internalMemory = (props.internalMemory || 0) + 1;
+      }
     }
 
-    return [ props.internalMemory % 2 ]; // Output array
+    return [ props ? (props.internalMemory % 2) : 0 ]; // Output array matching output pins
   }
 };
 ```
@@ -59,22 +64,22 @@ Once defined, export it and add it to the central registry in `src/core/engine/n
 ```typescript
 import { MyCustomChip } from './icNodes';
 
-const nodeDefinitions: Record<string, NodeDefinition> = {
+export const NodeRegistry: Record<string, NodeDefinition> = {
   // ... existing nodes
-  'MY_CHIP': MyCustomChip
+  [MyCustomChip.type]: MyCustomChip
 };
 ```
 
 ### 3. Add to the Toolbox UI
-To make the component draggable from the sidebar, add it to `src/ui/components/Toolbox.tsx`:
+To make the component draggable from the sidebar, add it to `src/ui/components/Toolbox.tsx`. The toolbox will automatically read your component's `label` from the registry:
 
 ```tsx
-const CATEGORIES = [
+const CATEGORIES: ToolCategory[] = [
   // ...
   {
     name: 'Custom ICs',
     items: [
-      { type: 'MY_CHIP', label: 'My Chip', description: 'Does something cool' }
+      { type: 'MY_CHIP' } // No label/description needed here, it infers from NodeDefinition
     ]
   }
 ];
@@ -96,19 +101,13 @@ useSimulatorStore.getState().setNodeInputCount(nodeId, newCount);
 This strictly modifies the structural blueprint, triggering the UI to instantly redraw the gate with the new pin layout.
 
 ### Stateful Memory Properties
-Because the simulator runs continuously at a high frequency (e.g. 60Hz), you cannot dispatch Zustand store updates on every tick without cratering UI performance.
+Because the simulator runs continuously at a high frequency (e.g. up to 50Hz), you cannot dispatch Zustand store updates on every tick without cratering UI performance.
 
 Instead, the `evaluate` function intentionally mutates `props` **in-place**:
-1. Define a default value in `defaultProperties: { lastClock: 0 }`.
-2. In `evaluate(inputs, props, tickCount)`, read `props.lastClock`.
-3. If the state changes, simply mutate the object: `props.lastClock = 1`.
+1. Define a default value in `defaultProperties: { lastClk: 0 }`.
+2. In `evaluate(inputs, props, tickCount)`, read `props.lastClk`.
+3. If the state changes, simply mutate the object: `props.lastClk = 1`.
 
 Because the simulation engine passes `node.properties` by reference, this provides extremely fast internal memory that survives across ticks without triggering heavy React UI reconciliations.
 
----
-
-## Testing Components
-
-Since all simulation logic and state mutations strictly reside outside of React, they are incredibly easy to test via Vitest in a pure Node environment.
-
-For detailed instructions on testing combinational logic gates (using visual ASCII Truth Tables) or sequential stateful ICs, please see [Testing Components](./testing.md).
+When the user hits the "Stop & Reset" button on the Bottombar, the simulation store explicitly zeroes out these memory properties (like `counter` and `lastClk`) to reset the chip.
