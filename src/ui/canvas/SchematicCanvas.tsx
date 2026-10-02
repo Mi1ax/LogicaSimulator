@@ -2,12 +2,12 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Stage, Layer } from 'react-konva';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { Grid } from './Grid';
-import { GateNode } from './nodes/GateNode';
-import { IONode } from './nodes/IONode';
-import { ICNode } from './nodes/ICNode';
+import { SchematicGateNode } from './nodes/schematic/SchematicGateNode';
+import { SchematicIONode } from './nodes/schematic/SchematicIONode';
+import { SchematicICNode } from './nodes/schematic/SchematicICNode';
 import { WireRenderer } from './wires/WireRenderer';
 import { getNodeDefinition } from '../../core/engine/nodes';
-import { getGateDimensions } from '../../core/utils/nodeLayout';
+import { getSchematicDimensions } from '../../core/utils/schematicLayout';
 
 import { useShallow } from 'zustand/react/shallow';
 
@@ -15,9 +15,9 @@ const ConnectedNode = React.memo(({ id }: { id: string }) => {
   const node = useSimulatorStore(state => state.nodes.find(n => n.id === id));
   if (!node) return null;
   const def = getNodeDefinition(node.type);
-  if (def?.renderAs === 'DIP') return <ICNode node={node} />;
-  if (['INPUT', 'OUTPUT', 'CLOCK', 'VCC', 'GND'].includes(node.type)) return <IONode node={node} />;
-  return <GateNode node={node} />;
+  if (def?.renderAs === 'DIP') return <SchematicICNode node={node} />;
+  if (['INPUT', 'OUTPUT', 'CLOCK', 'VCC', 'GND'].includes(node.type)) return <SchematicIONode node={node} />;
+  return <SchematicGateNode node={node} />;
 });
 
 export const SchematicCanvas: React.FC = () => {
@@ -173,7 +173,7 @@ export const SchematicCanvas: React.FC = () => {
             let offsetX = 0;
             let offsetY = 0;
             if (node) {
-              const { width, height } = getGateDimensions(node, true);
+              const { width, height } = getSchematicDimensions(node);
               offsetX = width / 2;
               offsetY = height / 2;
             }

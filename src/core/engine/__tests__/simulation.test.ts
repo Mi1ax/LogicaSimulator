@@ -74,7 +74,7 @@ describe('Simulation Engine', () => {
     // TICK 1: Switches output their values, but wires propagate AFTER gates evaluate.
     // So AND gate still sees undefined inputs in tick 1, and outputs undefined.
     // However, the wires will be updated at the end of tick 1 to carry the switch values.
-    const state1 = computeNextState(nodes, wires, prevState, 'schematic');
+    const state1 = computeNextState(nodes, wires, prevState);
     
     expect(state1.tickCount).toBe(1);
     expect(state1.pinStates['sw1-out']).toBe(1);
@@ -88,7 +88,7 @@ describe('Simulation Engine', () => {
     expect(state1.wireStates['w2']).toBe(0);
 
     // TICK 2: AND gate sees inputs (1, 0) -> outputs 0
-    const state2 = computeNextState(nodes, wires, state1, 'schematic');
+    const state2 = computeNextState(nodes, wires, state1);
     expect(state2.tickCount).toBe(2);
     expect(state2.pinStates['and1-out']).toBe(0);
 
@@ -96,13 +96,13 @@ describe('Simulation Engine', () => {
     switch2.properties = { active: true };
 
     // TICK 3: Switch 2 outputs 1. Wires propagate. AND gate still outputs 0 (using old inputs).
-    const state3 = computeNextState(nodes, wires, state2, 'schematic');
+    const state3 = computeNextState(nodes, wires, state2);
     expect(state3.pinStates['sw2-out']).toBe(1);
     expect(state3.pinStates['and1-in1']).toBe(1); // Input receives new value
     expect(state3.pinStates['and1-out']).toBe(0); // Still 0
 
     // TICK 4: AND gate sees inputs (1, 1) -> outputs 1
-    const state4 = computeNextState(nodes, wires, state3, 'schematic');
+    const state4 = computeNextState(nodes, wires, state3);
     expect(state4.pinStates['and1-out']).toBe(1);
   });
 
@@ -121,7 +121,7 @@ describe('Simulation Engine', () => {
     };
 
     // No wires connected to and1-in0
-    const state1 = computeNextState([andGate], [], prevState, 'schematic');
+    const state1 = computeNextState([andGate], [], prevState);
     
     expect(state1.pinStates['and1-in0']).toBeUndefined();
   });

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { getNodeDefinition } from '../../core/engine/nodes';
-import { getSafePinNumber } from '../../core/utils/nodeLayout';
+import { getSafePinNumber } from '../../core/utils/layoutUtils';
 
 export const PropertiesPanel: React.FC = () => {
   const selection = useSimulatorStore(state => state.selection);

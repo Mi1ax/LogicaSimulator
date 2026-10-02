@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Path, Rect } from 'react-konva';
 import { useSimulatorStore } from '../../../store/useSimulatorStore';
-import { getPinPosition } from '../../../core/utils/nodeLayout';
+import { getSchematicPinPosition } from '../../../core/utils/schematicLayout';
 import { computeAllWirePaths, getWireSegments } from '../../../core/engine/routing';
 import { getCanvasTheme } from '../theme';
 
@@ -176,7 +176,7 @@ export const WireRenderer: React.FC = React.memo(() => {
     if (draftWire) {
       const sourceNode = nodes.find(n => n.id === draftWire.sourceNodeId);
       if (sourceNode) {
-        const start = getPinPosition(sourceNode, draftWire.sourcePinId);
+        const start = getSchematicPinPosition(sourceNode, draftWire.sourcePinId);
         let outX, outY, outNx, inX, inY, inNx;
         if (draftWire.sourceType === 'output') {
           outX = start.x; outY = start.y; outNx = start.nx;

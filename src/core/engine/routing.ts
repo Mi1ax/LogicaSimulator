@@ -1,5 +1,5 @@
 import { LogicNode, Wire } from '../models/types';
-import { getPinPosition } from '../utils/nodeLayout';
+import { getSchematicPinPosition } from '../utils/schematicLayout';
 
 export interface Point { x: number; y: number; nx?: number; ny?: number }
 export interface Segment { x1: number; y1: number; x2: number; y2: number; isHorizontal: boolean }
@@ -109,8 +109,8 @@ export const computeAllWirePaths = (wires: Wire[], nodes: LogicNode[], draftWire
     const targetNode = nodes.find(n => n.id === wire.targetNodeId);
     if (!sourceNode || !targetNode) return;
 
-    const start = getPinPosition(sourceNode, wire.sourcePinId);
-    const end = getPinPosition(targetNode, wire.targetPinId);
+    const start = getSchematicPinPosition(sourceNode, wire.sourcePinId);
+    const end = getSchematicPinPosition(targetNode, wire.targetPinId);
 
     const segments = getWireSegments(start, end, wire.midX, wire.waypoints);
     if (wire.wireType !== 'jumper') {
@@ -130,8 +130,8 @@ export const computeAllWirePaths = (wires: Wire[], nodes: LogicNode[], draftWire
       const sourceNode = nodes.find(n => n.id === wire.sourceNodeId);
       const targetNode = nodes.find(n => n.id === wire.targetNodeId);
       if (sourceNode && targetNode) {
-        const start = getPinPosition(sourceNode, wire.sourcePinId);
-        const end = getPinPosition(targetNode, wire.targetPinId);
+        const start = getSchematicPinPosition(sourceNode, wire.sourcePinId);
+        const end = getSchematicPinPosition(targetNode, wire.targetPinId);
         
         // Jumper is a bezier curve or simple line (over everything)
         if (wire.waypoints && wire.waypoints.length > 0) {

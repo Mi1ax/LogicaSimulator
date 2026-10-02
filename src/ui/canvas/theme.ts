@@ -19,4 +19,8 @@ export const getCanvasTheme = (isDark: boolean) => ({
   pinInputStroke: isDark ? '#1e3a8a' : '#1e3a8a',
   pinOutputFill: isDark ? '#f43f5e' : '#e11d48', // rose
   pinOutputStroke: isDark ? '#881337' : '#881337',
+  boardSocketBg: '#171717',
+  boardSocketBorder: '#0A0A0A',
+  boardIcBg: '#111111',
+  boardIcBorder: '#333333',
 });

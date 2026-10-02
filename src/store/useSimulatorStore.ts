@@ -250,7 +250,7 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
   }),
 
   stepSimulation: () => set((state) => ({
-    simState: computeNextState(state.nodes, state.wires, state.simState, state.appMode)
+    simState: computeNextState(state.nodes, state.wires, state.simState)
   })),
 
   setSimRunning: (running) => set({ simRunning: running }),

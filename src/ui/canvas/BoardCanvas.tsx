@@ -2,12 +2,12 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Stage, Layer } from 'react-konva';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { Grid } from './Grid';
-import { GateNode } from './nodes/GateNode';
-import { IONode } from './nodes/IONode';
-import { ICNode } from './nodes/ICNode';
+import { BoardGateNode } from './nodes/board/BoardGateNode';
+import { BoardIONode } from './nodes/board/BoardIONode';
+import { BoardICNode } from './nodes/board/BoardICNode';
 import { BoardTraceRenderer } from './wires/BoardTraceRenderer';
 import { getNodeDefinition } from '../../core/engine/nodes';
-import { getGateDimensions } from '../../core/utils/nodeLayout';
+import { getBoardDimensions } from '../../core/utils/boardLayout';
 
 import { useShallow } from 'zustand/react/shallow';
 import { isTraceValid } from '../../core/utils/geometry';
@@ -22,9 +22,9 @@ const ConnectedNode = React.memo(({ id }: { id: string }) => {
   const def = getNodeDefinition(node.type);
   const boardNode = { ...node, x: node.boardX, y: node.boardY };
   
-  if (def?.renderAs === 'DIP') return <ICNode node={boardNode} />;
-  if (['INPUT', 'OUTPUT', 'CLOCK', 'VCC', 'GND'].includes(node.type)) return <IONode node={boardNode} />;
-  return <GateNode node={boardNode} />;
+  if (def?.renderAs === 'DIP') return <BoardICNode node={boardNode} />;
+  if (['INPUT', 'OUTPUT', 'CLOCK', 'VCC', 'GND'].includes(node.type)) return <BoardIONode node={boardNode} />;
+  return <BoardGateNode node={boardNode} />;
 });
 
 export const BoardCanvas: React.FC = () => {
@@ -206,7 +206,7 @@ export const BoardCanvas: React.FC = () => {
             let offsetX = 0;
             let offsetY = 0;
             if (node) {
-              const { width, height } = getGateDimensions(node, false); // false for board mode
+              const { width, height } = getBoardDimensions(node); // false for board mode
               offsetX = width / 2;
               offsetY = height / 2;
             }
