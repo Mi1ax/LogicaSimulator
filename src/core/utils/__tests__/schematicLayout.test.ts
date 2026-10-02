@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { getGateDimensions, getPinPosition, getSafePinNumber } from '../nodeLayout';
+import { getSchematicDimensions, getSchematicPinPosition } from '../schematicLayout';
+import { getSafePinNumber } from '../layoutUtils';
 import { LogicNode } from '../../models/types';
 
 vi.mock('../../engine/nodes', () => {
@@ -22,7 +23,7 @@ vi.mock('../../engine/nodes', () => {
   };
 });
 
-describe('nodeLayout', () => {
+describe('schematicLayout', () => {
   describe('getSafePinNumber', () => {
     it('returns pinNumber if it exists on the pin', () => {
       expect(getSafePinNumber('74LS161', { name: 'IN1', type: 'input', pinNumber: 42 })).toBe(42);
@@ -52,17 +53,17 @@ describe('nodeLayout', () => {
       const node = createNode(true);
       
       // Schematic: max(inputs, outputs) = 2. Height = 2 * 20 + 40 = 80
-      const dims = getGateDimensions(node);
+      const dims = getSchematicDimensions(node);
       expect(dims.height).toBe(80);
       expect(dims.width).toBe(120);
       
       // IN1 is first input -> row 1 left side
-      const in1 = getPinPosition(node, 'p1');
+      const in1 = getSchematicPinPosition(node, 'p1');
       expect(in1.x).toBe(100);
       expect(in1.y).toBe(100 + 20 + 10); // 130
       
       // OUT1 is first output -> row 1 right side
-      const out1 = getPinPosition(node, 'p15');
+      const out1 = getSchematicPinPosition(node, 'p15');
       expect(out1.x).toBe(220); // 100 + 120
       expect(out1.y).toBe(130);
     });
@@ -71,21 +72,21 @@ describe('nodeLayout', () => {
       const node = createNode(false);
       
       // Physical: maxPin = 16, pinsPerSide = 8. Height = 8 * 20 + 40 = 200
-      const dims = getGateDimensions(node);
+      const dims = getSchematicDimensions(node);
       expect(dims.height).toBe(200);
       
       // IN1 is pin 1 -> row 1 left side
-      const in1 = getPinPosition(node, 'p1');
+      const in1 = getSchematicPinPosition(node, 'p1');
       expect(in1.x).toBe(100);
       expect(in1.y).toBe(130);
       
       // OUT2 is pin 16 -> totalPins = 16. isLeft = false. row = 16 - 16 + 1 = 1. -> row 1 right side
-      const out2 = getPinPosition(node, 'p16');
+      const out2 = getSchematicPinPosition(node, 'p16');
       expect(out2.x).toBe(220);
       expect(out2.y).toBe(130);
       
       // OUT1 is pin 15 -> row = 16 - 15 + 1 = 2 -> row 2 right side
-      const out1 = getPinPosition(node, 'p15');
+      const out1 = getSchematicPinPosition(node, 'p15');
       expect(out1.x).toBe(220);
       expect(out1.y).toBe(150); // 100 + 20 + 20 + 10
     });
@@ -99,11 +100,11 @@ describe('nodeLayout', () => {
         outputs: [{ id: 'p15', nodeId: 'n1', type: 'output', index: 0, name: 'OUT1' }] // Pin 15
       };
       
-      const dims = getGateDimensions(node);
+      const dims = getSchematicDimensions(node);
       expect(dims.height).toBe(200); // Because it looks up maxPin 16 from registry!
       
       // IN2 should be pin 2, row 2 on left side
-      const in2 = getPinPosition(node, 'p1');
+      const in2 = getSchematicPinPosition(node, 'p1');
       expect(in2.x).toBe(100);
       expect(in2.y).toBe(150);
     });
