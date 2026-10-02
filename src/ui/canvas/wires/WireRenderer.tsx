@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Path, Rect } from 'react-konva';
+import { Path, Rect, Circle } from 'react-konva';
 import { useSimulatorStore } from '../../../store/useSimulatorStore';
 import { getSchematicPinPosition } from '../../../core/utils/schematicLayout';
 import { computeAllWirePaths, getWireSegments } from '../../../core/engine/routing';
@@ -26,6 +26,60 @@ const SingleWire = React.memo(({ wire, pathData, segments, isSelected, canvasThe
         data={pathData}
         stroke="transparent"
         strokeWidth={15}
+        onMouseUp={(e) => {
+          const store = useSimulatorStore.getState();
+          if (store.draftWire && store.completeWireOnWire) {
+            e.cancelBubble = true;
+            
+            const stage = e.target.getStage();
+            const ptr = stage?.getPointerPosition();
+            const transform = stage?.getAbsoluteTransform().copy().invert();
+            const pos = ptr && transform ? transform.point(ptr) : { x: store.draftWire.endX, y: store.draftWire.endY };
+            
+            let dropX = pos.x;
+            let dropY = pos.y;
+            let dropSegmentIndex = 0;
+            
+            if (segments && segments.length > 0) {
+              let minDist = Infinity;
+              for (let i = 0; i < segments.length; i++) {
+                const seg = segments[i];
+                if (seg.isHorizontal) {
+                  const minX = Math.min(seg.x1, seg.x2);
+                  const maxX = Math.max(seg.x1, seg.x2);
+                  const clampedX = Math.max(minX, Math.min(maxX, pos.x));
+                  const dist = Math.abs(pos.y - seg.y1) + Math.abs(pos.x - clampedX);
+                  if (dist < minDist) { minDist = dist; dropX = clampedX; dropY = seg.y1; dropSegmentIndex = i; }
+                } else {
+                  const minY = Math.min(seg.y1, seg.y2);
+                  const maxY = Math.max(seg.y1, seg.y2);
+                  const clampedY = Math.max(minY, Math.min(maxY, pos.y));
+                  const dist = Math.abs(pos.x - seg.x1) + Math.abs(pos.y - clampedY);
+                  if (dist < minDist) { minDist = dist; dropX = seg.x1; dropY = clampedY; dropSegmentIndex = i; }
+                }
+              }
+            }
+            
+            const wp1: {x: number, y: number}[] = [];
+            const wp2: {x: number, y: number}[] = [];
+            
+            if (segments && segments.length > 0) {
+              // Construct exact waypoints from segments to perfectly freeze the wire geometry
+              // Since segments connect corners, we just need the intermediate points.
+              for (let i = 0; i <= dropSegmentIndex; i++) {
+                // First segment starts at Source pin, we don't need it as a waypoint.
+                // We add the start of subsequent segments (which are corners)
+                if (i > 0) wp1.push({ x: segments[i].x1, y: segments[i].y1 });
+              }
+              
+              for (let i = dropSegmentIndex + 1; i < segments.length; i++) {
+                wp2.push({ x: segments[i].x1, y: segments[i].y1 });
+              }
+            }
+
+            store.completeWireOnWire(wire.id, dropX, dropY, wp1, wp2);
+          }
+        }}
         onMouseEnter={(e) => {
           const container = e.target.getStage()?.container();
           if (container) container.style.cursor = 'pointer';
@@ -171,21 +225,21 @@ export const WireRenderer: React.FC = React.memo(() => {
 
   // Compute all paths with U-bridge jumps. Only re-run when wires, nodes, or draft wire change.
   // Note: simState changing (which happens very fast) will NOT trigger this heavy calculation.
-  const { wirePaths, wireSegmentsMap, draftWirePath } = useMemo(() => {
+  const { wirePaths, wireSegmentsMap, draftWirePath, junctions } = useMemo(() => {
     let draftWireSegments = undefined;
     if (draftWire) {
       const sourceNode = nodes.find(n => n.id === draftWire.sourceNodeId);
       if (sourceNode) {
         const start = getSchematicPinPosition(sourceNode, draftWire.sourcePinId);
-        let outX, outY, outNx, inX, inY, inNx;
+        let outX, outY, outNx, outNy, inX, inY, inNx, inNy;
         if (draftWire.sourceType === 'output') {
-          outX = start.x; outY = start.y; outNx = start.nx;
-          inX = draftWire.endX; inY = draftWire.endY; inNx = 0; // 0 normal for floating cursor
+          outX = start.x; outY = start.y; outNx = start.nx; outNy = start.ny;
+          inX = draftWire.endX; inY = draftWire.endY; inNx = 0; inNy = 0;
         } else {
-          outX = draftWire.endX; outY = draftWire.endY; outNx = 0; // 0 normal for floating cursor
-          inX = start.x; inY = start.y; inNx = start.nx;
+          outX = draftWire.endX; outY = draftWire.endY; outNx = 0; outNy = 0;
+          inX = start.x; inY = start.y; inNx = start.nx; inNy = start.ny;
         }
-        draftWireSegments = getWireSegments({ x: outX, y: outY, nx: outNx }, { x: inX, y: inY, nx: inNx }, undefined, draftWire.waypoints);
+        draftWireSegments = getWireSegments({ x: outX, y: outY, nx: outNx, ny: outNy }, { x: inX, y: inY, nx: inNx, ny: inNy }, undefined, draftWire.waypoints);
       }
     }
     return computeAllWirePaths(wires, nodes, draftWireSegments);
@@ -212,7 +266,17 @@ export const WireRenderer: React.FC = React.memo(() => {
         );
       })}
 
-
+      {/* Junction Dots for Net Crossings/Branches */}
+      {junctions && junctions.map((j, i) => (
+        <Circle
+          key={`junction-${i}`}
+          x={j.x}
+          y={j.y}
+          radius={4}
+          fill={canvasTheme.wireColor}
+          listening={false}
+        />
+      ))}
 
       {draftWirePath && (
         <Path

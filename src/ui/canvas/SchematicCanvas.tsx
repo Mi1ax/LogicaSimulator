@@ -1,3 +1,4 @@
+import { SchematicJunctionNode } from "./nodes/schematic/SchematicJunctionNode";
 import React, { useRef, useState, useEffect } from 'react';
 import { Stage, Layer } from 'react-konva';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
@@ -17,6 +18,7 @@ const ConnectedNode = React.memo(({ id }: { id: string }) => {
   const def = getNodeDefinition(node.type);
   if (def?.renderAs === 'DIP') return <SchematicICNode node={node} />;
   if (['INPUT', 'OUTPUT', 'CLOCK', 'VCC', 'GND'].includes(node.type)) return <SchematicIONode node={node} />;
+  if (node.type === 'JUNCTION') return <SchematicJunctionNode node={node} />;
   return <SchematicGateNode node={node} />;
 });
 
@@ -51,6 +53,18 @@ export const SchematicCanvas: React.FC = () => {
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        const store = useSimulatorStore.getState();
+        if (store.draftWire) store.cancelWire();
+        if (store.placingNodeId) store.cancelPlacingNode();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
   return (
@@ -167,7 +181,7 @@ export const SchematicCanvas: React.FC = () => {
           const pos = transform.point(pointer);
 
           if (draftWire) {
-            updateDraftWire(pos.x, pos.y);
+            updateDraftWire(Math.round(pos.x / 10) * 10, Math.round(pos.y / 10) * 10);
           } else if (store.placingNodeId) {
             const node = store.nodes.find(n => n.id === store.placingNodeId);
             let offsetX = 0;
@@ -196,16 +210,8 @@ export const SchematicCanvas: React.FC = () => {
           const isBackground = e.target === e.target.getStage() || e.target.name() === 'grid';
           if (isBackground) {
             if (draftWire) {
-              const stage = e.target.getStage();
-              if (stage) {
-                const pointer = stage.getPointerPosition();
-                if (pointer) {
-                  const transform = stage.getAbsoluteTransform().copy().invert();
-                  const pos = transform.point(pointer);
-                  if (store.addWaypoint) {
-                    store.addWaypoint(Math.round(pos.x / 20) * 20, Math.round(pos.y / 20) * 20);
-                  }
-                }
+              if (store.addWaypoint) {
+                store.addWaypoint(store.draftWire!.endX, store.draftWire!.endY);
               }
             } else {
               select(null);

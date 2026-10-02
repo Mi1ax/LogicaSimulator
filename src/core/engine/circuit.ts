@@ -52,11 +52,12 @@ export const addNode = (state: CircuitState, type: NodeType, x: number, y: numbe
     }));
   }
   
+  const snap = type === 'JUNCTION' ? 10 : GRID_SIZE;
   const newNode: LogicNode = {
     id,
     type,
-    x: Math.round(x / GRID_SIZE) * GRID_SIZE,
-    y: Math.round(y / GRID_SIZE) * GRID_SIZE,
+    x: Math.round(x / snap) * snap,
+    y: Math.round(y / snap) * snap,
     inputs,
     outputs,
     properties,
@@ -77,8 +78,10 @@ export const moveNode = (state: CircuitState, id: string, x: number, y: number, 
     ...state,
     nodes: state.nodes.map((node) => {
       if (node.id === id) {
-        const snappedX = Math.round(x / GRID_SIZE) * GRID_SIZE;
-        const snappedY = Math.round(y / GRID_SIZE) * GRID_SIZE;
+        // Junctions need 10px snapping to align with perfectly horizontal/vertical wires smoothly
+        const snap = node.type === 'JUNCTION' ? 10 : GRID_SIZE;
+        const snappedX = Math.round(x / snap) * snap;
+        const snappedY = Math.round(y / snap) * snap;
         return isBoardCoords
           ? { ...node, boardX: snappedX, boardY: snappedY }
           : { ...node, x: snappedX, y: snappedY };
