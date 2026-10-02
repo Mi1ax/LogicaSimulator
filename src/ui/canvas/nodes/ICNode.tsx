@@ -17,9 +17,11 @@ export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
   const selection = useSimulatorStore(state => state.selection);
   const select = useSimulatorStore(state => state.select);
   const appMode = useSimulatorStore(state => state.appMode);
+  const boardScale = useSimulatorStore(state => state.boardScale);
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const isSchematic = appMode === 'schematic';
+  const showBoardPins = isSchematic || boardScale >= 1.5;
   const { width, height } = getGateDimensions(node, isSchematic);
   
   const isSelected = selection?.type === 'node' && selection.id === node.id;
@@ -152,22 +154,36 @@ export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
       )}
 
       {/* IC Label */}
-      <Text
-        text={def?.type || 'IC'}
-        x={0}
-        y={isSchematic ? 10 : height / 2}
-        offsetX={0}
-        offsetY={isSchematic ? 0 : 7}
-        width={width}
-        align="center"
-        verticalAlign={isSchematic ? "top" : "middle"}
-        rotation={isSchematic ? 0 : 90}
-        fontSize={14}
-        fontFamily="monospace"
-        fontStyle="bold"
-        fill={isSchematic ? canvasTheme.textColor : canvasTheme.nodeBorder}
-        opacity={isSchematic ? 1 : 0.7}
-      />
+      {isSchematic ? (
+        <Text
+          text={def?.type || 'IC'}
+          x={0}
+          y={10}
+          width={width}
+          align="center"
+          verticalAlign="top"
+          fontSize={14}
+          fontFamily="monospace"
+          fontStyle="bold"
+          fill={canvasTheme.textColor}
+        />
+      ) : (
+        <Group x={width / 2} y={height / 2} rotation={90}>
+          <Text
+            text={def?.type || 'IC'}
+            x={-height / 2}
+            y={-7}
+            width={height}
+            align="center"
+            verticalAlign="middle"
+            fontSize={14}
+            fontFamily="monospace"
+            fontStyle="bold"
+            fill={canvasTheme.nodeBorder}
+            opacity={0.7}
+          />
+        </Group>
+      )}
 
       {/* Render Pins and Labels */}
       {allPins.map((pin) => {
@@ -185,32 +201,41 @@ export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
           row = isLeft ? safePinNum : (totalPins - safePinNum + 1);
         }
 
-        const yOffset = 20 + ((row - 1) * 20);
+        const spacing = isSchematic ? 40 : 20;
+        const yOffset = spacing + ((row - 1) * spacing);
         
         return (
           <Group key={pin.id}>
+            {/* Pin Extension Leg for Schematic */}
+            {isSchematic && (
+              <Path
+                data={`M ${isLeft ? 0 : width} ${yOffset} L ${isLeft ? -20 : width + 20} ${yOffset}`}
+                stroke={canvasTheme.nodeBorder}
+                strokeWidth={2}
+              />
+            )}
             {/* The actual connection pin */}
             <Pin
               id={pin.id}
               nodeId={node.id}
-              x={isLeft ? 0 : width}
+              x={isSchematic ? (isLeft ? -20 : width + 20) : (isLeft ? 0 : width)}
               y={yOffset}
               type={pin.type}
             />
             {/* Physical Pin Number Label */}
-            {(() => {
+            {showBoardPins && (() => {
               const safePin = getSafePinNumber(node.type, pin);
               if (safePin === undefined) return null;
               return (
                 <Text
                   text={String(safePin)}
-                  x={isLeft ? 8 : width - 24}
-                  y={yOffset - 5}
-                  width={16}
-                  align={isLeft ? 'left' : 'right'}
+                  x={isSchematic ? (isLeft ? -20 : width) : (isLeft ? 8 : width - 24)}
+                  y={isSchematic ? yOffset - 14 : yOffset - 5}
+                  width={isSchematic ? 20 : 16}
+                  align={isSchematic ? "center" : (isLeft ? "left" : "right")}
                   fontSize={10}
-                  fill={canvasTheme.nodeBorder}
-                  opacity={isSchematic ? 0.4 : 1}
+                  fill={isSchematic ? canvasTheme.textColor : canvasTheme.nodeBorder}
+                  opacity={isSchematic ? 0.6 : 1}
                 />
               );
             })()}
@@ -218,13 +243,15 @@ export const ICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
             {isSchematic && pin.name && (
               <Text
                 text={pin.name}
-                x={isLeft ? 26 : width - 56}
-                y={yOffset - 4}
-                width={30}
+                x={isLeft ? 8 : width - 68}
+                y={yOffset - 5}
+                width={60}
+                wrap="none"
                 align={isLeft ? 'left' : 'right'}
-                fontSize={9}
-                fill={canvasTheme.nodeBorder}
-                opacity={0.6}
+                fontSize={11}
+                fontStyle="bold"
+                fill={canvasTheme.textColor}
+                opacity={0.85}
               />
             )}
           </Group>

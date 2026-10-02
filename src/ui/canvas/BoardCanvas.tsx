@@ -31,7 +31,8 @@ export const BoardCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
-  const [scale, setScale] = useState(1);
+  const scale = useSimulatorStore(state => state.boardScale);
+  const setScale = useSimulatorStore(state => state.setBoardScale);
   
   const nodeIds = useSimulatorStore(useShallow(state => state.nodes.map(n => n.id)));
   const draftBoardTrace = useSimulatorStore(state => state.draftBoardTrace);
