@@ -119,3 +119,11 @@ export const GndNode: NodeDefinition = {
   numOutputs: 1,
   evaluate: () => [0] // Always outputs 0
 };
+
+export const JunctionNode: NodeDefinition = {
+  type: 'JUNCTION',
+  label: 'Junction',
+  numInputs: 1,
+  numOutputs: 1,
+  evaluate: (inputs) => [inputs[0]] // Transparently passes signal
+};

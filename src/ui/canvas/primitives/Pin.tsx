@@ -9,9 +9,10 @@ interface PinProps {
   type: 'input' | 'output';
   id: string;
   nodeId: string;
+  opacity?: number;
 }
 
-export const Pin: React.FC<PinProps> = ({ x, y, type, id, nodeId }) => {
+export const Pin: React.FC<PinProps> = ({ x, y, type, id, nodeId, opacity }) => {
   const startWire = useSimulatorStore(state => state.startWire);
   const completeWire = useSimulatorStore(state => state.completeWire);
   const theme = useSimulatorStore(state => state.theme);
@@ -25,6 +26,7 @@ export const Pin: React.FC<PinProps> = ({ x, y, type, id, nodeId }) => {
       name={`pin-${type}`}
       x={x}
       y={y}
+      opacity={opacity ?? 1}
       radius={appMode === 'board' ? 4 : 5}
       fill={appMode === 'board' ? (theme === 'dark' ? '#94a3b8' : '#cbd5e1') : (type === 'input' ? canvasTheme.pinInputFill : canvasTheme.pinOutputFill)}
       stroke={appMode === 'board' ? '#334155' : (type === 'input' ? canvasTheme.pinInputStroke : canvasTheme.pinOutputStroke)}

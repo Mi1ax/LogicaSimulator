@@ -13,6 +13,11 @@ export const getSchematicDimensions = (node: LogicNode) => {
   if (node.type === 'INPUT' || node.type === 'OUTPUT' || node.type === 'CLOCK') {
     return { width: 60, height: 60 };
   }
+  
+  if (node.type === 'JUNCTION') {
+    return { width: 20, height: 20 };
+  }
+
   return { 
     width: 80, 
     height: Math.max(60, (Math.max(node.inputs.length, node.outputs.length) + 1) * 20)
@@ -48,6 +53,10 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
       const y = node.y + yOffset;
       return { x, y, nx: isLeft ? -1 : 1, ny: 0 };
     }
+  }
+
+  if (node.type === 'JUNCTION') {
+    return { x: node.x + 10, y: node.y + 10, nx: 0, ny: 0 };
   }
 
   const inIndex = node.inputs.findIndex(p => p.id === pinId);

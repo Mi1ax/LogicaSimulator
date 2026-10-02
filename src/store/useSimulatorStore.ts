@@ -36,6 +36,7 @@ interface SimulatorState {
   startWire: (nodeId: string, pinId: string, pinType: 'input' | 'output', x: number, y: number) => void;
   updateDraftWire: (x: number, y: number) => void;
   completeWire: (nodeId: string, pinId: string, pinType: 'input' | 'output') => void;
+  completeWireOnWire: (wireId: string, dropX?: number, dropY?: number, wp1?: {x:number, y:number}[], wp2?: {x:number, y:number}[]) => void;
   cancelWire: () => void;
 
   // UI state for selection
@@ -312,6 +313,67 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
     }
 
     return { ...nextCircuit, ...pushHistory(state), draftWire: null };
+  }),
+
+  completeWireOnWire: (targetWireId: string, dropX?: number, dropY?: number, wp1?: {x:number, y:number}[], wp2?: {x:number, y:number}[]) => set((state) => {
+    if (!state.draftWire) return state;
+
+    const targetWire = state.wires.find(w => w.id === targetWireId);
+    if (!targetWire) return { draftWire: null };
+
+    const { sourceNodeId, sourcePinId, sourceType, endX, endY } = state.draftWire;
+    const finalX = dropX ?? endX;
+    const finalY = dropY ?? endY;
+
+    if (sourceType === 'input') {
+      // 1. Create a Junction node EXACTLY at the drop point
+      let nextState = circuit.addNode(state, 'JUNCTION', finalX - 10, finalY - 10);
+      const junctionNode = nextState.nodes[nextState.nodes.length - 1];
+      // Force exact coordinates to avoid addNode's internal grid snapping
+      junctionNode.x = finalX - 10;
+      junctionNode.y = finalY - 10;
+      
+      const jInPin = junctionNode.inputs[0];
+      const jOutPin = junctionNode.outputs[0];
+
+      // 2. Connect the target wire's signal source to the Junction's input
+      nextState = circuit.addWire(
+        nextState,
+        targetWire.sourceNodeId,
+        targetWire.sourcePinId,
+        junctionNode.id,
+        jInPin.id,
+        state.appMode === 'board' ? state.activeWireType : undefined
+      );
+
+      if (wp1 && wp1.length > 0) {
+        const newWire = nextState.wires[nextState.wires.length - 1];
+        newWire.waypoints = wp1;
+      }
+
+      // 3. Re-route the existing target wire to start from the Junction's output
+      nextState.wires = nextState.wires.map(w => {
+        if (w.id === targetWire.id) {
+          return { ...w, sourceNodeId: junctionNode.id, sourcePinId: jOutPin.id, waypoints: wp2 || [] };
+        }
+        return w;
+      });
+
+      // 4. Connect the Junction's output to the newly drawn draft wire's input
+      nextState = circuit.addWire(
+        nextState,
+        junctionNode.id,
+        jOutPin.id,
+        sourceNodeId,
+        sourcePinId,
+        state.appMode === 'board' ? state.activeWireType : undefined
+      );
+
+      return { ...nextState, ...pushHistory(state), draftWire: null };
+    } else {
+      // Connecting an output to a wire is technically shorting.
+      return { draftWire: null };
+    }
   }),
 
   cancelWire: () => set({ draftWire: null }),
