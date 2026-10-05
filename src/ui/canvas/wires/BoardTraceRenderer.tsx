@@ -1,5 +1,5 @@
 import React from 'react';
-import { Path, Group, Circle } from 'react-konva';
+import { Path, Group } from 'react-konva';
 import { useSimulatorStore } from '../../../store/useSimulatorStore';
 
 import { isTraceValid } from '../../../core/utils/geometry';
@@ -34,17 +34,6 @@ export const BoardTraceRenderer: React.FC = () => {
           lineCap="round"
           lineJoin="round"
         />
-        {/* Render waypoints for completed jumpers/traces, or ends */}
-        {points.map((p, i) => (
-          <Circle
-            key={`${id}-pt-${i}`}
-            x={p.x}
-            y={p.y}
-            radius={type === 'solder' ? 4 : 2}
-            fill={strokeColor}
-            opacity={opacity}
-          />
-        ))}
       </Group>
     );
   };

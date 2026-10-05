@@ -12,7 +12,7 @@ export const PropertiesPanel: React.FC = () => {
   if (selection?.type !== 'node') return null;
 
   const node = nodes.find(n => n.id === selection.id);
-  if (!node) return null;
+  if (!node || node.type === 'JUNCTION') return null;
 
   const def = getNodeDefinition(node.type);
   if (!def) return null;

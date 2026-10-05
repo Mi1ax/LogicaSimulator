@@ -28,7 +28,7 @@ export const BoardIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   
   const isSelected = selection?.type === 'node' && selection.id === node.id;
 
-  let val: 0 | 1 | undefined = undefined;
+  let val: any = undefined;
   if (isInput) {
     val = node.properties?.value === 1 ? 1 : 0;
   } else if (isOutput) {
@@ -42,7 +42,10 @@ export const BoardIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   }
 
   const isInputLike = isInput || isClock || isVcc || isGnd;
-  const indicatorFill = val === 1 ? canvasTheme.signalHigh : (isInputLike ? canvasTheme.inputIndicator : canvasTheme.outputIndicator);
+  let indicatorFill = canvasTheme.outputIndicator;
+  if (isInputLike) indicatorFill = canvasTheme.inputIndicator;
+  if (val === 1) indicatorFill = canvasTheme.signalHigh;
+  if (val === 'X') indicatorFill = '#ef4444';
   const bgFill = isInputLike ? canvasTheme.inputNodeBg : canvasTheme.outputNodeBg;
   const borderStroke = isInputLike ? canvasTheme.inputNodeBorder : canvasTheme.outputNodeBorder;
 
@@ -56,7 +59,7 @@ export const BoardIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
       x={x}
       y={y}
       opacity={isPlacing ? 0.6 : 1}
-      draggable={isSelected}
+      draggable={!isPlacing}
       onClick={(e) => {
         e.cancelBubble = true;
         const store = useSimulatorStore.getState();
@@ -65,6 +68,10 @@ export const BoardIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
           return;
         }
         select({ type: 'node', id: node.id });
+        
+        if (isInput) {
+          toggleInputNode(node.id);
+        }
       }}
       onDragMove={(e) => {
         const localX = Math.round(e.target.x() / 20) * 20;
@@ -87,56 +94,89 @@ export const BoardIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
         if (container) container.style.cursor = 'default';
       }}
     >
-      <Rect
-        x={0}
-        y={0}
-        width={width}
-        height={height}
-        fill={bgFill}
-        stroke={isSelected ? canvasTheme.selectedNodeColor : borderStroke}
-        strokeWidth={isSelected ? 3 : 2}
-        cornerRadius={30}
-      />
-      {isInputLike && (
-        <Circle
-          x={12}
-          y={height / 2}
-          radius={6}
-          fill={indicatorFill}
-          stroke={canvasTheme.nodeBorder}
-          strokeWidth={1}
-        />
+      {isVcc || isGnd ? (
+        <>
+          <Circle
+            x={width/2}
+            y={height/2}
+            radius={18}
+            fill={isVcc ? '#ef4444' : '#1f2937'}
+            stroke={isSelected ? canvasTheme.selectedNodeColor : '#9ca3af'}
+            strokeWidth={isSelected ? 3 : 1}
+            shadowColor="#000"
+            shadowBlur={4}
+            shadowOffset={{ x: 0, y: 2 }}
+            shadowOpacity={0.3}
+          />
+          <Circle
+            x={width/2}
+            y={height/2}
+            radius={10}
+            fill="#d1d5db"
+            stroke="#9ca3af"
+            strokeWidth={1}
+          />
+          <Circle
+            x={width/2}
+            y={height/2}
+            radius={6}
+            fill="#374151"
+            stroke="#111827"
+            strokeWidth={1}
+          />
+          <Text text={isVcc ? 'VCC' : 'GND'} x={0} y={-20} width={width} align="center" fontSize={12} fontFamily="monospace" fill={canvasTheme.textColor} />
+          {/* Invisible hit area to make dragging easier over the center holes */}
+          <Rect x={0} y={0} width={width} height={height} fill="transparent" />
+        </>
+      ) : (
+        <>
+          <Rect
+            x={0}
+            y={0}
+            width={width}
+            height={height}
+            fill={bgFill}
+            stroke={isSelected ? canvasTheme.selectedNodeColor : borderStroke}
+            strokeWidth={isSelected ? 3 : 2}
+            cornerRadius={30}
+          />
+          {isInputLike && (
+            <Circle
+              x={12}
+              y={height / 2}
+              radius={6}
+              fill={indicatorFill}
+              stroke={canvasTheme.nodeBorder}
+              strokeWidth={1}
+            />
+          )}
+          {!isInputLike && (
+            <Circle
+              x={width - 12}
+              y={height / 2}
+              radius={6}
+              fill={indicatorFill}
+              stroke={canvasTheme.nodeBorder}
+              strokeWidth={1}
+            />
+          )}
+          <Text
+            text={isClock ? 'CLK' : (val === 1 ? '1' : '0')}
+            x={0}
+            y={0}
+            width={width}
+            height={height}
+            align="center"
+            verticalAlign="middle"
+            fontSize={isClock ? 14 : 20}
+            fontFamily="monospace"
+            fontStyle="bold"
+            fill={canvasTheme.textColor}
+          />
+        </>
       )}
-      {!isInputLike && (
-        <Circle
-          x={width - 12}
-          y={height / 2}
-          radius={6}
-          fill={indicatorFill}
-          stroke={canvasTheme.nodeBorder}
-          strokeWidth={1}
-        />
-      )}
-      <Text
-        text={isClock ? 'CLK' : (isVcc ? 'VCC' : (isGnd ? 'GND' : (val === 1 ? '1' : '0')))}
-        x={0}
-        y={0}
-        width={width}
-        height={height}
-        align="center"
-        verticalAlign="middle"
-        fontSize={isClock || isVcc || isGnd ? 14 : 20}
-        fontFamily="monospace"
-        fontStyle="bold"
-        fill={canvasTheme.textColor}
-        onClick={(e) => {
-          if (isInput && !useSimulatorStore.getState().placingNodeId) {
-            e.cancelBubble = true;
-            toggleInputNode(node.id);
-          }
-        }}
-      />
-      {node.properties?.label && (
+
+      {node.properties?.label && !isVcc && !isGnd && (
         <Text
           text={node.properties.label}
           y={-20}
@@ -163,7 +203,7 @@ export const BoardIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
           key={pin.id}
           id={pin.id}
           nodeId={node.id}
-          x={width}
+          x={isVcc || isGnd ? width / 2 : width}
           y={height / 2}
           type={pin.type}
         />

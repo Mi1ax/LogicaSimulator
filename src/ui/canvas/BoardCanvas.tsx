@@ -16,6 +16,9 @@ const ConnectedNode = React.memo(({ id }: { id: string }) => {
   const node = useSimulatorStore(state => state.nodes.find(n => n.id === id));
   if (!node) return null;
 
+  // Don't render abstract junctions on the physical board
+  if (node.type === 'JUNCTION') return null;
+
   // Don't render on the board if it hasn't been explicitly placed yet
   if (node.boardX === undefined || node.boardY === undefined) return null;
 
@@ -34,7 +37,7 @@ export const BoardCanvas: React.FC = () => {
   const scale = useSimulatorStore(state => state.boardScale);
   const setScale = useSimulatorStore(state => state.setBoardScale);
   
-  const nodeIds = useSimulatorStore(useShallow(state => state.nodes.map(n => n.id)));
+  const nodeIds = useSimulatorStore(useShallow(state => state.nodes.filter(n => n.type !== 'JUNCTION').map(n => n.id)));
   const draftBoardTrace = useSimulatorStore(state => state.draftBoardTrace);
   
   const startBoardTrace = useSimulatorStore(state => state.startBoardTrace);

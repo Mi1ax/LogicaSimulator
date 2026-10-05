@@ -60,7 +60,9 @@ export const Toolbox: React.FC = () => {
   const nodes = useSimulatorStore(state => state.nodes);
 
   if (appMode === 'board') {
-    const unplacedNodes = nodes.filter(n => n.boardX === undefined || n.boardY === undefined);
+    const unplacedNodes = nodes.filter(
+      n => n.type !== 'JUNCTION' && (n.boardX === undefined || n.boardY === undefined)
+    );
     
     return (
       <div className="w-64 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 flex flex-col shadow-lg z-10 relative">
