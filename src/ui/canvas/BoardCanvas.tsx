@@ -10,6 +10,7 @@ import { BoardTraceRenderer } from './wires/BoardTraceRenderer';
 import { getNodeDefinition } from '../../core/engine/nodes';
 import { getBoardDimensions } from '../../core/utils/boardLayout';
 
+import { Board7SegNode } from './nodes/board/Board7SegNode';
 import { useShallow } from 'zustand/react/shallow';
 import { isTraceValid } from '../../core/utils/geometry';
 
@@ -26,6 +27,7 @@ const ConnectedNode = React.memo(({ id }: { id: string }) => {
   const def = getNodeDefinition(node.type);
   const boardNode = { ...node, x: node.boardX, y: node.boardY };
   
+  if (node.type === '7_SEG_DISPLAY') return <Board7SegNode node={boardNode} />;
   if (node.type === 'DIP_SWITCH') return <BoardDipSwitchNode node={boardNode} />;
   if (def?.renderAs === 'DIP') return <BoardICNode node={boardNode} />;
   if (['INPUT', 'OUTPUT', 'CLOCK', 'VCC', 'GND'].includes(node.type)) return <BoardIONode node={boardNode} />;

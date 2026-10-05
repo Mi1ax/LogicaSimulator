@@ -23,8 +23,8 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
   const isSelected = selection?.type === 'node' && selection.id === node.id;
   const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
 
-  const anchorX = width / 2;
-  const anchorY = height / 2;
+  const anchorX = Math.round(width / 40) * 20;
+  const anchorY = Math.round(height / 40) * 20;
 
   const numSwitches = node.outputs.length || 4;
   let switches = node.properties?.switches || [];
