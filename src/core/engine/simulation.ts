@@ -47,15 +47,29 @@ export const computeNextState = (
   });
 
   // 2. Propagate through wires (1-tick delay for wire travel, or instant)
-  // Here we copy output pins to target input pins.
+  // Here we copy output pins to target input pins with collision detection.
+  // First, clear the state for connected input pins so we don't falsely collide with the previous tick's value.
+  const connectedInputPins = new Set(wires.map(w => w.targetPinId));
+  connectedInputPins.forEach(pinId => {
+    delete nextPinStates[pinId];
+  });
+
   wires.forEach(wire => {
     const val = nextPinStates[wire.sourcePinId];
     nextWireStates[wire.id] = val;
-    nextPinStates[wire.targetPinId] = val;
+    
+    if (nextPinStates.hasOwnProperty(wire.targetPinId) && nextPinStates[wire.targetPinId] !== val) {
+      if (nextPinStates[wire.targetPinId] !== undefined && val !== undefined) {
+        nextPinStates[wire.targetPinId] = 'X'; // Collision
+      } else if (val !== undefined) {
+        nextPinStates[wire.targetPinId] = val;
+      }
+    } else {
+      nextPinStates[wire.targetPinId] = val;
+    }
   });
 
   // 3. Clear disconnected input pins
-  const connectedInputPins = new Set(wires.map(w => w.targetPinId));
   nodes.forEach(node => {
     node.inputs.forEach(pin => {
       if (!connectedInputPins.has(pin.id)) {

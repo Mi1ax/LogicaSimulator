@@ -29,7 +29,7 @@ export const BoardGateNode: React.FC<GateNodeProps> = React.memo(({ node }) => {
       x={x}
       y={y}
       opacity={isPlacing ? 0.6 : 1}
-      draggable={isSelected}
+      draggable={!isPlacing}
       onClick={(e) => {
         e.cancelBubble = true;
         const store = useSimulatorStore.getState();

@@ -17,6 +17,8 @@ const SingleWire = React.memo(({ wire, pathData, segments, isSelected, canvasThe
     strokeColor = canvasTheme.signalHigh;
   } else if (signal === 0) {
     strokeColor = canvasTheme.signalLow;
+  } else if (signal === 'X') {
+    strokeColor = '#ef4444'; // Red for collision
   }
 
   return (

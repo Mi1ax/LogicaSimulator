@@ -41,7 +41,7 @@ export const BoardICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
       x={x}
       y={y}
       opacity={isPlacing ? 0.6 : 1}
-      draggable={isSelected}
+      draggable={!isPlacing}
       onClick={(e) => {
         const store = useSimulatorStore.getState();
         if (store.placingNodeId === node.id) {

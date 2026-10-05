@@ -19,6 +19,22 @@ export const Pin: React.FC<PinProps> = ({ x, y, type, id, nodeId, opacity }) => 
   const appMode = useSimulatorStore(state => state.appMode);
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
+  const pinState = useSimulatorStore(state => state.simState.pinStates[id]);
+
+  let fill = appMode === 'board' ? (theme === 'dark' ? '#94a3b8' : '#cbd5e1') : (type === 'input' ? canvasTheme.pinInputFill : canvasTheme.pinOutputFill);
+  let stroke = appMode === 'board' ? '#334155' : (type === 'input' ? canvasTheme.pinInputStroke : canvasTheme.pinOutputStroke);
+  let radius = appMode === 'board' ? 4 : 5;
+
+  if (pinState === 1) {
+    fill = canvasTheme.signalHigh;
+    stroke = canvasTheme.signalHigh;
+  } else if (pinState === 0) {
+    fill = canvasTheme.signalLow;
+    stroke = canvasTheme.signalLow;
+  } else if (pinState === 'X') {
+    fill = '#ef4444'; // Red for collision
+    stroke = '#ef4444';
+  }
 
   return (
     <Circle
@@ -27,9 +43,9 @@ export const Pin: React.FC<PinProps> = ({ x, y, type, id, nodeId, opacity }) => 
       x={x}
       y={y}
       opacity={opacity ?? 1}
-      radius={appMode === 'board' ? 4 : 5}
-      fill={appMode === 'board' ? (theme === 'dark' ? '#94a3b8' : '#cbd5e1') : (type === 'input' ? canvasTheme.pinInputFill : canvasTheme.pinOutputFill)}
-      stroke={appMode === 'board' ? '#334155' : (type === 'input' ? canvasTheme.pinInputStroke : canvasTheme.pinOutputStroke)}
+      radius={radius}
+      fill={fill}
+      stroke={stroke}
       strokeWidth={1}
       hitStrokeWidth={15}
       onMouseEnter={(e) => {
@@ -43,9 +59,11 @@ export const Pin: React.FC<PinProps> = ({ x, y, type, id, nodeId, opacity }) => 
         e.target.scale({ x: 1, y: 1 });
       }}
       onClick={(e) => {
+        const store = useSimulatorStore.getState();
+        if (store.placingNodeId) return;
+
         if (appMode === 'board') {
           e.cancelBubble = true;
-          const store = useSimulatorStore.getState();
           const node = store.nodes.find(n => n.id === nodeId);
           if (node) {
             // Calculate absolute grid coordinates of this pin

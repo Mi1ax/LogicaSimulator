@@ -26,7 +26,7 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
       x={node.x}
       y={node.y}
       opacity={isPlacing ? 0.6 : 1}
-      draggable={isSelected}
+      draggable={!isPlacing}
       onClick={(e) => {
         e.cancelBubble = true;
         const store = useSimulatorStore.getState();

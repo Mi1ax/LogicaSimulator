@@ -109,7 +109,7 @@ const pushHistory = (state: SimulatorState) => ({
 
 export const useSimulatorStore = create<SimulatorState>((set) => ({
   appMode: 'schematic',
-  setAppMode: (mode) => set({ appMode: mode }),
+  setAppMode: (mode) => set({ appMode: mode, selection: null }),
 
   theme: 'dark',
   toggleTheme: () => set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
@@ -298,11 +298,18 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
 
     const { sourceNodeId, sourcePinId, sourceType, waypoints } = state.draftWire;
 
-    if (sourceNodeId === nodeId || sourceType === pinType) {
+    if (sourceNodeId === nodeId) {
       return { draftWire: null };
     }
 
-    const isSourceOutput = sourceType === 'output';
+    // Allow any-to-any connections.
+    // If the types differ, standard logic: source is output, target is input.
+    // Otherwise, just use the drag direction (start is source, drop is target).
+    let isSourceOutput = true;
+    if (sourceType !== pinType) {
+      isSourceOutput = sourceType === 'output';
+    }
+
     const outputPinId = isSourceOutput ? sourcePinId : pinId;
     const outputNodeId = isSourceOutput ? sourceNodeId : nodeId;
     const inputPinId = isSourceOutput ? pinId : sourcePinId;

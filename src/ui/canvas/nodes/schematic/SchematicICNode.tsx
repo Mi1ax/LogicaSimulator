@@ -36,7 +36,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
       x={node.x}
       y={node.y}
       opacity={isPlacing ? 0.6 : 1}
-      draggable={isSelected}
+      draggable={!isPlacing}
       onClick={(e) => {
         const store = useSimulatorStore.getState();
         if (store.placingNodeId === node.id) {

@@ -10,6 +10,8 @@ export const getSchematicDimensions = (node: LogicNode) => {
     return { width: 160, height: (pinsPerSide + 1) * 40 };
   }
 
+  if (node.type === "VCC" || node.type === "GND") return { width: 40, height: 40 };
+
   if (node.type === 'INPUT' || node.type === 'OUTPUT' || node.type === 'CLOCK') {
     return { width: 60, height: 60 };
   }
@@ -73,6 +75,12 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
   
   const outIndex = node.outputs.findIndex(p => p.id === pinId);
   if (outIndex !== -1) {
+    if (node.type === 'VCC') {
+      return { x: node.x + width / 2, y: node.y + height, nx: 0, ny: 1 };
+    }
+    if (node.type === 'GND') {
+      return { x: node.x + width / 2, y: node.y, nx: 0, ny: -1 };
+    }
     if (node.type === 'INPUT' || node.type === 'CLOCK') {
       return { x: node.x + width, y: node.y + height / 2, nx: 1, ny: 0 };
     }

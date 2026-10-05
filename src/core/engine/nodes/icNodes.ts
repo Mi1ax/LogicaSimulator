@@ -96,7 +96,7 @@ export const IC74LS161: NodeDefinition = {
       // Synchronous load (active low)
       if (safeLoadN === 0) {
         // Parallel data defaults to 0 if floating
-        props.counter = ((d ?? 0) << 3) | ((c ?? 0) << 2) | ((b ?? 0) << 1) | ((a ?? 0));
+        props.counter = ((d === 1 ? 1 : 0) << 3) | ((c === 1 ? 1 : 0) << 2) | ((b === 1 ? 1 : 0) << 1) | ((a === 1 ? 1 : 0));
       } 
       // Count enable (both ENP and ENT must be high to count)
       else if (safeEnp === 1 && safeEnt === 1) {
