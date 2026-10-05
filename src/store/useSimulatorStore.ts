@@ -26,8 +26,6 @@ interface SimulatorState {
   updateSettings: (newSettings: Partial<PointerSettings>) => void;
 
   // Global Interaction Mode (Cursor vs Wire drawing)
-  interactionMode: 'cursor' | 'wire';
-  setInteractionMode: (mode: 'cursor' | 'wire') => void;
 
   // UI state for drawing wires
   activeWireType: 'solder' | 'jumper';
@@ -129,14 +127,6 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
   activeWireType: 'solder',
   setActiveWireType: (type) => set({ activeWireType: type }),
 
-  interactionMode: 'cursor',
-  setInteractionMode: (mode) => set(() => {
-    // If switching to cursor, cancel any in-progress wires
-    if (mode === 'cursor') {
-      return { interactionMode: mode, draftWire: null, draftBoardTrace: null };
-    }
-    return { interactionMode: mode };
-  }),
 
   nodes: [],
   wires: [],
@@ -239,7 +229,12 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
 
   addNode: (type, x, y) => set((state) => ({ ...circuit.addNode(state, type, x, y), ...pushHistory(state) })),
   updateNodePosition: (id, x, y) => set((state) => circuit.moveNode(state, id, x, y, state.appMode === 'board')), // History saved on drag start
-  updateNodeProperties: (id, props) => set((state) => ({ ...circuit.updateNodeProperties(state, id, props), ...pushHistory(state) })),
+  updateNodeProperties: (id, props) => set((state) => {
+    if (state.placingNodeId === id) {
+      return circuit.updateNodeProperties(state, id, props);
+    }
+    return { ...circuit.updateNodeProperties(state, id, props), ...pushHistory(state) };
+  }),
   setNodeInputCount: (id, count) => set((state) => ({ ...circuit.setNodeInputCount(state, id, count), ...pushHistory(state) })),
 
   clearNodes: () => set({

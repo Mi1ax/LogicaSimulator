@@ -40,7 +40,6 @@ export const BoardCanvas: React.FC = () => {
   const nodeIds = useSimulatorStore(useShallow(state => state.nodes.filter(n => n.type !== 'JUNCTION').map(n => n.id)));
   const draftBoardTrace = useSimulatorStore(state => state.draftBoardTrace);
   
-  const startBoardTrace = useSimulatorStore(state => state.startBoardTrace);
   const updateDraftBoardTrace = useSimulatorStore(state => state.updateDraftBoardTrace);
   const addBoardTraceWaypoint = useSimulatorStore(state => state.addBoardTraceWaypoint);
   const completeBoardTrace = useSimulatorStore(state => state.completeBoardTrace);
@@ -102,10 +101,6 @@ export const BoardCanvas: React.FC = () => {
           if (store.placingNodeId) store.cancelPlacingNode();
         } else if (e.key === 'Delete' || e.key === 'Backspace') {
           deleteSelection();
-        } else if (e.key.toLowerCase() === 'm' || e.key.toLowerCase() === 'v') {
-          store.setInteractionMode('cursor');
-        } else if (e.key.toLowerCase() === 'w') {
-          store.setInteractionMode('wire');
         }
       }}
     >
@@ -235,10 +230,6 @@ export const BoardCanvas: React.FC = () => {
             if (stage) {
               const pointer = stage.getPointerPosition();
               if (pointer) {
-                const transform = stage.getAbsoluteTransform().copy().invert();
-                const pos = transform.point(pointer);
-                const gridX = Math.round(pos.x / 20) * 20;
-                const gridY = Math.round(pos.y / 20) * 20;
 
                 if (draftBoardTrace) {
                   // Validate overlap for solder
@@ -255,10 +246,6 @@ export const BoardCanvas: React.FC = () => {
                     addBoardTraceWaypoint();
                   }
                 } else {
-                  const store = useSimulatorStore.getState();
-                  if (store.interactionMode === 'wire') {
-                    startBoardTrace(gridX, gridY);
-                  }
                   select(null);
                 }
               }

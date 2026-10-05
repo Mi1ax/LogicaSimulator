@@ -53,8 +53,11 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
 
   return (
     <Group
-      x={node.x}
-      y={node.y}
+      x={node.x + 20}
+      y={node.y + 20}
+      offsetX={20}
+      offsetY={20}
+      rotation={node.properties?.rotation || 0}
       opacity={isPlacing ? 0.6 : 1}
       draggable={!isPlacing}
       onClick={(e) => {
@@ -71,15 +74,15 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
         }
       }}
       onDragMove={(e) => {
-        const localX = Math.round(e.target.x() / 20) * 20;
-        const localY = Math.round(e.target.y() / 20) * 20;
-        e.target.position({ x: localX, y: localY });
+        const localX = Math.round((e.target.x() - 20) / 20) * 20;
+        const localY = Math.round((e.target.y() - 20) / 20) * 20;
+        e.target.position({ x: localX + 20, y: localY + 20 });
         updateNodePosition(node.id, localX, localY);
       }}
       onDragEnd={(e) => {
-        const localX = Math.round(e.target.x() / 20) * 20;
-        const localY = Math.round(e.target.y() / 20) * 20;
-        e.target.position({ x: localX, y: localY });
+        const localX = Math.round((e.target.x() - 20) / 20) * 20;
+        const localY = Math.round((e.target.y() - 20) / 20) * 20;
+        e.target.position({ x: localX + 20, y: localY + 20 });
         updateNodePosition(node.id, localX, localY);
       }}
       onMouseEnter={(e) => {
