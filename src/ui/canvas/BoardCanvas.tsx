@@ -5,6 +5,7 @@ import { Grid } from './Grid';
 import { BoardGateNode } from './nodes/board/BoardGateNode';
 import { BoardIONode } from './nodes/board/BoardIONode';
 import { BoardICNode } from './nodes/board/BoardICNode';
+import { BoardDipSwitchNode } from './nodes/board/BoardDipSwitchNode';
 import { BoardTraceRenderer } from './wires/BoardTraceRenderer';
 import { getNodeDefinition } from '../../core/engine/nodes';
 import { getBoardDimensions } from '../../core/utils/boardLayout';
@@ -25,6 +26,7 @@ const ConnectedNode = React.memo(({ id }: { id: string }) => {
   const def = getNodeDefinition(node.type);
   const boardNode = { ...node, x: node.boardX, y: node.boardY };
   
+  if (node.type === 'DIP_SWITCH') return <BoardDipSwitchNode node={boardNode} />;
   if (def?.renderAs === 'DIP') return <BoardICNode node={boardNode} />;
   if (['INPUT', 'OUTPUT', 'CLOCK', 'VCC', 'GND'].includes(node.type)) return <BoardIONode node={boardNode} />;
   return <BoardGateNode node={boardNode} />;

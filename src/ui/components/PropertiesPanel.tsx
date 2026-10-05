@@ -8,6 +8,7 @@ export const PropertiesPanel: React.FC = () => {
   const nodes = useSimulatorStore(state => state.nodes);
   const updateNodeProperties = useSimulatorStore(state => state.updateNodeProperties);
   const setNodeInputCount = useSimulatorStore(state => state.setNodeInputCount);
+  const setNodeOutputCount = useSimulatorStore(state => state.setNodeOutputCount);
   const appMode = useSimulatorStore(state => state.appMode);
 
   if (selection?.type !== 'node') return null;
@@ -19,6 +20,7 @@ export const PropertiesPanel: React.FC = () => {
   if (!def) return null;
 
   const isVariableInputGate = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR'].includes(node.type);
+  const isVariableOutputGate = ['DIP_SWITCH'].includes(node.type);
   const isClock = node.type === 'CLOCK';
 
   return (
@@ -89,6 +91,28 @@ export const PropertiesPanel: React.FC = () => {
                 const count = parseInt(e.target.value, 10);
                 if (!isNaN(count) && count >= 2 && count <= 8) {
                   setNodeInputCount(node.id, count);
+                }
+              }}
+            />
+          </div>
+        )}
+
+        {/* Variable Outputs */}
+        {isVariableOutputGate && (
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+              Number of Outputs (Switches)
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={12}
+              className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
+              value={node.outputs.length}
+              onChange={(e) => {
+                const count = parseInt(e.target.value, 10);
+                if (!isNaN(count) && count >= 1 && count <= 12) {
+                  setNodeOutputCount(node.id, count);
                 }
               }}
             />

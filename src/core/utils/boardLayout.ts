@@ -4,6 +4,12 @@ import { getSafePinNumber } from './layoutUtils';
 
 export const getBoardDimensions = (node: LogicNode) => {
   const def = getNodeDefinition(node.type);
+  
+  if (node.type === 'DIP_SWITCH') {
+    const pins = node.outputs.length || 4;
+    return { width: 60, height: (pins + 1) * 20 };
+  }
+
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
     const allPins = [...node.inputs, ...node.outputs];
     const maxPinNumber = allPins.reduce((max, p) => Math.max(max, getSafePinNumber(node.type, p) ?? 0), 0);
@@ -26,6 +32,15 @@ export const getBoardPinPosition = (node: LogicNode, pinId: string) => {
   const { width, height } = getBoardDimensions(node);
   const def = getNodeDefinition(node.type);
   
+  if (node.type === 'DIP_SWITCH') {
+    const outIndex = node.outputs.findIndex(p => p.id === pinId);
+    if (outIndex !== -1) {
+      const row = outIndex + 1;
+      const yOffset = row * 20;
+      return { x: node.x + width, y: node.y + yOffset, nx: 1, ny: 0 };
+    }
+  }
+
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
     const allPins = [...node.inputs, ...node.outputs];
     const pin = allPins.find(p => p.id === pinId);
