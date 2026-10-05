@@ -10,6 +10,10 @@ export const getBoardDimensions = (node: LogicNode) => {
     return { width: 60, height: (pins + 1) * 20 };
   }
 
+  if (node.type === '7_SEG_DISPLAY') {
+    return { width: 100, height: 120 };
+  }
+
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
     const allPins = [...node.inputs, ...node.outputs];
     const maxPinNumber = allPins.reduce((max, p) => Math.max(max, getSafePinNumber(node.type, p) ?? 0), 0);
@@ -38,6 +42,17 @@ export const getBoardPinPosition = (node: LogicNode, pinId: string) => {
       const row = outIndex + 1;
       const yOffset = row * 20;
       return { x: node.x + width, y: node.y + yOffset, nx: 1, ny: 0 };
+    }
+  }
+
+  if (node.type === '7_SEG_DISPLAY') {
+    const inIndex = node.inputs.findIndex(p => p.id === pinId);
+    if (inIndex !== -1) {
+      const isTop = inIndex < 4;
+      const col = isTop ? inIndex : inIndex - 4;
+      const x = node.x + 20 + col * 20;
+      const y = isTop ? node.y : node.y + height;
+      return { x, y, nx: 0, ny: isTop ? -1 : 1 };
     }
   }
 

@@ -18,6 +18,7 @@ const CATEGORIES: ToolCategory[] = [
       { type: 'INPUT', icon: <ToggleLeft size={18} /> },
       { type: 'DIP_SWITCH', icon: <SlidersHorizontal size={18} /> },
       { type: 'OUTPUT', icon: <Lightbulb size={18} /> },
+      { type: '7_SEG_DISPLAY', icon: <Lightbulb size={18} /> },
       { type: 'CLOCK', icon: <Timer size={18} /> },
     ]
   },
@@ -36,6 +37,7 @@ const CATEGORIES: ToolCategory[] = [
     items: [
       { type: '74LS08', icon: <Cpu size={18} /> },
       { type: '74LS161', icon: <Cpu size={18} /> },
+      { type: '74LS273', icon: <Cpu size={18} /> },
     ]
   }
 ];

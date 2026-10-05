@@ -11,12 +11,14 @@ import { WireRenderer } from './wires/WireRenderer';
 import { getNodeDefinition } from '../../core/engine/nodes';
 import { getSchematicDimensions } from '../../core/utils/schematicLayout';
 
+import { Schematic7SegNode } from './nodes/schematic/Schematic7SegNode';
 import { useShallow } from 'zustand/react/shallow';
 
 const ConnectedNode = React.memo(({ id }: { id: string }) => {
   const node = useSimulatorStore(state => state.nodes.find(n => n.id === id));
   if (!node) return null;
   const def = getNodeDefinition(node.type);
+  if (node.type === '7_SEG_DISPLAY') return <Schematic7SegNode node={node} />;
   if (node.type === 'DIP_SWITCH') return <SchematicDipSwitchNode node={node} />;
   if (def?.renderAs === 'DIP') return <SchematicICNode node={node} />;
   if (['INPUT', 'OUTPUT', 'CLOCK', 'VCC', 'GND'].includes(node.type)) return <SchematicIONode node={node} />;

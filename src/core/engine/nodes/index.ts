@@ -4,9 +4,9 @@ import {
   NorNode,
   InputNode, OutputNode, ClockNode,
   VccNode, GndNode, JunctionNode,
-  DipSwitchNode
+  DipSwitchNode, SevenSegNode
 } from './basicNodes';
-import { IC74LS08, IC74LS161 } from './icNodes';
+import { IC74LS08, IC74LS161, IC74LS273 } from './icNodes';
 
 // The central registry for all available nodes in the simulator
 export const NodeRegistry: Record<string, NodeDefinition> = {
@@ -22,8 +22,10 @@ export const NodeRegistry: Record<string, NodeDefinition> = {
   [GndNode.type]: GndNode,
   [JunctionNode.type]: JunctionNode,
   [DipSwitchNode.type]: DipSwitchNode,
+  [SevenSegNode.type]: SevenSegNode,
   [IC74LS08.type]: IC74LS08,
   [IC74LS161.type]: IC74LS161,
+  [IC74LS273.type]: IC74LS273,
 };
 
 export const getNodeDefinition = (type: string): NodeDefinition | undefined => {

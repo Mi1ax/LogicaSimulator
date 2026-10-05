@@ -9,6 +9,10 @@ export const getSchematicDimensions = (node: LogicNode) => {
     return { width: 80, height: (pins + 1) * 20 };
   }
 
+  if (node.type === '7_SEG_DISPLAY') {
+    return { width: 100, height: 120 };
+  }
+
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
     const visibleInputs = node.inputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
     const visibleOutputs = node.outputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
@@ -53,6 +57,22 @@ const applyRotation = (x: number, y: number, nx: number, ny: number, anchorX: nu
   return { x: anchorX + rx, y: anchorY + ry, nx: rnx, ny: rny };
 };
 
+export const getGridAlignedPinYs = (count: number, height: number): number[] => {
+  const center = height / 2;
+  const ys: number[] = [];
+  if (count % 2 === 1) {
+    const half = Math.floor(count / 2);
+    for (let i = -half; i <= half; i++) ys.push(center + i * 20);
+  } else {
+    const half = count / 2;
+    for (let i = -half; i <= half; i++) {
+      if (i === 0) continue;
+      ys.push(center + i * 20); 
+    }
+  }
+  return ys.sort((a, b) => a - b);
+};
+
 export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
   const { width, height } = getSchematicDimensions(node);
   const def = getNodeDefinition(node.type);
@@ -62,9 +82,23 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
     const outIndex = node.outputs.findIndex(p => p.id === pinId);
     if (outIndex !== -1) {
       const spacing = 20;
-      const rawX = width;
+      const rawX = width + 20;
       const rawY = spacing + outIndex * spacing;
-      const rotated = applyRotation(rawX, rawY, 1, 0, width / 2, height / 2, rotation);
+      const rotated = applyRotation(rawX, rawY, 1, 0, Math.round(width / 40) * 20, Math.round(height / 40) * 20, rotation);
+      return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
+    }
+  }
+
+  if (node.type === '7_SEG_DISPLAY') {
+    const inIndex = node.inputs.findIndex(p => p.id === pinId);
+    if (inIndex !== -1) {
+      const isTop = inIndex < 4;
+      const col = isTop ? inIndex : inIndex - 4;
+      const rawX = 20 + col * 20;
+      const rawY = isTop ? 0 : 120;
+      const rawNx = 0;
+      const rawNy = isTop ? -1 : 1;
+      const rotated = applyRotation(rawX, rawY, rawNx, rawNy, 50, 60, rotation);
       return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
     }
   }
@@ -101,8 +135,8 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
     return { x: node.x, y: node.y, nx: 0, ny: 0 };
   }
 
-  const anchorX = 20;
-  const anchorY = 20;
+  const anchorX = width / 2;
+  const anchorY = height / 2;
 
   const inIndex = node.inputs.findIndex(p => p.id === pinId);
   if (inIndex !== -1) {
@@ -110,10 +144,8 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
     if (node.type === 'OUTPUT') {
       rawX = 0; rawY = height / 2; rawNx = -1; rawNy = 0;
     } else {
-      const spacing = 20;
-      const blockHeight = node.inputs.length * spacing;
-      const startY = (height - blockHeight) / 2 + spacing / 2;
-      rawX = 0; rawY = startY + inIndex * spacing; rawNx = -1; rawNy = 0;
+      const ys = getGridAlignedPinYs(node.inputs.length, height);
+      rawX = 0; rawY = ys[inIndex]; rawNx = -1; rawNy = 0;
     }
     const rotated = applyRotation(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation);
     return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
@@ -129,10 +161,8 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
     } else if (node.type === 'INPUT' || node.type === 'CLOCK') {
       rawX = width; rawY = height / 2; rawNx = 1; rawNy = 0;
     } else {
-      const spacing = 20;
-      const blockHeight = node.outputs.length * spacing;
-      const startY = (height - blockHeight) / 2 + spacing / 2;
-      rawX = width; rawY = startY + outIndex * spacing; rawNx = 1; rawNy = 0;
+      const ys = getGridAlignedPinYs(node.outputs.length, height);
+      rawX = width; rawY = ys[outIndex]; rawNx = 1; rawNy = 0;
     }
     const rotated = applyRotation(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation);
     return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };

@@ -122,3 +122,79 @@ export const IC74LS161: NodeDefinition = {
     return [qd, qc, qb, qa, rco];
   }
 };
+
+export const IC74LS273: NodeDefinition = {
+  type: '74LS273',
+  label: '74LS273 (Octal D Flip-Flop)',
+  renderAs: 'DIP',
+  numInputs: 12,
+  numOutputs: 8,
+  defaultProperties: { state: 0, lastClk: 0 },
+  customPins: [
+    { name: '~MR', type: 'input', pinNumber: 1 },
+    { name: 'Q0', type: 'output', pinNumber: 2 },
+    { name: 'D0', type: 'input', pinNumber: 3 },
+    { name: 'D1', type: 'input', pinNumber: 4 },
+    { name: 'Q1', type: 'output', pinNumber: 5 },
+    { name: 'Q2', type: 'output', pinNumber: 6 },
+    { name: 'D2', type: 'input', pinNumber: 7 },
+    { name: 'D3', type: 'input', pinNumber: 8 },
+    { name: 'Q3', type: 'output', pinNumber: 9 },
+    { name: 'GND', type: 'input', pinNumber: 10 },
+    { name: 'CP', type: 'input', pinNumber: 11 },
+    { name: 'Q4', type: 'output', pinNumber: 12 },
+    { name: 'D4', type: 'input', pinNumber: 13 },
+    { name: 'D5', type: 'input', pinNumber: 14 },
+    { name: 'Q5', type: 'output', pinNumber: 15 },
+    { name: 'Q6', type: 'output', pinNumber: 16 },
+    { name: 'D6', type: 'input', pinNumber: 17 },
+    { name: 'D7', type: 'input', pinNumber: 18 },
+    { name: 'Q7', type: 'output', pinNumber: 19 },
+    { name: 'VCC', type: 'input', pinNumber: 20 }
+  ],
+  evaluate: (inputs, props) => {
+    // Inputs (12):
+    // 0: ~MR, 1: D0, 2: D1, 3: D2, 4: D3, 5: GND, 6: CP, 7: D4, 8: D5, 9: D6, 10: D7, 11: VCC
+    const [mrN, d0, d1, d2, d3, , cp, d4, d5, d6, d7] = inputs;
+    
+    if (!props) return Array(8).fill(undefined);
+    
+    if (props.state === undefined) props.state = 0;
+    if (props.lastClk === undefined) props.lastClk = 0;
+
+    const safeMrN = mrN ?? 1; // Default 1: Don't reset
+    
+    // Async reset (active low)
+    if (safeMrN === 0) {
+      props.state = 0;
+    } 
+    // Synchronous operations on rising edge
+    else if (cp === 1 && props.lastClk === 0) {
+      const bit0 = d0 === 1 ? 1 : 0;
+      const bit1 = d1 === 1 ? 1 : 0;
+      const bit2 = d2 === 1 ? 1 : 0;
+      const bit3 = d3 === 1 ? 1 : 0;
+      const bit4 = d4 === 1 ? 1 : 0;
+      const bit5 = d5 === 1 ? 1 : 0;
+      const bit6 = d6 === 1 ? 1 : 0;
+      const bit7 = d7 === 1 ? 1 : 0;
+      
+      props.state = (bit7 << 7) | (bit6 << 6) | (bit5 << 5) | (bit4 << 4) | (bit3 << 3) | (bit2 << 2) | (bit1 << 1) | bit0;
+    }
+    
+    props.lastClk = cp || 0;
+    
+    // Outputs (8):
+    // 0: Q0, 1: Q1, 2: Q2, 3: Q3, 4: Q4, 5: Q5, 6: Q6, 7: Q7
+    const q0 = (props.state & (1 << 0)) ? 1 : 0;
+    const q1 = (props.state & (1 << 1)) ? 1 : 0;
+    const q2 = (props.state & (1 << 2)) ? 1 : 0;
+    const q3 = (props.state & (1 << 3)) ? 1 : 0;
+    const q4 = (props.state & (1 << 4)) ? 1 : 0;
+    const q5 = (props.state & (1 << 5)) ? 1 : 0;
+    const q6 = (props.state & (1 << 6)) ? 1 : 0;
+    const q7 = (props.state & (1 << 7)) ? 1 : 0;
+    
+    return [q0, q1, q2, q3, q4, q5, q6, q7];
+  }
+};

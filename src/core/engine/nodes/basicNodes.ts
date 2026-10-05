@@ -140,3 +140,21 @@ export const DipSwitchNode: NodeDefinition = {
     return Array.from({ length: numOutputs }, (_, i) => (switches[i] === 1 ? 1 : 0));
   }
 };
+
+export const SevenSegNode: NodeDefinition = {
+  type: '7_SEG_DISPLAY',
+  label: '7-Segment Display',
+  numInputs: 8,
+  numOutputs: 0,
+  customPins: [
+    { type: 'input', name: 'A', pinNumber: 1 },
+    { type: 'input', name: 'B', pinNumber: 2 },
+    { type: 'input', name: 'C', pinNumber: 3 },
+    { type: 'input', name: 'D', pinNumber: 4 },
+    { type: 'input', name: 'E', pinNumber: 5 },
+    { type: 'input', name: 'F', pinNumber: 6 },
+    { type: 'input', name: 'G', pinNumber: 7 },
+    { type: 'input', name: 'DP', pinNumber: 8 }
+  ],
+  evaluate: () => [] // Passive receiver
+};
