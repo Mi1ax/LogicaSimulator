@@ -109,6 +109,38 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
           <Rect x={0} y={0} width={width} height={height} fill="transparent" />
           {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} />}
         </>
+      ) : isOutput ? (
+        <>
+          {/* Schematic LED Symbol */}
+          <Group x={10} y={height/2}>
+            {/* Input wire */}
+            <Line points={[-10, 0, 10, 0]} stroke={borderStroke} strokeWidth={2} />
+            
+            {/* Diode Triangle (Anode) */}
+            <Line points={[10, -10, 10, 10, 25, 0]} closed fill={val === 1 ? indicatorFill : 'transparent'} stroke={borderStroke} strokeWidth={2} />
+            
+            {/* Diode Line (Cathode) */}
+            <Line points={[25, -10, 25, 10]} stroke={borderStroke} strokeWidth={2} />
+            
+            {/* Wire to ground symbol */}
+            <Line points={[25, 0, 35, 0]} stroke={borderStroke} strokeWidth={2} />
+            {/* Ground symbol */}
+            <Line points={[35, -8, 35, 8]} stroke={borderStroke} strokeWidth={2} />
+            <Line points={[39, -5, 39, 5]} stroke={borderStroke} strokeWidth={2} />
+            <Line points={[43, -2, 43, 2]} stroke={borderStroke} strokeWidth={2} />
+            
+            {/* Light Arrows */}
+            <Group opacity={val === 1 ? 1 : 0.3}>
+              <Line points={[12, -15, 20, -25]} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} />
+              <Line points={[15, -25, 20, -25, 20, -20]} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} />
+              
+              <Line points={[22, -15, 30, -25]} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} />
+              <Line points={[25, -25, 30, -25, 30, -20]} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} />
+            </Group>
+          </Group>
+          <Rect x={0} y={0} width={width} height={height} fill="transparent" />
+          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} />}
+        </>
       ) : (
         <>
           <Rect

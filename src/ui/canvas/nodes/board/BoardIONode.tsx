@@ -1,5 +1,5 @@
 import React from 'react';
-import { Group, Rect, Text, Circle } from 'react-konva';
+import { Group, Rect, Text, Circle, Line } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
 import { Pin } from '../../primitives/Pin';
@@ -126,6 +126,44 @@ export const BoardIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
           />
           <Text text={isVcc ? 'VCC' : 'GND'} x={0} y={-20} width={width} align="center" fontSize={12} fontFamily="monospace" fill={canvasTheme.textColor} />
           {/* Invisible hit area to make dragging easier over the center holes */}
+          <Rect x={0} y={0} width={width} height={height} fill="transparent" />
+        </>
+      ) : isOutput ? (
+        <>
+          {/* Board LED component */}
+          <Group x={width/2} y={height/2}>
+            {/* LED Body */}
+            <Circle
+              x={0}
+              y={0}
+              radius={24}
+              fill={val === 1 ? indicatorFill : '#4b5563'}
+              stroke={isSelected ? canvasTheme.selectedNodeColor : '#374151'}
+              strokeWidth={isSelected ? 3 : 2}
+              shadowColor={val === 1 ? indicatorFill : '#000'}
+              shadowBlur={val === 1 ? 15 : 4}
+              shadowOffset={val === 1 ? {x: 0, y: 0} : { x: 0, y: 4 }}
+              shadowOpacity={val === 1 ? 0.8 : 0.4}
+            />
+            {/* Glossy highlight for 3D effect */}
+            <Circle
+              x={-6}
+              y={-8}
+              radius={8}
+              fill="rgba(255, 255, 255, 0.4)"
+            />
+            {/* Inner Ring */}
+            <Circle
+              x={0}
+              y={0}
+              radius={18}
+              stroke="rgba(0, 0, 0, 0.1)"
+              strokeWidth={2}
+            />
+          </Group>
+          {/* Leg going to the pin */}
+          <Line points={[0, height/2, width/2 - 24, height/2]} stroke="#9ca3af" strokeWidth={4} />
+          
           <Rect x={0} y={0} width={width} height={height} fill="transparent" />
         </>
       ) : (

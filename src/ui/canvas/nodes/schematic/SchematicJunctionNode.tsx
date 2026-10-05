@@ -19,7 +19,7 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const isSelected = selection?.type === 'node' && selection.id === node.id;
 
-  const clickTimeout = React.useRef<NodeJS.Timeout | null>(null);
+  const clickTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   return (
     <Group
