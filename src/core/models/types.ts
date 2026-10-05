@@ -18,6 +18,7 @@ export interface Wire {
   sourcePinId: string;
   targetNodeId: string;
   targetPinId: string;
+  waypoints?: { x: number; y: number }[];
   wireType?: 'solder' | 'jumper'; // board mode routing type
 }
 
@@ -33,6 +34,7 @@ export interface DraftWire {
   sourceType: 'input' | 'output';
   endX: number;
   endY: number;
+  waypoints?: { x: number; y: number }[];
 }
 
 export interface LogicNode {

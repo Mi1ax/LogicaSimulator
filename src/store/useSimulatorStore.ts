@@ -35,6 +35,8 @@ interface SimulatorState {
   draftWire: DraftWire | null;
   startWire: (nodeId: string, pinId: string, pinType: 'input' | 'output', x: number, y: number) => void;
   updateDraftWire: (x: number, y: number) => void;
+  addWaypoint: (x: number, y: number) => void;
+  updateWireWaypoints: (wireId: string, waypoints: {x: number, y: number}[]) => void;
   completeWire: (nodeId: string, pinId: string, pinType: 'input' | 'output') => void;
   completeWireOnWire: (wireId: string, dropX?: number, dropY?: number, wp1?: {x:number, y:number}[], wp2?: {x:number, y:number}[]) => void;
   cancelWire: () => void;
@@ -276,13 +278,25 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
   }),
 
   startWire: (nodeId, pinId, pinType, x, y) => set({
-    draftWire: { sourceNodeId: nodeId, sourcePinId: pinId, sourceType: pinType, endX: x, endY: y },
+    draftWire: { sourceNodeId: nodeId, sourcePinId: pinId, sourceType: pinType, endX: x, endY: y, waypoints: [] },
     selection: null
   }),
 
   updateDraftWire: (x, y) => set((state) => {
     if (!state.draftWire) return state;
     return { draftWire: { ...state.draftWire, endX: x, endY: y } };
+  }),
+
+  addWaypoint: (x, y) => set((state) => {
+    if (!state.draftWire) return state;
+    return { draftWire: { ...state.draftWire, waypoints: [...(state.draftWire.waypoints || []), { x, y }] } };
+  }),
+
+  updateWireWaypoints: (wireId, waypoints) => set((state) => {
+    return {
+      ...state,
+      wires: state.wires.map(w => w.id === wireId ? { ...w, waypoints } : w)
+    };
   }),
 
   
@@ -317,12 +331,17 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
       state.appMode === 'board' ? state.activeWireType : undefined
     );
 
-    
+    const waypoints = state.draftWire.waypoints;
+    const finalWaypoints = isSourceOutput ? (waypoints || []) : (waypoints ? [...waypoints].reverse() : []);
+    if (finalWaypoints.length > 0) {
+      const newWire = nextCircuit.wires[nextCircuit.wires.length - 1];
+      newWire.waypoints = finalWaypoints;
+    }
 
     return { ...nextCircuit, ...pushHistory(state), draftWire: null };
   }),
 
-  completeWireOnWire: (targetWireId: string, dropX?: number, dropY?: number) => set((state) => {
+  completeWireOnWire: (targetWireId: string, dropX?: number, dropY?: number, splitWp1?: {x:number, y:number}[], splitWp2?: {x:number, y:number}[]) => set((state) => {
     if (!state.draftWire) return state;
 
     const targetWire = state.wires.find(w => w.id === targetWireId);
@@ -333,17 +352,14 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
     const finalY = dropY ?? endY;
 
     if (sourceType === 'input') {
-      // 1. Create a Junction node EXACTLY at the drop point
-      let nextState = circuit.addNode(state, 'JUNCTION', finalX - 10, finalY - 10);
+      let nextState = circuit.addNode(state, 'JUNCTION', finalX, finalY);
       const junctionNode = nextState.nodes[nextState.nodes.length - 1];
-      // Force exact coordinates to avoid addNode's internal grid snapping
-      junctionNode.x = finalX - 10;
-      junctionNode.y = finalY - 10;
+      junctionNode.x = finalX;
+      junctionNode.y = finalY;
       
       const jInPin = junctionNode.inputs[0];
       const jOutPin = junctionNode.outputs[0];
 
-      // 2. Connect the target wire's signal source to the Junction's input
       nextState = circuit.addWire(
         nextState,
         targetWire.sourceNodeId,
@@ -353,16 +369,17 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
         state.appMode === 'board' ? state.activeWireType : undefined
       );
 
-      
-      // 3. Re-route the existing target wire to start from the Junction's output
+      if (splitWp1 && splitWp1.length > 0) {
+        nextState.wires[nextState.wires.length - 1].waypoints = splitWp1;
+      }
+
       nextState.wires = nextState.wires.map(w => {
         if (w.id === targetWire.id) {
-          return { ...w, sourceNodeId: junctionNode.id, sourcePinId: jOutPin.id };
+          return { ...w, sourceNodeId: junctionNode.id, sourcePinId: jOutPin.id, waypoints: splitWp2 };
         }
         return w;
       });
 
-      // 4. Connect the Junction's output to the newly drawn draft wire's input
       nextState = circuit.addWire(
         nextState,
         junctionNode.id,
@@ -372,11 +389,111 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
         state.appMode === 'board' ? state.activeWireType : undefined
       );
 
+      const waypoints = state.draftWire.waypoints;
+      if (waypoints && waypoints.length > 0) {
+        nextState.wires[nextState.wires.length - 1].waypoints = [...waypoints].reverse();
+      }
+
       return { ...nextState, ...pushHistory(state), draftWire: null };
     } else {
-      // Connecting an output to a wire is technically shorting.
-      return { draftWire: null };
+      let nextState = circuit.addNode(state, 'JUNCTION', finalX, finalY);
+      const junctionNode = nextState.nodes[nextState.nodes.length - 1];
+      junctionNode.x = finalX;
+      junctionNode.y = finalY;
+      
+      const jInPin = junctionNode.inputs[0];
+      const jOutPin = junctionNode.outputs[0];
+
+      nextState = circuit.addWire(
+        nextState,
+        targetWire.sourceNodeId,
+        targetWire.sourcePinId,
+        junctionNode.id,
+        jInPin.id,
+        state.appMode === 'board' ? state.activeWireType : undefined
+      );
+
+      if (splitWp1 && splitWp1.length > 0) {
+        nextState.wires[nextState.wires.length - 1].waypoints = splitWp1;
+      }
+
+      nextState.wires = nextState.wires.map(w => {
+        if (w.id === targetWire.id) {
+          return { ...w, sourceNodeId: junctionNode.id, sourcePinId: jOutPin.id, waypoints: splitWp2 };
+        }
+        return w;
+      });
+
+      nextState = circuit.addWire(
+        nextState,
+        sourceNodeId,
+        sourcePinId,
+        junctionNode.id,
+        jInPin.id,
+        state.appMode === 'board' ? state.activeWireType : undefined
+      );
+
+      const waypoints = state.draftWire.waypoints;
+      if (waypoints && waypoints.length > 0) {
+        nextState.wires[nextState.wires.length - 1].waypoints = waypoints;
+      }
+
+      return { ...nextState, ...pushHistory(state), draftWire: null };
     }
+  }),
+
+  startWireFromWaypoint: (wireId: string, waypointIndex: number) => set((state) => {
+    const targetWire = state.wires.find(w => w.id === wireId);
+    if (!targetWire || !targetWire.waypoints || waypointIndex >= targetWire.waypoints.length) return state;
+
+    const wp = targetWire.waypoints[waypointIndex];
+    const finalX = wp.x;
+    const finalY = wp.y;
+
+    const splitWp1 = targetWire.waypoints.slice(0, waypointIndex);
+    const splitWp2 = targetWire.waypoints.slice(waypointIndex + 1);
+
+    let nextState = circuit.addNode(state, 'JUNCTION', finalX, finalY);
+    const junctionNode = nextState.nodes[nextState.nodes.length - 1];
+    junctionNode.x = finalX;
+    junctionNode.y = finalY;
+    
+    const jInPin = junctionNode.inputs[0];
+    const jOutPin = junctionNode.outputs[0];
+
+    nextState = circuit.addWire(
+      nextState,
+      targetWire.sourceNodeId,
+      targetWire.sourcePinId,
+      junctionNode.id,
+      jInPin.id,
+      state.appMode === 'board' ? state.activeWireType : undefined
+    );
+
+    if (splitWp1.length > 0) {
+      nextState.wires[nextState.wires.length - 1].waypoints = splitWp1;
+    }
+
+    nextState.wires = nextState.wires.map(w => {
+      if (w.id === targetWire.id) {
+        return { ...w, sourceNodeId: junctionNode.id, sourcePinId: jOutPin.id, waypoints: splitWp2 };
+      }
+      return w;
+    });
+
+    return {
+      ...nextState,
+      ...pushHistory(state),
+      draftWire: {
+        sourceNodeId: junctionNode.id,
+        sourcePinId: jOutPin.id,
+        sourceType: 'output',
+        endX: finalX,
+        endY: finalY,
+        waypoints: []
+      },
+      selection: null
+    };
   }),
 
   cancelWire: () => set({ draftWire: null }),
