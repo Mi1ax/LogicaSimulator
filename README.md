@@ -2,7 +2,8 @@
 
 Logica is a modern, high-performance digital logic and 74LS chip simulator built on a highly optimized React-Konva canvas. It features a pure discrete-event simulation engine fully decoupled from the visual layer, allowing for incredibly fast execution, zero-lag zooming, and an extensible architecture.
 
-![Logica Simulator Preview](https://via.placeholder.com/800x450?text=Logica+Simulator)
+> [!NOTE]
+> This project is written with the help of AI Gemini.
 
 ## Features
 - **Dual Modes**: Seamlessly switch between abstract IEEE Schematic Mode and physical Breadboard/PCB trace routing mode.
