@@ -13,16 +13,20 @@ export const getSchematicDimensions = (node: LogicNode) => {
   if (node.type === "VCC" || node.type === "GND") return { width: 40, height: 40 };
 
   if (node.type === 'INPUT' || node.type === 'OUTPUT' || node.type === 'CLOCK') {
-    return { width: 60, height: 60 };
+    return { width: 60, height: 40 };
   }
   
   if (node.type === 'JUNCTION') {
     return { width: 20, height: 20 };
   }
 
+  const maxPins = Math.max(node.inputs.length, node.outputs.length);
+  // Force height to be a multiple of 40 so the center (height/2) is a multiple of 20
+  let h = (maxPins + 1) * 20;
+  if (h % 40 !== 0) h += 20;
   return { 
     width: 80, 
-    height: Math.max(60, (Math.max(node.inputs.length, node.outputs.length) + 1) * 20)
+    height: Math.max(80, h)
   };
 };
 
@@ -58,7 +62,7 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
   }
 
   if (node.type === 'JUNCTION') {
-    return { x: node.x + 10, y: node.y + 10, nx: 0, ny: 0 };
+    return { x: node.x, y: node.y, nx: 0, ny: 0 };
   }
 
   const inIndex = node.inputs.findIndex(p => p.id === pinId);
@@ -66,9 +70,12 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
     if (node.type === 'OUTPUT') {
       return { x: node.x, y: node.y + height / 2, nx: -1, ny: 0 };
     }
+    const spacing = 20;
+    const blockHeight = node.inputs.length * spacing;
+    const startY = (height - blockHeight) / 2 + spacing / 2;
     return {
       x: node.x,
-      y: node.y + (height / (node.inputs.length + 1)) * (inIndex + 1),
+      y: node.y + startY + inIndex * spacing,
       nx: -1, ny: 0
     };
   }
@@ -84,9 +91,12 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
     if (node.type === 'INPUT' || node.type === 'CLOCK') {
       return { x: node.x + width, y: node.y + height / 2, nx: 1, ny: 0 };
     }
+    const spacing = 20;
+    const blockHeight = node.outputs.length * spacing;
+    const startY = (height - blockHeight) / 2 + spacing / 2;
     return {
       x: node.x + width,
-      y: node.y + (height / (node.outputs.length + 1)) * (outIndex + 1),
+      y: node.y + startY + outIndex * spacing,
       nx: 1, ny: 0
     };
   }

@@ -106,9 +106,6 @@ export const addWire = (
   targetPinId: string,
   wireType?: 'solder' | 'jumper'
 ): CircuitState => {
-  // Enforce 1 wire per input
-  const existingWires = state.wires.filter(w => w.targetPinId !== targetPinId);
-
   const newWire: Wire = {
     id: `wire-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     sourceNodeId,
@@ -118,7 +115,7 @@ export const addWire = (
     wireType
   };
 
-  return { ...state, wires: [...existingWires, newWire] };
+  return { ...state, wires: [...state.wires, newWire] };
 };
 
 export const deleteWire = (state: CircuitState, id: string): CircuitState => {

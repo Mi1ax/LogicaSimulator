@@ -181,7 +181,7 @@ export const SchematicCanvas: React.FC = () => {
           const pos = transform.point(pointer);
 
           if (draftWire) {
-            updateDraftWire(Math.round(pos.x / 10) * 10, Math.round(pos.y / 10) * 10);
+            updateDraftWire(Math.round(pos.x / 20) * 20, Math.round(pos.y / 20) * 20);
           } else if (store.placingNodeId) {
             const node = store.nodes.find(n => n.id === store.placingNodeId);
             let offsetX = 0;
@@ -210,7 +210,16 @@ export const SchematicCanvas: React.FC = () => {
           const isBackground = e.target === e.target.getStage() || e.target.name() === 'grid';
           if (isBackground) {
             if (draftWire) {
-              
+              const stage = e.target.getStage();
+              const pointer = stage?.getPointerPosition();
+              if (stage && pointer) {
+                const transform = stage.getAbsoluteTransform().copy().invert();
+                const pos = transform.point(pointer);
+                // Snap to grid
+                const nx = Math.round(pos.x / 20) * 20;
+                const ny = Math.round(pos.y / 20) * 20;
+                store.addWaypoint(nx, ny);
+              }
             } else {
               select(null);
             }
