@@ -125,19 +125,9 @@ export const deleteWire = (state: CircuitState, id: string): CircuitState => {
   return { ...state, wires: state.wires.filter(w => w.id !== id) };
 };
 
-export const setWireMidX = (state: CircuitState, wireId: string, midX: number): CircuitState => {
-  return {
-    ...state,
-    wires: state.wires.map(w => w.id === wireId ? { ...w, midX } : w)
-  };
-};
 
-export const updateWireWaypoints = (state: CircuitState, wireId: string, waypoints: {x: number, y: number}[]): CircuitState => {
-  return {
-    ...state,
-    wires: state.wires.map(w => w.id === wireId ? { ...w, waypoints } : w)
-  };
-};
+
+
 
 export const setNodeInputCount = (state: CircuitState, nodeId: string, count: number): CircuitState => {
   let wiresToDelete = new Set<string>();

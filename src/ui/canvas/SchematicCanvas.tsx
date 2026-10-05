@@ -210,9 +210,7 @@ export const SchematicCanvas: React.FC = () => {
           const isBackground = e.target === e.target.getStage() || e.target.name() === 'grid';
           if (isBackground) {
             if (draftWire) {
-              if (store.addWaypoint) {
-                store.addWaypoint(store.draftWire!.endX, store.draftWire!.endY);
-              }
+              
             } else {
               select(null);
             }
