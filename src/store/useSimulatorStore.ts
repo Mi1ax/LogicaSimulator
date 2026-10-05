@@ -78,7 +78,6 @@ interface SimulatorState {
   updateNodePosition: (id: string, x: number, y: number) => void;
   updateNodeProperties: (id: string, props: Record<string, any>) => void;
   clearNodes: () => void;
-  setWireMidX: (wireId: string, midX: number) => void;
 
   // Simulation Controls
   resetSimulation: () => void;
@@ -86,8 +85,6 @@ interface SimulatorState {
   setSimRunning: (running: boolean) => void;
   setSimSpeed: (hz: number) => void;
   toggleInputNode: (nodeId: string) => void;
-  addWaypoint: (x: number, y: number) => void;
-  updateWireWaypoints: (wireId: string, waypoints: {x: number, y: number}[]) => void;
   setNodeInputCount: (nodeId: string, count: number) => void;
 
   // Undo / Redo
@@ -279,7 +276,7 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
   }),
 
   startWire: (nodeId, pinId, pinType, x, y) => set({
-    draftWire: { sourceNodeId: nodeId, sourcePinId: pinId, sourceType: pinType, endX: x, endY: y, waypoints: [] },
+    draftWire: { sourceNodeId: nodeId, sourcePinId: pinId, sourceType: pinType, endX: x, endY: y },
     selection: null
   }),
 
@@ -288,15 +285,11 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
     return { draftWire: { ...state.draftWire, endX: x, endY: y } };
   }),
 
-  addWaypoint: (x, y) => set((state) => {
-    if (!state.draftWire) return state;
-    return { draftWire: { ...state.draftWire, waypoints: [...(state.draftWire.waypoints || []), { x, y }] } };
-  }),
-
+  
   completeWire: (nodeId, pinId, pinType) => set((state) => {
     if (!state.draftWire) return state;
 
-    const { sourceNodeId, sourcePinId, sourceType, waypoints } = state.draftWire;
+    const { sourceNodeId, sourcePinId, sourceType } = state.draftWire;
 
     if (sourceNodeId === nodeId) {
       return { draftWire: null };
@@ -324,19 +317,12 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
       state.appMode === 'board' ? state.activeWireType : undefined
     );
 
-    // Reverse waypoints if we started drawing from an input to an output
-    const finalWaypoints = isSourceOutput ? (waypoints || []) : (waypoints ? [...waypoints].reverse() : []);
-
-    if (finalWaypoints.length > 0) {
-      // Find the newly added wire (it's the last one)
-      const newWire = nextCircuit.wires[nextCircuit.wires.length - 1];
-      newWire.waypoints = finalWaypoints;
-    }
+    
 
     return { ...nextCircuit, ...pushHistory(state), draftWire: null };
   }),
 
-  completeWireOnWire: (targetWireId: string, dropX?: number, dropY?: number, wp1?: {x:number, y:number}[], wp2?: {x:number, y:number}[]) => set((state) => {
+  completeWireOnWire: (targetWireId: string, dropX?: number, dropY?: number) => set((state) => {
     if (!state.draftWire) return state;
 
     const targetWire = state.wires.find(w => w.id === targetWireId);
@@ -367,15 +353,11 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
         state.appMode === 'board' ? state.activeWireType : undefined
       );
 
-      if (wp1 && wp1.length > 0) {
-        const newWire = nextState.wires[nextState.wires.length - 1];
-        newWire.waypoints = wp1;
-      }
-
+      
       // 3. Re-route the existing target wire to start from the Junction's output
       nextState.wires = nextState.wires.map(w => {
         if (w.id === targetWire.id) {
-          return { ...w, sourceNodeId: junctionNode.id, sourcePinId: jOutPin.id, waypoints: wp2 || [] };
+          return { ...w, sourceNodeId: junctionNode.id, sourcePinId: jOutPin.id };
         }
         return w;
       });
@@ -399,10 +381,8 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
 
   cancelWire: () => set({ draftWire: null }),
 
-  setWireMidX: (wireId, midX) => set((state) => circuit.setWireMidX(state, wireId, midX)),
 
-  updateWireWaypoints: (wireId, waypoints) => set((state) => circuit.updateWireWaypoints(state, wireId, waypoints)),
-
+  
   startBoardTrace: (x, y) => set((state) => {
     // Provide TWO points so updateDraftBoardTrace can replace the second one as the floating preview!
     return { draftBoardTrace: { id: 'draft', type: state.activeWireType, points: [{ x, y }, { x, y }] } };
