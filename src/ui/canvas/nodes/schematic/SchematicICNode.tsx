@@ -31,10 +31,16 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
   
   const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
 
+  const anchorX = width / 2;
+  const anchorY = height / 2;
+
   return (
     <Group
-      x={node.x}
-      y={node.y}
+      x={node.x + anchorX}
+      y={node.y + anchorY}
+      offsetX={anchorX}
+      offsetY={anchorY}
+      rotation={node.properties?.rotation || 0}
       opacity={isPlacing ? 0.6 : 1}
       draggable={!isPlacing}
       onClick={(e) => {
@@ -48,15 +54,15 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
         select({ type: 'node', id: node.id });
       }}
       onDragMove={(e) => {
-        const localX = Math.round(e.target.x() / 20) * 20;
-        const localY = Math.round(e.target.y() / 20) * 20;
-        e.target.position({ x: localX, y: localY });
+        const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
+        const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
+        e.target.position({ x: localX + anchorX, y: localY + anchorY });
         updateNodePosition(node.id, localX, localY);
       }}
       onDragEnd={(e) => {
-        const localX = Math.round(e.target.x() / 20) * 20;
-        const localY = Math.round(e.target.y() / 20) * 20;
-        e.target.position({ x: localX, y: localY });
+        const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
+        const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
+        e.target.position({ x: localX + anchorX, y: localY + anchorY });
         updateNodePosition(node.id, localX, localY);
       }}
       onMouseEnter={(e) => {

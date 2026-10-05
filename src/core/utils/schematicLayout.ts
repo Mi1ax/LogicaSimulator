@@ -30,34 +30,53 @@ export const getSchematicDimensions = (node: LogicNode) => {
   };
 };
 
+const applyRotation = (x: number, y: number, nx: number, ny: number, anchorX: number, anchorY: number, rotation: number) => {
+  const rad = (rotation * Math.PI) / 180;
+  const cos = Math.round(Math.cos(rad));
+  const sin = Math.round(Math.sin(rad));
+
+  const dx = x - anchorX;
+  const dy = y - anchorY;
+
+  const rx = dx * cos - dy * sin;
+  const ry = dx * sin + dy * cos;
+
+  const rnx = nx * cos - ny * sin;
+  const rny = nx * sin + ny * cos;
+
+  return { x: anchorX + rx, y: anchorY + ry, nx: rnx, ny: rny };
+};
+
 export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
   const { width, height } = getSchematicDimensions(node);
   const def = getNodeDefinition(node.type);
+  const rotation = node.properties?.rotation || 0;
   
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
     const allPins = [...node.inputs, ...node.outputs];
     const pin = allPins.find(p => p.id === pinId);
     if (pin) {
+      let rawX, rawY, rawNx, rawNy;
       if (pin.name === 'VCC') {
-        return { x: node.x + width / 2, y: node.y - 20, nx: 0, ny: -1 };
-      }
-      if (pin.name === 'GND') {
-        return { x: node.x + width / 2, y: node.y + height + 20, nx: 0, ny: 1 };
-      }
+        rawX = width / 2; rawY = -20; rawNx = 0; rawNy = -1;
+      } else if (pin.name === 'GND') {
+        rawX = width / 2; rawY = height + 20; rawNx = 0; rawNy = 1;
+      } else {
+        const isLeft = pin.type === 'input';
+        const visibleInputs = node.inputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
+        const visibleOutputs = node.outputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
+        const collection = isLeft ? visibleInputs : visibleOutputs;
+        const index = collection.findIndex(p => p.id === pinId);
+        const row = index + 1;
 
-      const isLeft = pin.type === 'input';
-      const visibleInputs = node.inputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
-      const visibleOutputs = node.outputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
-      const collection = isLeft ? visibleInputs : visibleOutputs;
-      const index = collection.findIndex(p => p.id === pinId);
-      const row = index + 1;
-
-      const spacing = 40;
-      const legLength = 20;
-      const x = isLeft ? node.x - legLength : node.x + width + legLength;
-      const yOffset = spacing + ((row - 1) * spacing);
-      const y = node.y + yOffset;
-      return { x, y, nx: isLeft ? -1 : 1, ny: 0 };
+        const spacing = 40;
+        const legLength = 20;
+        rawX = isLeft ? -legLength : width + legLength;
+        rawY = spacing + ((row - 1) * spacing);
+        rawNx = isLeft ? -1 : 1; rawNy = 0;
+      }
+      const rotated = applyRotation(rawX, rawY, rawNx, rawNy, width / 2, height / 2, rotation);
+      return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
     }
   }
 
@@ -65,40 +84,41 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
     return { x: node.x, y: node.y, nx: 0, ny: 0 };
   }
 
+  const anchorX = 20;
+  const anchorY = 20;
+
   const inIndex = node.inputs.findIndex(p => p.id === pinId);
   if (inIndex !== -1) {
+    let rawX, rawY, rawNx, rawNy;
     if (node.type === 'OUTPUT') {
-      return { x: node.x, y: node.y + height / 2, nx: -1, ny: 0 };
+      rawX = 0; rawY = height / 2; rawNx = -1; rawNy = 0;
+    } else {
+      const spacing = 20;
+      const blockHeight = node.inputs.length * spacing;
+      const startY = (height - blockHeight) / 2 + spacing / 2;
+      rawX = 0; rawY = startY + inIndex * spacing; rawNx = -1; rawNy = 0;
     }
-    const spacing = 20;
-    const blockHeight = node.inputs.length * spacing;
-    const startY = (height - blockHeight) / 2 + spacing / 2;
-    return {
-      x: node.x,
-      y: node.y + startY + inIndex * spacing,
-      nx: -1, ny: 0
-    };
+    const rotated = applyRotation(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation);
+    return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
   }
   
   const outIndex = node.outputs.findIndex(p => p.id === pinId);
   if (outIndex !== -1) {
+    let rawX, rawY, rawNx, rawNy;
     if (node.type === 'VCC') {
-      return { x: node.x + width / 2, y: node.y + height, nx: 0, ny: 1 };
+      rawX = width / 2; rawY = height; rawNx = 0; rawNy = 1;
+    } else if (node.type === 'GND') {
+      rawX = width / 2; rawY = 0; rawNx = 0; rawNy = -1;
+    } else if (node.type === 'INPUT' || node.type === 'CLOCK') {
+      rawX = width; rawY = height / 2; rawNx = 1; rawNy = 0;
+    } else {
+      const spacing = 20;
+      const blockHeight = node.outputs.length * spacing;
+      const startY = (height - blockHeight) / 2 + spacing / 2;
+      rawX = width; rawY = startY + outIndex * spacing; rawNx = 1; rawNy = 0;
     }
-    if (node.type === 'GND') {
-      return { x: node.x + width / 2, y: node.y, nx: 0, ny: -1 };
-    }
-    if (node.type === 'INPUT' || node.type === 'CLOCK') {
-      return { x: node.x + width, y: node.y + height / 2, nx: 1, ny: 0 };
-    }
-    const spacing = 20;
-    const blockHeight = node.outputs.length * spacing;
-    const startY = (height - blockHeight) / 2 + spacing / 2;
-    return {
-      x: node.x + width,
-      y: node.y + startY + outIndex * spacing,
-      nx: 1, ny: 0
-    };
+    const rotated = applyRotation(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation);
+    return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
   }
   
   return { x: node.x, y: node.y, nx: 0, ny: 0 };

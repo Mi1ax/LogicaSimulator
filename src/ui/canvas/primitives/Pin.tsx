@@ -81,10 +81,6 @@ export const Pin: React.FC<PinProps> = ({ x, y, type, id, nodeId, opacity }) => 
                 store.completeBoardTrace();
               }
             } else {
-              // Ensure we are in wire mode when starting a new trace from a pin
-              if (store.interactionMode !== 'wire') {
-                store.setInteractionMode('wire');
-              }
               store.startBoardTrace(absX, absY);
             }
           }

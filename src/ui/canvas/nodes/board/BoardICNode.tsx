@@ -50,20 +50,7 @@ export const BoardICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
           return;
         }
 
-        if (store.interactionMode === 'wire') {
-          const pos = e.target.getStage()?.getPointerPosition();
-          if (pos) {
-            const transform = e.target.getStage()?.getAbsoluteTransform().copy().invert();
-            const localPos = transform?.point(pos);
-            if (localPos) {
-              const dx = localPos.x % 20;
-              const dy = localPos.y % 20;
-              if ((dx < 5 || dx > 15) && (dy < 5 || dy > 15)) {
-                return;
-              }
-            }
-          }
-        }
+
         e.cancelBubble = true;
         select({ type: 'node', id: node.id });
       }}

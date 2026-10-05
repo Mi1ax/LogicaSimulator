@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
-import { Trash2, Sun, Moon,Settings, MousePointer2, PenTool } from 'lucide-react';
+import { Trash2, Sun, Moon,Settings } from 'lucide-react';
 
 export const Topbar: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
@@ -14,8 +14,6 @@ export const Topbar: React.FC = () => {
   const setAppMode = useSimulatorStore(state => state.setAppMode);
   const activeWireType = useSimulatorStore(state => state.activeWireType);
   const setWireType = useSimulatorStore(state => state.setActiveWireType);
-  const interactionMode = useSimulatorStore(state => state.interactionMode);
-  const setInteractionMode = useSimulatorStore(state => state.setInteractionMode);
 
   return (
     <div className="h-14 bg-white dark:bg-slate-800 border-b border-gray-300 dark:border-slate-700 flex items-center justify-between px-6 shadow-sm z-10 relative transition-colors">
@@ -41,23 +39,7 @@ export const Topbar: React.FC = () => {
           </button>
         </div>
         
-        {/* Interaction Mode Switcher */}
-        <div className="flex bg-gray-100 dark:bg-slate-900 p-1 rounded-md border border-gray-200 dark:border-slate-700 ml-4">
-          <button
-            onClick={() => setInteractionMode('cursor')}
-            className={`px-3 py-1 flex items-center justify-center rounded transition-colors ${interactionMode === 'cursor' ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
-            title="Cursor Mode (M)"
-          >
-            <MousePointer2 size={16} />
-          </button>
-          <button
-            onClick={() => setInteractionMode('wire')}
-            className={`px-3 py-1 flex items-center justify-center rounded transition-colors ${interactionMode === 'wire' ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
-            title="Wire Mode (W)"
-          >
-            <PenTool size={16} />
-          </button>
-        </div>
+
 
         {/* Wire Type Switcher (Board Mode Only) */}
         {appMode === 'board' && (

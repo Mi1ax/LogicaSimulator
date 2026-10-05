@@ -8,6 +8,7 @@ export const PropertiesPanel: React.FC = () => {
   const nodes = useSimulatorStore(state => state.nodes);
   const updateNodeProperties = useSimulatorStore(state => state.updateNodeProperties);
   const setNodeInputCount = useSimulatorStore(state => state.setNodeInputCount);
+  const appMode = useSimulatorStore(state => state.appMode);
 
   if (selection?.type !== 'node') return null;
 
@@ -53,7 +54,24 @@ export const PropertiesPanel: React.FC = () => {
           />
         </div>
 
-
+        {/* Rotation */}
+        {appMode !== 'board' && (
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+              Rotation
+            </label>
+            <select
+              className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
+              value={node.properties?.rotation || 0}
+              onChange={(e) => updateNodeProperties(node.id, { rotation: parseInt(e.target.value, 10) })}
+            >
+              <option value={0}>0°</option>
+              <option value={90}>90°</option>
+              <option value={180}>180°</option>
+              <option value={270}>270°</option>
+            </select>
+          </div>
+        )}
 
         {/* Variable Inputs */}
         {isVariableInputGate && (

@@ -32,7 +32,6 @@ export const SchematicCanvas: React.FC = () => {
   const draftWire = useSimulatorStore(state => state.draftWire);
   const updateDraftWire = useSimulatorStore(state => state.updateDraftWire);
   const select = useSimulatorStore(state => state.select);
-  const deleteSelection = useSimulatorStore(state => state.deleteSelection);
   const settings = useSimulatorStore(state => state.settings);
 
   const initializedRef = useRef(false);
@@ -57,10 +56,27 @@ export const SchematicCanvas: React.FC = () => {
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      
+      const store = useSimulatorStore.getState();
+      
       if (e.key === 'Escape') {
-        const store = useSimulatorStore.getState();
         if (store.draftWire) store.cancelWire();
         if (store.placingNodeId) store.cancelPlacingNode();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        store.deleteSelection();
+      } else if (e.key.toLowerCase() === 'r') {
+        const targetNodeId = store.placingNodeId || (store.selection?.type === 'node' ? store.selection.id : null);
+        if (targetNodeId) {
+          const node = store.nodes.find(n => n.id === targetNodeId);
+          if (node && node.type !== 'JUNCTION') {
+            const currentRot = node.properties?.rotation || 0;
+            store.updateNodeProperties(node.id, { rotation: (currentRot + 90) % 360 });
+          }
+        }
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
@@ -92,13 +108,6 @@ export const SchematicCanvas: React.FC = () => {
             store.redo();
             return;
           }
-        }
-        
-        if (e.key === 'Escape') {
-          if (store.draftWire) store.cancelWire();
-          if (store.placingNodeId) store.cancelPlacingNode();
-        } else if (e.key === 'Delete' || e.key === 'Backspace') {
-          deleteSelection();
         }
       }}
     >
