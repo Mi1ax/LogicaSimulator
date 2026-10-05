@@ -27,7 +27,7 @@ const SingleWire = React.memo(({ wire, pathData, points, isSelected, canvasTheme
 
   if (isSelected) strokeColor = canvasTheme.selectedWireColor;
 
-  const clickTimeout = React.useRef<NodeJS.Timeout | null>(null);
+  const clickTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   return (
     <Group>

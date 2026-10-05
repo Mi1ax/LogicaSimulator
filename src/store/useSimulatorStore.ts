@@ -33,6 +33,7 @@ interface SimulatorState {
   activeWireType: 'solder' | 'jumper';
   setActiveWireType: (type: 'solder' | 'jumper') => void;
   draftWire: DraftWire | null;
+  startWireFromWaypoint: (wireId: string, waypointIndex: number) => void;
   startWire: (nodeId: string, pinId: string, pinType: 'input' | 'output', x: number, y: number) => void;
   updateDraftWire: (x: number, y: number) => void;
   addWaypoint: (x: number, y: number) => void;
