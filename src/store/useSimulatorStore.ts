@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { LogicNode, NodeType, Wire, DraftWire } from '../core/models/types';
 import * as circuit from '../core/engine/circuit';
 import { computeNextState } from '../core/engine/simulation';
@@ -87,6 +88,7 @@ interface SimulatorState {
   setSimSpeed: (hz: number) => void;
   toggleInputNode: (nodeId: string) => void;
   setNodeInputCount: (nodeId: string, count: number) => void;
+  setNodeOutputCount: (nodeId: string, count: number) => void;
 
   // Undo / Redo
   history: { nodes: LogicNode[], wires: Wire[], boardTraces: import('../core/models/types').BoardTrace[] }[];
@@ -105,7 +107,9 @@ const pushHistory = (state: SimulatorState) => ({
   future: []
 });
 
-export const useSimulatorStore = create<SimulatorState>((set) => ({
+export const useSimulatorStore = create<SimulatorState>()(
+  persist(
+    (set) => ({
   appMode: 'schematic',
   setAppMode: (mode) => set({ appMode: mode, selection: null }),
 
@@ -236,6 +240,7 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
     return { ...circuit.updateNodeProperties(state, id, props), ...pushHistory(state) };
   }),
   setNodeInputCount: (id, count) => set((state) => ({ ...circuit.setNodeInputCount(state, id, count), ...pushHistory(state) })),
+  setNodeOutputCount: (id, count) => set((state) => ({ ...circuit.setNodeOutputCount(state, id, count), ...pushHistory(state) })),
 
   clearNodes: () => set({
     nodes: [],
@@ -539,7 +544,20 @@ export const useSimulatorStore = create<SimulatorState>((set) => ({
   }),
 
   cancelBoardTrace: () => set({ draftBoardTrace: null }),
-}));
+    }),
+    {
+      name: 'logica-project-storage',
+      partialize: (state) => ({
+        nodes: state.nodes,
+        wires: state.wires,
+        boardTraces: state.boardTraces,
+        settings: state.settings,
+        theme: state.theme,
+        appMode: state.appMode
+      })
+    }
+  )
+);
 
 // Provide grid size constant exported from core
 export { GRID_SIZE } from '../core/engine/circuit';

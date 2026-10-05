@@ -162,3 +162,40 @@ export const setNodeInputCount = (state: CircuitState, nodeId: string, count: nu
 
   return { ...state, nodes, wires };
 };
+
+export const setNodeOutputCount = (state: CircuitState, nodeId: string, count: number): CircuitState => {
+  let wiresToDelete = new Set<string>();
+
+  const nodes = state.nodes.map(node => {
+    if (node.id !== nodeId) return node;
+    
+    const currentCount = node.outputs.length;
+    let newOutputs = [...node.outputs];
+    
+    if (count > currentCount) {
+      for (let i = currentCount; i < count; i++) {
+        newOutputs.push({
+          id: `pin-${node.id}-out-${i}`,
+          nodeId: node.id,
+          type: 'output',
+          index: i
+        });
+      }
+    } else if (count < currentCount) {
+      const removedPins = newOutputs.splice(count, currentCount - count);
+      const removedPinIds = new Set(removedPins.map(p => p.id));
+      
+      state.wires.forEach(w => {
+        if (removedPinIds.has(w.sourcePinId)) {
+          wiresToDelete.add(w.id);
+        }
+      });
+    }
+    
+    return { ...node, outputs: newOutputs, properties: { ...node.properties, numOutputs: count } };
+  });
+
+  const wires = state.wires.filter(w => !wiresToDelete.has(w.id));
+
+  return { ...state, nodes, wires };
+};

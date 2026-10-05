@@ -6,6 +6,7 @@ import { Grid } from './Grid';
 import { SchematicGateNode } from './nodes/schematic/SchematicGateNode';
 import { SchematicIONode } from './nodes/schematic/SchematicIONode';
 import { SchematicICNode } from './nodes/schematic/SchematicICNode';
+import { SchematicDipSwitchNode } from './nodes/schematic/SchematicDipSwitchNode';
 import { WireRenderer } from './wires/WireRenderer';
 import { getNodeDefinition } from '../../core/engine/nodes';
 import { getSchematicDimensions } from '../../core/utils/schematicLayout';
@@ -16,6 +17,7 @@ const ConnectedNode = React.memo(({ id }: { id: string }) => {
   const node = useSimulatorStore(state => state.nodes.find(n => n.id === id));
   if (!node) return null;
   const def = getNodeDefinition(node.type);
+  if (node.type === 'DIP_SWITCH') return <SchematicDipSwitchNode node={node} />;
   if (def?.renderAs === 'DIP') return <SchematicICNode node={node} />;
   if (['INPUT', 'OUTPUT', 'CLOCK', 'VCC', 'GND'].includes(node.type)) return <SchematicIONode node={node} />;
   if (node.type === 'JUNCTION') return <SchematicJunctionNode node={node} />;

@@ -3,7 +3,8 @@ import {
   AndNode, OrNode, NotNode, XorNode,
   NorNode,
   InputNode, OutputNode, ClockNode,
-  VccNode, GndNode, JunctionNode
+  VccNode, GndNode, JunctionNode,
+  DipSwitchNode
 } from './basicNodes';
 import { IC74LS08, IC74LS161 } from './icNodes';
 
@@ -20,6 +21,7 @@ export const NodeRegistry: Record<string, NodeDefinition> = {
   [VccNode.type]: VccNode,
   [GndNode.type]: GndNode,
   [JunctionNode.type]: JunctionNode,
+  [DipSwitchNode.type]: DipSwitchNode,
   [IC74LS08.type]: IC74LS08,
   [IC74LS161.type]: IC74LS161,
 };

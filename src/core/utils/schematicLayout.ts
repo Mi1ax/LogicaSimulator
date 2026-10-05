@@ -3,6 +3,12 @@ import { getNodeDefinition } from '../engine/nodes';
 
 export const getSchematicDimensions = (node: LogicNode) => {
   const def = getNodeDefinition(node.type);
+  
+  if (node.type === 'DIP_SWITCH') {
+    const pins = node.outputs.length || 4;
+    return { width: 80, height: (pins + 1) * 20 };
+  }
+
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
     const visibleInputs = node.inputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
     const visibleOutputs = node.outputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
@@ -51,6 +57,17 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
   const { width, height } = getSchematicDimensions(node);
   const def = getNodeDefinition(node.type);
   const rotation = node.properties?.rotation || 0;
+
+  if (node.type === 'DIP_SWITCH') {
+    const outIndex = node.outputs.findIndex(p => p.id === pinId);
+    if (outIndex !== -1) {
+      const spacing = 20;
+      const rawX = width;
+      const rawY = spacing + outIndex * spacing;
+      const rotated = applyRotation(rawX, rawY, 1, 0, width / 2, height / 2, rotation);
+      return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
+    }
+  }
   
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
     const allPins = [...node.inputs, ...node.outputs];

@@ -127,3 +127,16 @@ export const JunctionNode: NodeDefinition = {
   numOutputs: 1,
   evaluate: (inputs) => [inputs[0]] // Transparently passes signal
 };
+
+export const DipSwitchNode: NodeDefinition = {
+  type: 'DIP_SWITCH',
+  label: 'DIP Switch',
+  numInputs: 0,
+  numOutputs: 4,
+  defaultProperties: { switches: [0, 0, 0, 0] },
+  evaluate: (_, props) => {
+    const numOutputs = props?.numOutputs || 4;
+    const switches = props?.switches || Array(numOutputs).fill(0);
+    return Array.from({ length: numOutputs }, (_, i) => (switches[i] === 1 ? 1 : 0));
+  }
+};
