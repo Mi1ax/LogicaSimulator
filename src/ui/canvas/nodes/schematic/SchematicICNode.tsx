@@ -27,7 +27,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
   
   const visibleInputs = node.inputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
   const visibleOutputs = node.outputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
-  const allPins = [...node.inputs, ...node.outputs];
+  const allPins = Array.from(new Map([...node.inputs, ...node.outputs].map(p => [p.id, p])).values());
 
   
   const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
@@ -84,7 +84,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
         fill={canvasTheme.nodeBg}
         stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
         strokeWidth={isSelected ? 3 : 2}
-        cornerRadius={4}
+        cornerRadius={0}
       />
 
       {/* Custom Name Label */}
@@ -147,8 +147,8 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
                     width={20}
                     align="left"
                     fontSize={10}
-                    fill={canvasTheme.textColor}
-                    opacity={0.6}
+                    fill={canvasTheme.nodeBorder}
+                    opacity={1}
                   />
                 );
               })()}
@@ -162,18 +162,24 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
                 fontSize={11}
                 fontStyle="bold"
                 fill={canvasTheme.textColor}
-                opacity={0.85}
+                opacity={1}
               />
             </Group>
           );
         }
 
-        const isLeft = pin.type === 'input';
-        const index = isLeft ? visibleInputs.findIndex(p => p.id === pin.id) : visibleOutputs.findIndex(p => p.id === pin.id);
-        const row = index + 1;
+        const pinDef = def?.customPins?.find(cp => cp.name === pin.name);
+        let side = pinDef?.schematicSide || (pin.type === 'input' ? 'left' : 'right');
+        
+        let row = pinDef?.schematicRow;
+        if (row === undefined) {
+           const collection = side === 'left' ? visibleInputs : visibleOutputs;
+           row = collection.findIndex(p => p.id === pin.id) + 1;
+        }
 
         const spacing = 40;
-        const yOffset = spacing + ((row - 1) * spacing);
+        const yOffset = row * spacing;
+        const isLeft = side === 'left';
         
         return (
           <Group key={pin.id}>
@@ -203,8 +209,8 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
                   width={20}
                   align="center"
                   fontSize={10}
-                  fill={canvasTheme.textColor}
-                  opacity={0.6}
+                  fill={canvasTheme.nodeBorder}
+                  opacity={1}
                 />
               );
             })()}
@@ -220,7 +226,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
                 fontSize={11}
                 fontStyle="bold"
                 fill={canvasTheme.textColor}
-                opacity={0.85}
+                opacity={1}
               />
             )}
           </Group>

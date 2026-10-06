@@ -6,7 +6,7 @@ import { getCanvasTheme } from '../theme';
 interface PinProps {
   x: number;
   y: number;
-  type: 'input' | 'output';
+  type: 'input' | 'output' | 'bidir';
   id: string;
   nodeId: string;
   opacity?: number;

@@ -71,23 +71,20 @@ describe('Simulation Engine', () => {
       wireStates: {}
     };
 
-    // TICK 1: Switches output their values, but wires propagate AFTER gates evaluate.
-    // So AND gate still sees undefined inputs in tick 1, and outputs undefined.
-    // However, the wires will be updated at the end of tick 1 to carry the switch values.
+    // TICK 1: Switches output their values, and wires propagate instantly.
+    // So AND gate sees inputs and outputs immediately.
     const state1 = computeNextState(nodes, wires, prevState);
     
     expect(state1.tickCount).toBe(1);
     expect(state1.pinStates['sw1-out']).toBe(1);
     expect(state1.pinStates['sw2-out']).toBe(0);
-    expect(state1.pinStates['and1-out']).toBeUndefined(); // Gate hasn't seen the inputs yet
-    
-    // Wires carry the value to the AND gate's input pins
     expect(state1.pinStates['and1-in0']).toBe(1);
     expect(state1.pinStates['and1-in1']).toBe(0);
     expect(state1.wireStates['w1']).toBe(1);
     expect(state1.wireStates['w2']).toBe(0);
+    expect(state1.pinStates['and1-out']).toBe(0); // Instantly evaluated to 0
 
-    // TICK 2: AND gate sees inputs (1, 0) -> outputs 0
+    // TICK 2: No changes
     const state2 = computeNextState(nodes, wires, state1);
     expect(state2.tickCount).toBe(2);
     expect(state2.pinStates['and1-out']).toBe(0);
@@ -95,15 +92,11 @@ describe('Simulation Engine', () => {
     // Now turn ON switch 2
     switch2.properties = { active: true };
 
-    // TICK 3: Switch 2 outputs 1. Wires propagate. AND gate still outputs 0 (using old inputs).
+    // TICK 3: Switch 2 outputs 1. Wires propagate instantly. AND gate outputs 1 instantly.
     const state3 = computeNextState(nodes, wires, state2);
     expect(state3.pinStates['sw2-out']).toBe(1);
-    expect(state3.pinStates['and1-in1']).toBe(1); // Input receives new value
-    expect(state3.pinStates['and1-out']).toBe(0); // Still 0
-
-    // TICK 4: AND gate sees inputs (1, 1) -> outputs 1
-    const state4 = computeNextState(nodes, wires, state3);
-    expect(state4.pinStates['and1-out']).toBe(1);
+    expect(state3.pinStates['and1-in1']).toBe(1); 
+    expect(state3.pinStates['and1-out']).toBe(1); 
   });
 
   it('should clear disconnected input pins', () => {

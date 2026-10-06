@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Layer, Shape } from 'react-konva';
 import { GRID_SIZE, useSimulatorStore } from '../../store/useSimulatorStore';
 import { getCanvasTheme } from './theme';
@@ -18,23 +18,56 @@ export const Grid: React.FC<GridProps> = ({ width, height, scale, x, y }) => {
   const boardHeightMm = useSimulatorStore((state) => state.settings.boardHeightMm);
   const canvasTheme = getCanvasTheme(theme === 'dark');
 
+  const patternCanvas = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = GRID_SIZE;
+    canvas.height = GRID_SIZE;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const drawCorners = (drawFn: (cx: number, cy: number) => void) => {
+      [[0, 0], [GRID_SIZE, 0], [0, GRID_SIZE], [GRID_SIZE, GRID_SIZE]].forEach(([cx, cy]) => drawFn(cx, cy));
+    };
+
+    if (appMode === 'board') {
+      ctx.fillStyle = theme === 'dark' ? 'rgba(217, 119, 67, 0.4)' : 'rgba(184, 98, 48, 0.5)';
+      drawCorners((cx, cy) => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      ctx.fillStyle = theme === 'dark' ? '#1e293b' : '#f8fafc';
+      drawCorners((cx, cy) => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, 1, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    } else {
+      ctx.fillStyle = canvasTheme.gridColor;
+      drawCorners((cx, cy) => {
+        ctx.fillRect(cx - 0.5, cy - 0.5, 1.5, 1.5);
+      });
+    }
+    return canvas;
+  }, [appMode, theme, canvasTheme.gridColor]);
+
   return (
     <Layer>
       <Shape
         sceneFunc={(context) => {
-          // Adaptive step size based on zoom scale to maintain performance
           let step = GRID_SIZE;
-          if (scale < 0.25) {
-            step = GRID_SIZE * 4;
-          } else if (scale < 0.5) {
-            step = GRID_SIZE * 2;
-          }
 
-          const startX = Math.floor(-x / scale / step) * step;
-          const endX = startX + Math.ceil(width / scale / step) * step + step;
+          const padXRaw = Math.ceil(width / scale);
+          const padYRaw = Math.ceil(height / scale);
+          const padX = Math.ceil(padXRaw / step) * step;
+          const padY = Math.ceil(padYRaw / step) * step;
 
-          const startY = Math.floor(-y / scale / step) * step;
-          const endY = startY + Math.ceil(height / scale / step) * step + step;
+          const startX = Math.floor(-x / scale / step) * step - padX;
+          const endX = startX + Math.ceil(width / scale / step) * step + step + padX * 2;
+
+          const startY = Math.floor(-y / scale / step) * step - padY;
+          const endY = startY + Math.ceil(height / scale / step) * step + step + padY * 2;
 
           // Draw board boundary in Board Mode
           if (appMode === 'board') {
@@ -50,37 +83,14 @@ export const Grid: React.FC<GridProps> = ({ width, height, scale, x, y }) => {
             context.stroke();
           }
 
-          context.beginPath();
-          for (let ix = startX; ix <= endX; ix += step) {
-            for (let iy = startY; iy <= endY; iy += step) {
-              if (appMode === 'board') {
-                // Perfboard holes: small circle with empty center, or copper-colored dot
-                context.moveTo(ix + 2.5, iy);
-                context.arc(ix, iy, 2.5, 0, Math.PI * 2);
-              } else {
-                // Normal schematic dots
-                context.rect(ix - 0.5, iy - 0.5, 1.5, 1.5);
-              }
+          if (patternCanvas) {
+            // Note: Konva's context wrapper doesn't type createPattern strictly correctly for all canvases
+            // but it delegates to the native context.
+            const pattern = context.createPattern(patternCanvas, 'repeat');
+            if (pattern) {
+              context.fillStyle = pattern;
+              context.fillRect(startX, startY, endX - startX, endY - startY);
             }
-          }
-          if (appMode === 'board') {
-            context.fillStyle = theme === 'dark' ? 'rgba(217, 119, 67, 0.4)' : 'rgba(184, 98, 48, 0.5)'; // Copper look
-          } else {
-            context.fillStyle = canvasTheme.gridColor;
-          }
-          context.fill();
-
-          if (appMode === 'board') {
-            // Draw inner hole for perfboard
-            context.beginPath();
-            for (let ix = startX; ix <= endX; ix += step) {
-              for (let iy = startY; iy <= endY; iy += step) {
-                context.moveTo(ix + 1, iy);
-                context.arc(ix, iy, 1, 0, Math.PI * 2);
-              }
-            }
-            context.fillStyle = theme === 'dark' ? '#1e293b' : '#f8fafc'; // Match background
-            context.fill();
           }
 
           // Draw logical center axes (origin)
@@ -105,7 +115,6 @@ export const Grid: React.FC<GridProps> = ({ width, height, scale, x, y }) => {
             context.fill();
           }
         }}
-        // We do not need hit detection on the grid dots
         listening={false}
       />
     </Layer>

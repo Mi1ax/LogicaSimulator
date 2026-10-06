@@ -14,79 +14,103 @@ export const computeNextState = (
   wires: Wire[],
   prevState: SimulationState
 ): SimulationState => {
-  const nextPinStates: Record<string, Signal> = { ...prevState.pinStates };
-  const nextWireStates: Record<string, Signal> = {};
-  const nextNodeStates: Record<string, Record<string, any>> = {};
+  let currentPinStates: Record<string, Signal> = { ...prevState.pinStates };
+  let finalWireStates: Record<string, Signal> = {};
+  let finalNodeStates: Record<string, Record<string, any>> = {};
 
-  // 1. Evaluate gates and sources
-  nodes.forEach(node => {
-    const def = getNodeDefinition(node.type);
-    if (!def) return;
+  const MAX_ITERATIONS = 50;
 
-    const inVals = node.inputs.map(p => prevState.pinStates[p.id]);
-    
-    let isPowered = true;
-    if (def.renderAs === 'DIP') {
-      node.inputs.forEach((pin, idx) => {
-        if (pin.name === 'VCC' && inVals[idx] !== 1) isPowered = false;
-        if (pin.name === 'GND' && inVals[idx] !== 0) isPowered = false;
-      });
-    }
+  for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+    const nextIterPinStates: Record<string, Signal> = { ...currentPinStates };
+    finalNodeStates = {};
+    finalWireStates = {};
 
-    if (!isPowered) {
-      // Unpowered IC outputs high-Z (undefined)
-      node.outputs.forEach((pin) => {
-        nextPinStates[pin.id] = undefined;
-      });
-    } else {
-      // Copy so the previous tick's state is never mutated.
-      const internal = { ...(prevState.nodeStates?.[node.id] ?? {}) };
-      const outVals = def.evaluate(inVals, node.properties, prevState.tickCount, internal);
-      if (Object.keys(internal).length > 0) nextNodeStates[node.id] = internal;
-      // Apply outputs. A missing/undefined output means floating, so it must be written
-      // too; otherwise the pin would keep its stale value from the previous tick.
-      node.outputs.forEach((pin, idx) => {
-        nextPinStates[pin.id] = outVals[idx];
-      });
-    }
-  });
+    // 1. Evaluate gates and sources
+    nodes.forEach(node => {
+      const def = getNodeDefinition(node.type);
+      if (!def) return;
 
-  // 2. Propagate through wires (1-tick delay for wire travel, or instant)
-  // Here we copy output pins to target input pins with collision detection.
-  // First, clear the state for connected input pins so we don't falsely collide with the previous tick's value.
-  const connectedInputPins = new Set(wires.map(w => w.targetPinId));
-  connectedInputPins.forEach(pinId => {
-    delete nextPinStates[pinId];
-  });
-
-  wires.forEach(wire => {
-    const val = nextPinStates[wire.sourcePinId];
-    nextWireStates[wire.id] = val;
-    
-    if (nextPinStates.hasOwnProperty(wire.targetPinId) && nextPinStates[wire.targetPinId] !== val) {
-      if (nextPinStates[wire.targetPinId] !== undefined && val !== undefined) {
-        nextPinStates[wire.targetPinId] = 'X'; // Collision
-      } else if (val !== undefined) {
-        nextPinStates[wire.targetPinId] = val;
+      const inVals = node.inputs.map(p => currentPinStates[p.id]);
+      
+      let isPowered = true;
+      if (def.renderAs === 'DIP') {
+        node.inputs.forEach((pin, idx) => {
+          if (pin.name === 'VCC' && inVals[idx] !== 1) isPowered = false;
+          if (pin.name === 'GND' && inVals[idx] !== 0) isPowered = false;
+        });
       }
-    } else {
-      nextPinStates[wire.targetPinId] = val;
-    }
-  });
 
-  // 3. Clear disconnected input pins
-  nodes.forEach(node => {
-    node.inputs.forEach(pin => {
-      if (!connectedInputPins.has(pin.id)) {
-        nextPinStates[pin.id] = undefined;
+      if (!isPowered) {
+        // Unpowered IC outputs high-Z (undefined)
+        node.outputs.forEach((pin) => {
+          nextIterPinStates[pin.id] = undefined;
+        });
+      } else {
+        // Always use the committed state from the PREVIOUS tick to avoid glitch increments
+        const internal = { ...(prevState.nodeStates?.[node.id] ?? {}) };
+        const outVals = def.evaluate(inVals, node.properties, prevState.tickCount, internal);
+        if (Object.keys(internal).length > 0) finalNodeStates[node.id] = internal;
+        
+        node.outputs.forEach((pin, idx) => {
+          nextIterPinStates[pin.id] = outVals[idx];
+        });
       }
     });
-  });
+
+    // 2. Propagate through wires
+    const connectedInputPins = new Set(wires.map(w => w.targetPinId));
+    connectedInputPins.forEach(pinId => {
+      delete nextIterPinStates[pinId];
+    });
+
+    wires.forEach(wire => {
+      const val = nextIterPinStates[wire.sourcePinId];
+      finalWireStates[wire.id] = val;
+      
+      if (nextIterPinStates.hasOwnProperty(wire.targetPinId) && nextIterPinStates[wire.targetPinId] !== val) {
+        if (nextIterPinStates[wire.targetPinId] !== undefined && val !== undefined) {
+          nextIterPinStates[wire.targetPinId] = 'X'; // Collision
+        } else if (val !== undefined) {
+          nextIterPinStates[wire.targetPinId] = val;
+        }
+      } else {
+        nextIterPinStates[wire.targetPinId] = val;
+      }
+    });
+
+    // 3. Clear disconnected input pins
+    nodes.forEach(node => {
+      node.inputs.forEach(pin => {
+        if (!connectedInputPins.has(pin.id)) {
+          nextIterPinStates[pin.id] = undefined;
+        }
+      });
+    });
+
+    // Check if state settled
+    let changed = false;
+    const nextKeys = Object.keys(nextIterPinStates);
+    const currKeys = Object.keys(currentPinStates);
+    
+    if (nextKeys.length !== currKeys.length) {
+      changed = true;
+    } else {
+      for (const key of nextKeys) {
+        if (nextIterPinStates[key] !== currentPinStates[key]) {
+          changed = true;
+          break;
+        }
+      }
+    }
+
+    currentPinStates = nextIterPinStates;
+    if (!changed) break;
+  }
 
   return {
     tickCount: prevState.tickCount + 1,
-    pinStates: nextPinStates,
-    wireStates: nextWireStates,
-    nodeStates: nextNodeStates
+    pinStates: currentPinStates,
+    wireStates: finalWireStates,
+    nodeStates: finalNodeStates
   };
 };

@@ -15,9 +15,9 @@ export const getBoardDimensions = (node: LogicNode) => {
   }
 
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
-    const allPins = [...node.inputs, ...node.outputs];
+    const allPins = Array.from(new Map([...node.inputs, ...node.outputs].map(p => [p.id, p])).values());
     const maxPinNumber = allPins.reduce((max, p) => Math.max(max, getSafePinNumber(node.type, p) ?? 0), 0);
-    const pinsPerSide = Math.max(Math.ceil(allPins.length / 2), Math.ceil(maxPinNumber / 2));
+    const pinsPerSide = maxPinNumber > 0 ? Math.ceil(maxPinNumber / 2) : Math.ceil(allPins.length / 2);
     return { width: 60, height: (pinsPerSide + 1) * 20 };
   }
 
@@ -57,12 +57,12 @@ export const getBoardPinPosition = (node: LogicNode, pinId: string) => {
   }
 
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
-    const allPins = [...node.inputs, ...node.outputs];
+    const allPins = Array.from(new Map([...node.inputs, ...node.outputs].map(p => [p.id, p])).values());
     const pin = allPins.find(p => p.id === pinId);
     if (pin) {
       const safePinNum = getSafePinNumber(node.type, pin) ?? 1;
       const maxPinNumber = allPins.reduce((max, p) => Math.max(max, getSafePinNumber(node.type, p) ?? 0), 0);
-      const pinsPerSide = Math.max(Math.ceil(allPins.length / 2), Math.ceil(maxPinNumber / 2));
+      const pinsPerSide = maxPinNumber > 0 ? Math.ceil(maxPinNumber / 2) : Math.ceil(allPins.length / 2);
       const totalPins = pinsPerSide * 2;
       const isLeft = safePinNum <= pinsPerSide;
       const row = isLeft ? safePinNum : (totalPins - safePinNum + 1);

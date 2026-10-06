@@ -1,8 +1,8 @@
 export const getCanvasTheme = (isDark: boolean) => ({
   gridColor: isDark ? '#334155' : '#cbd5e1', // slate-700 : slate-300
-  nodeBg: isDark ? '#1e293b' : '#f8fafc',    // slate-800 : slate-50
-  nodeBorder: isDark ? '#475569' : '#475569',// slate-600 : slate-600
-  textColor: isDark ? '#f8fafc' : '#1e293b', // slate-50 : slate-800
+  nodeBg: isDark ? '#1e293b' : '#FFFFCC',    // Proteus pale yellow
+  nodeBorder: isDark ? '#475569' : '#800000',// Proteus dark red outline
+  textColor: isDark ? '#f8fafc' : '#000080', // Proteus dark blue text
   inputNodeBg: isDark ? '#064e3b' : '#ecfdf5', // emerald-900 : emerald-50
   inputNodeBorder: isDark ? '#059669' : '#10b981', // emerald-600 : emerald-500
   inputIndicator: isDark ? '#047857' : '#d1fae5',

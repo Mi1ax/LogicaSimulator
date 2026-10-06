@@ -2,8 +2,10 @@ import { Signal } from '../../models/types';
 
 export interface PinDefinition {
   name: string;
-  type: 'input' | 'output';
+  type: 'input' | 'output' | 'bidir';
   pinNumber?: number; // Standard IC pin numbering (1..N)
+  schematicSide?: 'left' | 'right' | 'top' | 'bottom';
+  schematicRow?: number; // Logical index for schematic layout (1-indexed)
 }
 
 export interface NodeDefinition {

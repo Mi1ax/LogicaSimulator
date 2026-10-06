@@ -30,12 +30,16 @@ export const addNode = (state: CircuitState, type: NodeType, x: number, y: numbe
         id: `pin-${id}-${cp.type}-${cp.name}`,
         nodeId: id,
         type: cp.type,
-        index: cp.type === 'input' ? inputs.length : outputs.length,
+        index: inputs.length + outputs.length, // Unique index
         name: cp.name,
         pinNumber: cp.pinNumber,
       };
       if (cp.type === 'input') inputs.push(pin);
-      else outputs.push(pin);
+      else if (cp.type === 'output') outputs.push(pin);
+      else if (cp.type === 'bidir') {
+        inputs.push(pin);
+        outputs.push(pin);
+      }
     });
   } else {
     inputs = Array.from({ length: def.numInputs }).map((_, i) => ({
