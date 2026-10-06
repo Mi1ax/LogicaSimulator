@@ -1,5 +1,6 @@
 import { LogicNode, NodeType, Pin, Wire } from '../models/types';
 import { getNodeDefinition } from './nodes';
+import { generateId } from '../utils/id';
 
 export interface CircuitState {
   nodes: LogicNode[];
@@ -15,7 +16,7 @@ export const addNode = (state: CircuitState, type: NodeType, x: number, y: numbe
     return state;
   }
 
-  const id = `node-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const id = generateId('node');
   
   const properties = def.defaultProperties ? { ...def.defaultProperties } : {};
   if (def.renderAs) properties.renderAs = def.renderAs;
@@ -107,7 +108,7 @@ export const addWire = (
   wireType?: 'solder' | 'jumper'
 ): CircuitState => {
   const newWire: Wire = {
-    id: `wire-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    id: generateId('wire'),
     sourceNodeId,
     sourcePinId,
     targetNodeId,

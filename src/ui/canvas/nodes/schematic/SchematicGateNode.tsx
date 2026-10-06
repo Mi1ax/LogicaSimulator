@@ -3,7 +3,7 @@ import { Group, Rect, Text, Path, Circle } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
 import { Pin } from '../../primitives/Pin';
-import { getSchematicDimensions, getGridAlignedPinYs } from '../../../../core/utils/schematicLayout';
+import { getSchematicDimensions, getGridAlignedPinYs, getSchematicAnchor } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
 
 interface GateNodeProps {
@@ -19,8 +19,7 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getSchematicDimensions(node);
   
-  const anchorX = width / 2;
-  const anchorY = height / 2;
+  const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
 
   const isSelected = selection?.type === 'node' && selection.id === node.id;
   const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
@@ -94,6 +93,7 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
         }
         select({ type: 'node', id: node.id });
       }}
+      onDragStart={() => useSimulatorStore.getState().saveHistory()}
       onDragMove={(e) => {
         const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
         const localY = Math.round((e.target.y() - anchorY) / 20) * 20;

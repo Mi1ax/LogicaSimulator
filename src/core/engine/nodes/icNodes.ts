@@ -52,7 +52,6 @@ export const IC74LS161: NodeDefinition = {
   renderAs: 'DIP',
   numInputs: 11,
   numOutputs: 5,
-  defaultProperties: { counter: 0, lastClk: 0 },
   customPins: [
     { name: '~CLR', type: 'input', pinNumber: 1 },
     { name: 'CLK', type: 'input', pinNumber: 2 },
@@ -71,15 +70,14 @@ export const IC74LS161: NodeDefinition = {
     { name: 'RCO', type: 'output', pinNumber: 15 },
     { name: 'VCC', type: 'input', pinNumber: 16 }
   ],
-  evaluate: (inputs, props) => {
+  evaluate: (inputs, _props, _tick, internal = {}) => {
     // Inputs:
     // 0: ~CLR, 1: CLK, 2: A, 3: B, 4: C, 5: D, 6: ENP, 7: GND, 8: ~LOAD, 9: ENT, 10: VCC
     const [clrN, clk, a, b, c, d, enp, , loadN, ent] = inputs;
     
-    if (!props) return [undefined, undefined, undefined, undefined, undefined];
-    
-    if (props.counter === undefined) props.counter = 0;
-    if (props.lastClk === undefined) props.lastClk = 0;
+    const st = internal;
+    if (st.counter === undefined) st.counter = 0;
+    if (st.lastClk === undefined) st.lastClk = 0;
 
     // Apply User-Friendly Simulator Defaults for floating pins
     const safeClrN = clrN ?? 1;   // Default 1: Don't clear
@@ -89,32 +87,32 @@ export const IC74LS161: NodeDefinition = {
     
     // Async clear (active low)
     if (safeClrN === 0) {
-      props.counter = 0;
+      st.counter = 0;
     } 
     // Synchronous operations on rising edge
-    else if (clk === 1 && props.lastClk === 0) {
+    else if (clk === 1 && st.lastClk === 0) {
       // Synchronous load (active low)
       if (safeLoadN === 0) {
         // Parallel data defaults to 0 if floating
-        props.counter = ((d === 1 ? 1 : 0) << 3) | ((c === 1 ? 1 : 0) << 2) | ((b === 1 ? 1 : 0) << 1) | ((a === 1 ? 1 : 0));
+        st.counter = ((d === 1 ? 1 : 0) << 3) | ((c === 1 ? 1 : 0) << 2) | ((b === 1 ? 1 : 0) << 1) | ((a === 1 ? 1 : 0));
       } 
       // Count enable (both ENP and ENT must be high to count)
       else if (safeEnp === 1 && safeEnt === 1) {
-        props.counter = (props.counter + 1) % 16;
+        st.counter = (st.counter + 1) % 16;
       }
     }
     
-    props.lastClk = clk || 0;
+    st.lastClk = clk || 0;
     
     // Outputs:
     // 0: QD, 1: QC, 2: QB, 3: QA, 4: RCO
-    const qa = (props.counter & 1) ? 1 : 0;
-    const qb = (props.counter & 2) ? 1 : 0;
-    const qc = (props.counter & 4) ? 1 : 0;
-    const qd = (props.counter & 8) ? 1 : 0;
+    const qa = (st.counter & 1) ? 1 : 0;
+    const qb = (st.counter & 2) ? 1 : 0;
+    const qc = (st.counter & 4) ? 1 : 0;
+    const qd = (st.counter & 8) ? 1 : 0;
     
     // Ripple Carry Output (high when counter is 15 and ENT is high)
-    const rco = (props.counter === 15 && safeEnt === 1) ? 1 : 0;
+    const rco = (st.counter === 15 && safeEnt === 1) ? 1 : 0;
     
     // Output floating state if VCC/GND are not connected properly? 
     // In many software sims we ignore power pins unless strict. 
@@ -129,7 +127,6 @@ export const IC74LS273: NodeDefinition = {
   renderAs: 'DIP',
   numInputs: 12,
   numOutputs: 8,
-  defaultProperties: { state: 0, lastClk: 0 },
   customPins: [
     { name: '~MR', type: 'input', pinNumber: 1 },
     { name: 'Q0', type: 'output', pinNumber: 2 },
@@ -152,24 +149,23 @@ export const IC74LS273: NodeDefinition = {
     { name: 'Q7', type: 'output', pinNumber: 19 },
     { name: 'VCC', type: 'input', pinNumber: 20 }
   ],
-  evaluate: (inputs, props) => {
+  evaluate: (inputs, _props, _tick, internal = {}) => {
     // Inputs (12):
     // 0: ~MR, 1: D0, 2: D1, 3: D2, 4: D3, 5: GND, 6: CP, 7: D4, 8: D5, 9: D6, 10: D7, 11: VCC
     const [mrN, d0, d1, d2, d3, , cp, d4, d5, d6, d7] = inputs;
     
-    if (!props) return Array(8).fill(undefined);
-    
-    if (props.state === undefined) props.state = 0;
-    if (props.lastClk === undefined) props.lastClk = 0;
+    const st = internal;
+    if (st.state === undefined) st.state = 0;
+    if (st.lastClk === undefined) st.lastClk = 0;
 
     const safeMrN = mrN ?? 1; // Default 1: Don't reset
     
     // Async reset (active low)
     if (safeMrN === 0) {
-      props.state = 0;
+      st.state = 0;
     } 
     // Synchronous operations on rising edge
-    else if (cp === 1 && props.lastClk === 0) {
+    else if (cp === 1 && st.lastClk === 0) {
       const bit0 = d0 === 1 ? 1 : 0;
       const bit1 = d1 === 1 ? 1 : 0;
       const bit2 = d2 === 1 ? 1 : 0;
@@ -179,21 +175,21 @@ export const IC74LS273: NodeDefinition = {
       const bit6 = d6 === 1 ? 1 : 0;
       const bit7 = d7 === 1 ? 1 : 0;
       
-      props.state = (bit7 << 7) | (bit6 << 6) | (bit5 << 5) | (bit4 << 4) | (bit3 << 3) | (bit2 << 2) | (bit1 << 1) | bit0;
+      st.state = (bit7 << 7) | (bit6 << 6) | (bit5 << 5) | (bit4 << 4) | (bit3 << 3) | (bit2 << 2) | (bit1 << 1) | bit0;
     }
     
-    props.lastClk = cp || 0;
+    st.lastClk = cp || 0;
     
     // Outputs (8):
     // 0: Q0, 1: Q1, 2: Q2, 3: Q3, 4: Q4, 5: Q5, 6: Q6, 7: Q7
-    const q0 = (props.state & (1 << 0)) ? 1 : 0;
-    const q1 = (props.state & (1 << 1)) ? 1 : 0;
-    const q2 = (props.state & (1 << 2)) ? 1 : 0;
-    const q3 = (props.state & (1 << 3)) ? 1 : 0;
-    const q4 = (props.state & (1 << 4)) ? 1 : 0;
-    const q5 = (props.state & (1 << 5)) ? 1 : 0;
-    const q6 = (props.state & (1 << 6)) ? 1 : 0;
-    const q7 = (props.state & (1 << 7)) ? 1 : 0;
+    const q0 = (st.state & (1 << 0)) ? 1 : 0;
+    const q1 = (st.state & (1 << 1)) ? 1 : 0;
+    const q2 = (st.state & (1 << 2)) ? 1 : 0;
+    const q3 = (st.state & (1 << 3)) ? 1 : 0;
+    const q4 = (st.state & (1 << 4)) ? 1 : 0;
+    const q5 = (st.state & (1 << 5)) ? 1 : 0;
+    const q6 = (st.state & (1 << 6)) ? 1 : 0;
+    const q7 = (st.state & (1 << 7)) ? 1 : 0;
     
     return [q0, q1, q2, q3, q4, q5, q6, q7];
   }

@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { LogicNode, NodeType, Wire, DraftWire } from '../core/models/types';
 import * as circuit from '../core/engine/circuit';
 import { computeNextState } from '../core/engine/simulation';
+import { generateId } from '../core/utils/id';
 
 export type Selection = { type: 'node' | 'wire', id: string } | null;
 
@@ -142,7 +143,7 @@ export const useSimulatorStore = create<SimulatorState>()(
   boardScale: 1,
   setBoardScale: (scale) => set({ boardScale: scale }),
 
-  simState: { tickCount: 0, pinStates: {}, wireStates: {} },
+  simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} },
   simRunning: false,
   simSpeed: 10,
 
@@ -242,27 +243,23 @@ export const useSimulatorStore = create<SimulatorState>()(
   setNodeInputCount: (id, count) => set((state) => ({ ...circuit.setNodeInputCount(state, id, count), ...pushHistory(state) })),
   setNodeOutputCount: (id, count) => set((state) => ({ ...circuit.setNodeOutputCount(state, id, count), ...pushHistory(state) })),
 
-  clearNodes: () => set({
+  // Undoable: the cleared circuit is pushed onto the history stack first.
+  clearNodes: () => set((state) => ({
+    ...pushHistory(state),
     nodes: [],
     wires: [],
+    boardTraces: [],
     draftWire: null,
+    draftBoardTrace: null,
+    placingNodeId: null,
     selection: null,
-    simState: { tickCount: 0, pinStates: {}, wireStates: {} },
+    simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} },
     simRunning: false
-  }),
+  })),
 
-  resetSimulation: () => set((state) => {
-    const resetNodes = state.nodes.map(n => {
-      if (n.properties) {
-        const newProps = { ...n.properties };
-        if (newProps.counter !== undefined) newProps.counter = 0;
-        if (newProps.lastClk !== undefined) newProps.lastClk = 0;
-        return { ...n, properties: newProps };
-      }
-      return n;
-    });
-    return { nodes: resetNodes, simState: { tickCount: 0, pinStates: {}, wireStates: {} } };
-  }),
+  // Sequential IC state (counters, registers) lives in simState.nodeStates,
+  // so resetting the simulation state resets every IC as well.
+  resetSimulation: () => set({ simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} } }),
 
   stepSimulation: () => set((state) => ({
     simState: computeNextState(state.nodes, state.wires, state.simState)
@@ -535,10 +532,21 @@ export const useSimulatorStore = create<SimulatorState>()(
 
   completeBoardTrace: () => set((state) => {
     if (!state.draftBoardTrace || state.draftBoardTrace.points.length < 2) return { draftBoardTrace: null };
+    
+    // Filter out consecutive identical points (often caused by double-clicking to finish)
+    const rawPoints = state.draftBoardTrace.points;
+    const cleanPoints = rawPoints.filter((p, i) => {
+      if (i === 0) return true;
+      const prev = rawPoints[i - 1];
+      return p.x !== prev.x || p.y !== prev.y;
+    });
+
+    if (cleanPoints.length < 2) return { draftBoardTrace: null };
+
     const newTrace: import('../core/models/types').BoardTrace = {
-      id: `trace-${Date.now()}`,
+      id: generateId('trace'),
       type: state.draftBoardTrace.type,
-      points: [...state.draftBoardTrace.points]
+      points: cleanPoints
     };
     return { boardTraces: [...state.boardTraces, newTrace], ...pushHistory(state), draftBoardTrace: null };
   }),

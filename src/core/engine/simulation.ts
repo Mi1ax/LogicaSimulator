@@ -5,6 +5,8 @@ export interface SimulationState {
   tickCount: number;
   pinStates: Record<string, Signal>;
   wireStates: Record<string, Signal>;
+  /** Internal state of sequential nodes (e.g. counters, flip-flops), keyed by node id. */
+  nodeStates?: Record<string, Record<string, any>>;
 }
 
 export const computeNextState = (
@@ -14,6 +16,7 @@ export const computeNextState = (
 ): SimulationState => {
   const nextPinStates: Record<string, Signal> = { ...prevState.pinStates };
   const nextWireStates: Record<string, Signal> = {};
+  const nextNodeStates: Record<string, Record<string, any>> = {};
 
   // 1. Evaluate gates and sources
   nodes.forEach(node => {
@@ -36,12 +39,14 @@ export const computeNextState = (
         nextPinStates[pin.id] = undefined;
       });
     } else {
-      const outVals = def.evaluate(inVals, node.properties, prevState.tickCount);
-      // Apply outputs
+      // Copy so the previous tick's state is never mutated.
+      const internal = { ...(prevState.nodeStates?.[node.id] ?? {}) };
+      const outVals = def.evaluate(inVals, node.properties, prevState.tickCount, internal);
+      if (Object.keys(internal).length > 0) nextNodeStates[node.id] = internal;
+      // Apply outputs. A missing/undefined output means floating, so it must be written
+      // too; otherwise the pin would keep its stale value from the previous tick.
       node.outputs.forEach((pin, idx) => {
-        if (outVals[idx] !== undefined) {
-          nextPinStates[pin.id] = outVals[idx];
-        }
+        nextPinStates[pin.id] = outVals[idx];
       });
     }
   });
@@ -81,6 +86,7 @@ export const computeNextState = (
   return {
     tickCount: prevState.tickCount + 1,
     pinStates: nextPinStates,
-    wireStates: nextWireStates
+    wireStates: nextWireStates,
+    nodeStates: nextNodeStates
   };
 };

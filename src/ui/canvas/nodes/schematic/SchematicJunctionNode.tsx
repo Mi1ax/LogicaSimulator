@@ -64,6 +64,7 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
       onDragStart={(e) => {
         e.cancelBubble = true;
         select({ type: 'node', id: node.id });
+        useSimulatorStore.getState().saveHistory();
       }}
       onDragMove={(e) => {
         const localX = Math.round(e.target.x() / 20) * 20;

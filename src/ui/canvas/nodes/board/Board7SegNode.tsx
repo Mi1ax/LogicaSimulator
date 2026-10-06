@@ -6,6 +6,8 @@ import { getBoardDimensions } from '../../../../core/utils/boardLayout';
 import { getCanvasTheme } from '../../theme';
 import { Pin } from '../../primitives/Pin';
 
+import { useShallow } from 'zustand/react/shallow';
+
 interface Props {
   node: LogicNode;
 }
@@ -15,8 +17,12 @@ export const Board7SegNode: React.FC<Props> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
   const selection = useSimulatorStore(state => state.selection);
   const select = useSimulatorStore(state => state.select);
-  const simState = useSimulatorStore(state => state.simState);
   
+  const segments = useSimulatorStore(useShallow(state => {
+    return node.inputs.map(p => state.simState.pinStates[p.id] === 1 ? 1 : 0);
+  }));
+  const [a, b, c, d, e, f, g, dp] = segments;
+
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getBoardDimensions(node);
   
@@ -27,18 +33,6 @@ export const Board7SegNode: React.FC<Props> = React.memo(({ node }) => {
   const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
 
   const pins = node.inputs;
-  const getPinState = (index: number) => {
-    if (!pins[index]) return 0;
-    return simState.pinStates[pins[index].id] === 1 ? 1 : 0;
-  };
-  const a = getPinState(0);
-  const b = getPinState(1);
-  const c = getPinState(2);
-  const d = getPinState(3);
-  const e = getPinState(4);
-  const f = getPinState(5);
-  const g = getPinState(6);
-  const dp = getPinState(7);
 
   const activeColor = '#ef4444';
   const inactiveColor = theme === 'dark' ? '#451a1a' : '#fecaca';
@@ -74,6 +68,7 @@ export const Board7SegNode: React.FC<Props> = React.memo(({ node }) => {
         evt.cancelBubble = true;
         select({ type: 'node', id: node.id });
       }}
+      onDragStart={() => useSimulatorStore.getState().saveHistory()}
       onDragMove={(evt) => {
         const localX = Math.round(evt.target.x() / 20) * 20;
         const localY = Math.round(evt.target.y() / 20) * 20;

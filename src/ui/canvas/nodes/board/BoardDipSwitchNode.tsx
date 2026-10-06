@@ -48,6 +48,7 @@ export const BoardDipSwitchNode: React.FC<Props> = React.memo(({ node }) => {
         e.cancelBubble = true;
         select({ type: 'node', id: node.id });
       }}
+      onDragStart={() => useSimulatorStore.getState().saveHistory()}
       onDragMove={(e) => {
         const localX = Math.round(e.target.x() / 20) * 20;
         const localY = Math.round(e.target.y() / 20) * 20;
