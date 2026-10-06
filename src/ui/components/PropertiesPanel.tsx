@@ -72,23 +72,27 @@ export const PropertiesPanel: React.FC = () => {
         </div>
 
         {/* Rotation */}
-        {appMode !== 'board' && (
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
-              Rotation
-            </label>
-            <select
-              className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
-              value={node.properties?.rotation || 0}
-              onChange={(e) => updateNodeProperties(node.id, { rotation: parseInt(e.target.value, 10) })}
-            >
-              <option value={0}>0°</option>
-              <option value={90}>90°</option>
-              <option value={180}>180°</option>
-              <option value={270}>270°</option>
-            </select>
-          </div>
-        )}
+        <div>
+          <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+            {appMode === 'board' ? 'Board Rotation' : 'Schematic Rotation'}
+          </label>
+          <select
+            className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
+            value={appMode === 'board' ? (node.properties?.boardRotation || 0) : (node.properties?.rotation || 0)}
+            onChange={(e) => {
+              if (appMode === 'board') {
+                updateNodeProperties(node.id, { boardRotation: parseInt(e.target.value, 10) });
+              } else {
+                updateNodeProperties(node.id, { rotation: parseInt(e.target.value, 10) });
+              }
+            }}
+          >
+            <option value={0}>0°</option>
+            <option value={90}>90°</option>
+            <option value={180}>180°</option>
+            <option value={270}>270°</option>
+          </select>
+        </div>
 
         {/* Variable Inputs */}
         {isVariableInputGate && (

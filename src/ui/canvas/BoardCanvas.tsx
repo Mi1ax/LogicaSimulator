@@ -105,6 +105,15 @@ export const BoardCanvas: React.FC = () => {
           if (store.placingNodeId) store.cancelPlacingNode();
         } else if (e.key === 'Delete' || e.key === 'Backspace') {
           deleteSelection();
+        } else if (e.key.toLowerCase() === 'r') {
+          const targetNodeId = store.placingNodeId || (store.selection?.type === 'node' ? store.selection.id : null);
+          if (targetNodeId) {
+            const node = store.nodes.find(n => n.id === targetNodeId);
+            if (node && node.type !== 'JUNCTION') {
+              const currentRot = node.properties?.boardRotation || 0;
+              store.updateNodeProperties(node.id, { boardRotation: (currentRot + 90) % 360 });
+            }
+          }
         }
       }}
     >
@@ -251,6 +260,14 @@ export const BoardCanvas: React.FC = () => {
                   }
                 } else {
                   select(null);
+                  
+                  const transform = stage.getAbsoluteTransform().copy().invert();
+                  const pos = transform.point(pointer);
+                  const gridX = Math.round(pos.x / 20) * 20;
+                  const gridY = Math.round(pos.y / 20) * 20;
+                  
+                  const store = useSimulatorStore.getState();
+                  store.startBoardTrace(gridX, gridY);
                 }
               }
             }

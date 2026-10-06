@@ -5,7 +5,7 @@ import * as circuit from '../core/engine/circuit';
 import { computeNextState } from '../core/engine/simulation';
 import { generateId } from '../core/utils/id';
 
-export type Selection = { type: 'node' | 'wire', id: string } | null;
+export type Selection = { type: 'node' | 'wire' | 'boardTrace', id: string } | null;
 
 export interface PointerSettings {
   mouseWheelBehavior: 'zoom' | 'pan'; // 'zoom' = CAD style, 'pan' = Figma style
@@ -67,6 +67,7 @@ interface SimulatorState {
   addBoardTraceWaypoint: () => void;
   completeBoardTrace: () => void;
   cancelBoardTrace: () => void;
+  updateBoardTracePoints: (id: string, points: {x: number, y: number}[]) => void;
 
   // Simulation State
   simState: import('../core/engine/simulation').SimulationState;
@@ -190,10 +191,14 @@ export const useSimulatorStore = create<SimulatorState>()(
         const nextCircuit = circuit.deleteNode(state, state.selection.id);
         return { ...state, ...nextCircuit, ...pushHistory(state), selection: null };
       }
-    } else {
+    } else if (state.selection.type === 'wire') {
       const nextCircuit = circuit.deleteWire(state, state.selection.id);
       return { ...state, ...nextCircuit, ...pushHistory(state), selection: null };
+    } else if (state.selection.type === 'boardTrace') {
+      const boardTraces = state.boardTraces.filter(t => t.id !== state.selection!.id);
+      return { ...state, boardTraces, ...pushHistory(state), selection: null };
     }
+    return state;
   }),
 
   placingNodeId: null,
@@ -549,6 +554,13 @@ export const useSimulatorStore = create<SimulatorState>()(
       points: cleanPoints
     };
     return { boardTraces: [...state.boardTraces, newTrace], ...pushHistory(state), draftBoardTrace: null };
+  }),
+
+  updateBoardTracePoints: (id, points) => set((state) => {
+    const boardTraces = state.boardTraces.map(t => 
+      t.id === id ? { ...t, points } : t
+    );
+    return { boardTraces, ...pushHistory(state) };
   }),
 
   cancelBoardTrace: () => set({ draftBoardTrace: null }),
