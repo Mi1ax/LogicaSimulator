@@ -30,8 +30,11 @@ export const SchematicCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [selectionBox, setSelectionBox] = useState<{ startX: number, startY: number, width: number, height: number } | null>(null);
-  const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
-  const [scale, setScale] = useState(1);
+  const stagePos = useSimulatorStore(state => state.schematicPos);
+  const setStagePos = useSimulatorStore(state => state.setSchematicPos);
+  const scale = useSimulatorStore(state => state.schematicScale);
+  const setScale = useSimulatorStore(state => state.setSchematicScale);
+  const setCanvasOffset = useSimulatorStore(state => state.setCanvasOffset);
   
   const nodeIds = useSimulatorStore(useShallow(state => state.nodes.map(n => n.id)));
   const draftWire = useSimulatorStore(state => state.draftWire);
@@ -47,6 +50,8 @@ export const SchematicCanvas: React.FC = () => {
         const w = containerRef.current.offsetWidth;
         const h = containerRef.current.offsetHeight;
         setDimensions({ width: w, height: h });
+        const rect = containerRef.current.getBoundingClientRect();
+        setCanvasOffset({ x: rect.left, y: rect.top });
         if (!initializedRef.current && w > 0 && h > 0) {
           setStagePos({ x: w / 2, y: h / 2 });
           initializedRef.current = true;
@@ -124,6 +129,11 @@ export const SchematicCanvas: React.FC = () => {
         y={stagePos.y}
         scaleX={scale}
         scaleY={scale}
+        onDragMove={(e) => {
+          if (e.target === e.target.getStage()) {
+            setStagePos({ x: e.target.x(), y: e.target.y() });
+          }
+        }}
         onDragEnd={(e) => {
           if (e.target === e.target.getStage()) {
             setStagePos({ x: e.target.x(), y: e.target.y() });
@@ -178,10 +188,10 @@ export const SchematicCanvas: React.FC = () => {
               panY = deltaX;
             }
 
-            setStagePos((prev) => ({
-              x: prev.x - panX * settings.panSpeed,
-              y: prev.y - panY * settings.panSpeed,
-            }));
+            setStagePos({
+              x: stagePos.x - panX * settings.panSpeed,
+              y: stagePos.y - panY * settings.panSpeed,
+            });
           }
         }}
         onMouseMove={(e) => {
