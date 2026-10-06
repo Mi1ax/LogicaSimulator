@@ -5,6 +5,7 @@ import { getSafePinNumber } from '../../core/utils/layoutUtils';
 
 export const PropertiesPanel: React.FC = () => {
   const selection = useSimulatorStore(state => state.selection);
+  const multiSelection = useSimulatorStore(state => state.multiSelection);
   const nodes = useSimulatorStore(state => state.nodes);
   const updateNodeProperties = useSimulatorStore(state => state.updateNodeProperties);
   const setNodeInputCount = useSimulatorStore(state => state.setNodeInputCount);
@@ -18,6 +19,8 @@ export const PropertiesPanel: React.FC = () => {
   React.useEffect(() => {
     setLocalLabel(node?.properties?.label || '');
   }, [node?.id, node?.properties?.label]);
+
+  if (multiSelection && multiSelection.length > 1) return null;
 
   if (!node || node.type === 'JUNCTION') return null;
 
@@ -159,6 +162,19 @@ export const PropertiesPanel: React.FC = () => {
             />
           </div>
         )}
+
+        {/* ROM Editor Button */}
+        {node.type === '27C256' && (
+          <div className="mt-4">
+            <button
+              onClick={() => useSimulatorStore.getState().toggleRomEditor(node.id, true)}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition-colors text-sm"
+            >
+              Open ROM Editor
+            </button>
+          </div>
+        )}
+
         {/* DIP Pinout Diagram */}
         {(node.properties?.renderAs === 'DIP' || def.renderAs === 'DIP') && (
           <div className="mt-6 pt-4 border-t border-gray-200 dark:border-slate-700">

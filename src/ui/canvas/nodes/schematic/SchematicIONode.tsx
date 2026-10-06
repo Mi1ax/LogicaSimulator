@@ -14,6 +14,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
   const theme = useSimulatorStore(state => state.theme);
   const selection = useSimulatorStore(state => state.selection);
+  const multiSelection = useSimulatorStore(state => state.multiSelection);
   const select = useSimulatorStore(state => state.select);
   const toggleInputNode = useSimulatorStore(state => state.toggleInputNode);
   
@@ -25,7 +26,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   const isVcc = node.type === 'VCC';
   const isGnd = node.type === 'GND';
   
-  const isSelected = selection?.type === 'node' && selection.id === node.id;
+  const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
 
   const val = useSimulatorStore(state => {
     if (isInput) return node.properties?.value === 1 ? 1 : 0;
@@ -63,7 +64,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
           store.finishPlacingNode();
           return;
         }
-        select({ type: 'node', id: node.id });
+        select({ type: 'node', id: node.id }, e.evt.shiftKey);
         
         if (isInput) {
           toggleInputNode(node.id);

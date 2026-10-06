@@ -194,3 +194,86 @@ export const IC74LS273: NodeDefinition = {
     return [q0, q1, q2, q3, q4, q5, q6, q7];
   }
 };
+
+export const ROM_27C256: NodeDefinition = {
+  type: '27C256',
+  label: '27C256 (32K x 8 EPROM)',
+  renderAs: 'DIP',
+  numInputs: 20,
+  numOutputs: 8,
+  customPins: [
+    { name: 'A0', type: 'input', pinNumber: 10 },
+    { name: 'A1', type: 'input', pinNumber: 9 },
+    { name: 'A2', type: 'input', pinNumber: 8 },
+    { name: 'A3', type: 'input', pinNumber: 7 },
+    { name: 'A4', type: 'input', pinNumber: 6 },
+    { name: 'A5', type: 'input', pinNumber: 5 },
+    { name: 'A6', type: 'input', pinNumber: 4 },
+    { name: 'A7', type: 'input', pinNumber: 3 },
+    { name: 'A8', type: 'input', pinNumber: 25 },
+    { name: 'A9', type: 'input', pinNumber: 24 },
+    { name: 'A10', type: 'input', pinNumber: 21 },
+    { name: 'A11', type: 'input', pinNumber: 23 },
+    { name: 'A12', type: 'input', pinNumber: 2 },
+    { name: 'A13', type: 'input', pinNumber: 26 },
+    { name: 'A14', type: 'input', pinNumber: 27 },
+    { name: '/CE', type: 'input', pinNumber: 20 },
+    { name: '/OE', type: 'input', pinNumber: 22 },
+    { name: 'VPP', type: 'input', pinNumber: 1 },
+    { name: 'GND', type: 'input', pinNumber: 14 },
+    { name: 'VCC', type: 'input', pinNumber: 28 },
+    { name: 'D0', type: 'output', pinNumber: 11 },
+    { name: 'D1', type: 'output', pinNumber: 12 },
+    { name: 'D2', type: 'output', pinNumber: 13 },
+    { name: 'D3', type: 'output', pinNumber: 15 },
+    { name: 'D4', type: 'output', pinNumber: 16 },
+    { name: 'D5', type: 'output', pinNumber: 17 },
+    { name: 'D6', type: 'output', pinNumber: 18 },
+    { name: 'D7', type: 'output', pinNumber: 19 },
+  ],
+  evaluate: (inputs, properties) => {
+    // Inputs array mapped from customPins:
+    // 0..14: A0..A14
+    // 15: /CE, 16: /OE, 17: VPP, 18: GND, 19: VCC
+
+    const CE_L = inputs[15];
+    const OE_L = inputs[16];
+
+    // High-Z if not enabled
+    if (CE_L !== 0 || OE_L !== 0) {
+      return [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined];
+    }
+
+    // Read address
+    let address = 0;
+    
+    for (let i = 0; i < 15; i++) {
+      const val = inputs[i];
+      if (val === undefined || val === 'X') return [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined]; // Unstable address
+      if (val === 1) address |= (1 << i);
+    }
+
+    // Read data from properties
+    const rawData = properties?.data; // Array of numbers or base64
+    let byteVal = 0;
+    
+    if (Array.isArray(rawData) && rawData.length > address) {
+      byteVal = rawData[address] || 0;
+    } else if (typeof rawData === 'string') {
+      // Decode base64 if needed, but for performance, we should decode it once, or let the UI handle string->array conversion before saving to properties
+      // Assuming UI saves it as an array of bytes
+    }
+
+    // Output D0..D7
+    return [
+      (byteVal & (1 << 0)) ? 1 : 0,
+      (byteVal & (1 << 1)) ? 1 : 0,
+      (byteVal & (1 << 2)) ? 1 : 0,
+      (byteVal & (1 << 3)) ? 1 : 0,
+      (byteVal & (1 << 4)) ? 1 : 0,
+      (byteVal & (1 << 5)) ? 1 : 0,
+      (byteVal & (1 << 6)) ? 1 : 0,
+      (byteVal & (1 << 7)) ? 1 : 0,
+    ];
+  }
+};
