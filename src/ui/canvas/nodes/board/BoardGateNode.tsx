@@ -26,8 +26,11 @@ export const BoardGateNode: React.FC<GateNodeProps> = React.memo(({ node }) => {
 
   return (
     <Group
-      x={x}
-      y={y}
+      x={x + width / 2}
+      y={y + height / 2}
+      offsetX={width / 2}
+      offsetY={height / 2}
+      rotation={node.properties?.boardRotation || 0}
       opacity={isPlacing ? 0.6 : 1}
       draggable={!isPlacing}
       onClick={(e) => {
@@ -41,15 +44,15 @@ export const BoardGateNode: React.FC<GateNodeProps> = React.memo(({ node }) => {
       }}
       onDragStart={() => useSimulatorStore.getState().saveHistory()}
       onDragMove={(e) => {
-        const localX = Math.round(e.target.x() / 20) * 20;
-        const localY = Math.round(e.target.y() / 20) * 20;
-        e.target.position({ x: localX, y: localY });
+        const localX = Math.round((e.target.x() - width / 2) / 20) * 20;
+        const localY = Math.round((e.target.y() - height / 2) / 20) * 20;
+        e.target.position({ x: localX + width / 2, y: localY + height / 2 });
         updateNodePosition(node.id, localX, localY);
       }}
       onDragEnd={(e) => {
-        const localX = Math.round(e.target.x() / 20) * 20;
-        const localY = Math.round(e.target.y() / 20) * 20;
-        e.target.position({ x: localX, y: localY });
+        const localX = Math.round((e.target.x() - width / 2) / 20) * 20;
+        const localY = Math.round((e.target.y() - height / 2) / 20) * 20;
+        e.target.position({ x: localX + width / 2, y: localY + height / 2 });
         updateNodePosition(node.id, localX, localY);
       }}
       onMouseEnter={(e) => {

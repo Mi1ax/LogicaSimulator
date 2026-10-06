@@ -54,8 +54,11 @@ export const Board7SegNode: React.FC<Props> = React.memo(({ node }) => {
 
   return (
     <Group
-      x={x}
-      y={y}
+      x={x + width / 2}
+      y={y + height / 2}
+      offsetX={width / 2}
+      offsetY={height / 2}
+      rotation={node.properties?.boardRotation || 0}
       opacity={isPlacing ? 0.6 : 1}
       draggable={!isPlacing}
       onClick={(evt) => {
@@ -70,15 +73,15 @@ export const Board7SegNode: React.FC<Props> = React.memo(({ node }) => {
       }}
       onDragStart={() => useSimulatorStore.getState().saveHistory()}
       onDragMove={(evt) => {
-        const localX = Math.round(evt.target.x() / 20) * 20;
-        const localY = Math.round(evt.target.y() / 20) * 20;
-        evt.target.position({ x: localX, y: localY });
+        const localX = Math.round((evt.target.x() - width / 2) / 20) * 20;
+        const localY = Math.round((evt.target.y() - height / 2) / 20) * 20;
+        evt.target.position({ x: localX + width / 2, y: localY + height / 2 });
         updateNodePosition(node.id, localX, localY);
       }}
       onDragEnd={(evt) => {
-        const localX = Math.round(evt.target.x() / 20) * 20;
-        const localY = Math.round(evt.target.y() / 20) * 20;
-        evt.target.position({ x: localX, y: localY });
+        const localX = Math.round((evt.target.x() - width / 2) / 20) * 20;
+        const localY = Math.round((evt.target.y() - height / 2) / 20) * 20;
+        evt.target.position({ x: localX + width / 2, y: localY + height / 2 });
         updateNodePosition(node.id, localX, localY);
       }}
       onMouseEnter={(evt) => {

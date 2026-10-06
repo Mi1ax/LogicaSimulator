@@ -66,11 +66,13 @@ export const Pin: React.FC<PinProps> = ({ x, y, type, id, nodeId, opacity }) => 
           e.cancelBubble = true;
           const node = store.nodes.find(n => n.id === nodeId);
           if (node) {
-            // Calculate absolute grid coordinates of this pin
-            const nodeX = node.boardX ?? node.x;
-            const nodeY = node.boardY ?? node.y;
-            const absX = nodeX + x;
-            const absY = nodeY + y;
+            const stage = e.target.getStage();
+            if (!stage) return;
+            const absolutePos = e.target.getAbsolutePosition();
+            const transform = stage.getAbsoluteTransform().copy().invert();
+            const boardPos = transform.point(absolutePos);
+            const absX = Math.round(boardPos.x / 20) * 20;
+            const absY = Math.round(boardPos.y / 20) * 20;
             
             if (store.draftBoardTrace) {
               if (store.draftBoardTrace.type === 'jumper') {
