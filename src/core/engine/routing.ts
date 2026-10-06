@@ -9,10 +9,11 @@ export const computeAllWirePaths = (
   draftWire?: { start: Point; end: Point; waypoints?: { x: number; y: number }[] }
 ) => {
   const wirePaths = new Map<string, { path: string; points: { x: number; y: number }[] }>();
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
 
   wires.forEach(wire => {
-    const sourceNode = nodes.find(n => n.id === wire.sourceNodeId);
-    const targetNode = nodes.find(n => n.id === wire.targetNodeId);
+    const sourceNode = nodeMap.get(wire.sourceNodeId);
+    const targetNode = nodeMap.get(wire.targetNodeId);
     if (!sourceNode || !targetNode) return;
 
     const start = getSchematicPinPosition(sourceNode, wire.sourcePinId);

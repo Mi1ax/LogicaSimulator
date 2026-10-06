@@ -15,10 +15,9 @@ function distToSegmentSquared(p: {x:number, y:number}, v: {x:number, y:number}, 
 }
 
 const SingleWire = React.memo(({ wire, pathData, points, isSelected, canvasTheme }: { wire: Wire, pathData: string, points: {x:number, y:number}[], isSelected: boolean, canvasTheme: any }) => {
-  const simState = useSimulatorStore(state => state.simState);
+  const signal = useSimulatorStore(state => state.simState.wireStates[wire.id]);
   const select = useSimulatorStore(state => state.select);
   const updateWireWaypoints = useSimulatorStore(state => state.updateWireWaypoints);
-  const signal = simState.wireStates[wire.id];
 
   let strokeColor = canvasTheme.wireColor;
   if (signal === 1) strokeColor = canvasTheme.signalHigh;
@@ -71,6 +70,7 @@ const SingleWire = React.memo(({ wire, pathData, points, isSelected, canvasTheme
           
           const newWaypoints = [...(wire.waypoints || [])];
           newWaypoints.splice(minIdx, 0, { x: nx, y: ny });
+          useSimulatorStore.getState().saveHistory();
           updateWireWaypoints(wire.id, newWaypoints);
         }}
       />
@@ -94,6 +94,7 @@ const SingleWire = React.memo(({ wire, pathData, points, isSelected, canvasTheme
           radius={5}
           fill={isSelected ? canvasTheme.selectedWireColor : canvasTheme.wireColor}
           draggable
+          onDragStart={() => useSimulatorStore.getState().saveHistory()}
           onDragMove={(e) => {
             const snappedX = Math.round(e.target.x() / 20) * 20;
             const snappedY = Math.round(e.target.y() / 20) * 20;
@@ -131,6 +132,7 @@ const SingleWire = React.memo(({ wire, pathData, points, isSelected, canvasTheme
             if (clickTimeout.current) clearTimeout(clickTimeout.current);
             const newWaypoints = [...(wire.waypoints || [])];
             newWaypoints.splice(index, 1);
+            useSimulatorStore.getState().saveHistory();
             updateWireWaypoints(wire.id, newWaypoints);
           }}
           onMouseEnter={(e) => {

@@ -61,11 +61,32 @@ export const SchematicCanvas: React.FC = () => {
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      ) {
         return;
       }
       
       const store = useSimulatorStore.getState();
+      
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            store.redo();
+          } else {
+            store.undo();
+          }
+          return;
+        }
+        if (e.key.toLowerCase() === 'y') {
+          e.preventDefault();
+          store.redo();
+          return;
+        }
+      }
       
       if (e.key === 'Escape') {
         if (store.draftWire) store.cancelWire();
@@ -92,28 +113,6 @@ export const SchematicCanvas: React.FC = () => {
       ref={containerRef} 
       className="flex-1 h-full bg-slate-50 dark:bg-slate-900 overflow-hidden outline-none"
       tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.repeat) return; // Prevent holding down the key from firing rapidly
-        
-        const store = useSimulatorStore.getState();
-        
-        if (e.ctrlKey || e.metaKey) {
-          if (e.key.toLowerCase() === 'z') {
-            e.preventDefault();
-            if (e.shiftKey) {
-              store.redo();
-            } else {
-              store.undo();
-            }
-            return;
-          }
-          if (e.key.toLowerCase() === 'y') {
-            e.preventDefault();
-            store.redo();
-            return;
-          }
-        }
-      }}
     >
       {dimensions.width > 0 && dimensions.height > 0 && (
         <Stage

@@ -40,6 +40,32 @@ export const getSchematicDimensions = (node: LogicNode) => {
   };
 };
 
+/**
+ * Rotation pivot (in node-local coordinates) for a schematic node.
+ *
+ * This is the single source of truth used both by the pin-position math below
+ * and by every schematic renderer (Konva Group offsetX/offsetY). The pivot must
+ * sit on the 20px grid so that rotated pins stay grid-aligned.
+ */
+export const getSchematicAnchor = (node: LogicNode): { x: number; y: number } => {
+  const def = getNodeDefinition(node.type);
+  const { width, height } = getSchematicDimensions(node);
+
+  if (node.type === 'JUNCTION') return { x: 0, y: 0 };
+  if (node.type === 'DIP_SWITCH' || node.type === '7_SEG_DISPLAY') {
+    return { x: Math.round(width / 40) * 20, y: Math.round(height / 40) * 20 };
+  }
+  if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
+    return { x: width / 2, y: height / 2 };
+  }
+  if (['INPUT', 'OUTPUT', 'VCC', 'GND'].includes(node.type)) {
+    // IO nodes have always pivoted around (20,20); keep it so saved layouts don't shift.
+    return { x: 20, y: 20 };
+  }
+  // Basic gates: width is 80 and height is a multiple of 40, so the center is grid-aligned.
+  return { x: width / 2, y: height / 2 };
+};
+
 const applyRotation = (x: number, y: number, nx: number, ny: number, anchorX: number, anchorY: number, rotation: number) => {
   const rad = (rotation * Math.PI) / 180;
   const cos = Math.round(Math.cos(rad));
@@ -77,6 +103,7 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
   const { width, height } = getSchematicDimensions(node);
   const def = getNodeDefinition(node.type);
   const rotation = node.properties?.rotation || 0;
+  const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
 
   if (node.type === 'DIP_SWITCH') {
     const outIndex = node.outputs.findIndex(p => p.id === pinId);
@@ -84,7 +111,7 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
       const spacing = 20;
       const rawX = width + 20;
       const rawY = spacing + outIndex * spacing;
-      const rotated = applyRotation(rawX, rawY, 1, 0, Math.round(width / 40) * 20, Math.round(height / 40) * 20, rotation);
+      const rotated = applyRotation(rawX, rawY, 1, 0, anchorX, anchorY, rotation);
       return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
     }
   }
@@ -95,10 +122,10 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
       const isTop = inIndex < 4;
       const col = isTop ? inIndex : inIndex - 4;
       const rawX = 20 + col * 20;
-      const rawY = isTop ? 0 : 120;
+      const rawY = isTop ? 0 : height;
       const rawNx = 0;
       const rawNy = isTop ? -1 : 1;
-      const rotated = applyRotation(rawX, rawY, rawNx, rawNy, 50, 60, rotation);
+      const rotated = applyRotation(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation);
       return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
     }
   }
@@ -126,7 +153,7 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
         rawY = spacing + ((row - 1) * spacing);
         rawNx = isLeft ? -1 : 1; rawNy = 0;
       }
-      const rotated = applyRotation(rawX, rawY, rawNx, rawNy, width / 2, height / 2, rotation);
+      const rotated = applyRotation(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation);
       return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
     }
   }
@@ -134,9 +161,6 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
   if (node.type === 'JUNCTION') {
     return { x: node.x, y: node.y, nx: 0, ny: 0 };
   }
-
-  const anchorX = width / 2;
-  const anchorY = height / 2;
 
   const inIndex = node.inputs.findIndex(p => p.id === pinId);
   if (inIndex !== -1) {

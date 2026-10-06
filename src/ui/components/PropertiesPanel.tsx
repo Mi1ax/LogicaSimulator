@@ -11,9 +11,14 @@ export const PropertiesPanel: React.FC = () => {
   const setNodeOutputCount = useSimulatorStore(state => state.setNodeOutputCount);
   const appMode = useSimulatorStore(state => state.appMode);
 
-  if (selection?.type !== 'node') return null;
+  const node = selection?.type === 'node' ? nodes.find(n => n.id === selection.id) : undefined;
 
-  const node = nodes.find(n => n.id === selection.id);
+  const [localLabel, setLocalLabel] = React.useState(node?.properties?.label || '');
+  
+  React.useEffect(() => {
+    setLocalLabel(node?.properties?.label || '');
+  }, [node?.id, node?.properties?.label]);
+
   if (!node || node.type === 'JUNCTION') return null;
 
   const def = getNodeDefinition(node.type);
@@ -50,8 +55,18 @@ export const PropertiesPanel: React.FC = () => {
           <input
             type="text"
             className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
-            value={node.properties?.label || ''}
-            onChange={(e) => updateNodeProperties(node.id, { label: e.target.value })}
+            value={localLabel}
+            onChange={(e) => setLocalLabel(e.target.value)}
+            onBlur={() => {
+              if (localLabel !== (node.properties?.label || '')) {
+                updateNodeProperties(node.id, { label: localLabel });
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+              }
+            }}
             placeholder="e.g. Main Clock"
           />
         </div>

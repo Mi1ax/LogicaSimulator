@@ -3,7 +3,7 @@ import { Group, Rect, Text, Circle, Line } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
 import { Pin } from '../../primitives/Pin';
-import { getSchematicDimensions } from '../../../../core/utils/schematicLayout';
+import { getSchematicDimensions, getSchematicAnchor } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
 
 interface IONodeProps {
@@ -15,7 +15,6 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
   const selection = useSimulatorStore(state => state.selection);
   const select = useSimulatorStore(state => state.select);
-  const simState = useSimulatorStore(state => state.simState);
   const toggleInputNode = useSimulatorStore(state => state.toggleInputNode);
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
@@ -28,18 +27,14 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   
   const isSelected = selection?.type === 'node' && selection.id === node.id;
 
-  let val: any = undefined;
-  if (isInput) {
-    val = node.properties?.value === 1 ? 1 : 0;
-  } else if (isOutput) {
-    val = simState.pinStates[node.inputs[0]?.id];
-  } else if (isClock) {
-    val = simState.pinStates[node.outputs[0]?.id];
-  } else if (isVcc) {
-    val = 1;
-  } else if (isGnd) {
-    val = 0;
-  }
+  const val = useSimulatorStore(state => {
+    if (isInput) return node.properties?.value === 1 ? 1 : 0;
+    if (isOutput) return state.simState.pinStates[node.inputs[0]?.id];
+    if (isClock) return state.simState.pinStates[node.outputs[0]?.id];
+    if (isVcc) return 1;
+    if (isGnd) return 0;
+    return undefined;
+  });
 
   const isInputLike = isInput || isClock || isVcc || isGnd;
   let indicatorFill = canvasTheme.outputIndicator;
@@ -50,13 +45,14 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   const borderStroke = isInputLike ? canvasTheme.inputNodeBorder : canvasTheme.outputNodeBorder;
 
   const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
+  const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
 
   return (
     <Group
-      x={node.x + 20}
-      y={node.y + 20}
-      offsetX={20}
-      offsetY={20}
+      x={node.x + anchorX}
+      y={node.y + anchorY}
+      offsetX={anchorX}
+      offsetY={anchorY}
       rotation={node.properties?.rotation || 0}
       opacity={isPlacing ? 0.6 : 1}
       draggable={!isPlacing}
@@ -73,16 +69,17 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
           toggleInputNode(node.id);
         }
       }}
+      onDragStart={() => useSimulatorStore.getState().saveHistory()}
       onDragMove={(e) => {
-        const localX = Math.round((e.target.x() - 20) / 20) * 20;
-        const localY = Math.round((e.target.y() - 20) / 20) * 20;
-        e.target.position({ x: localX + 20, y: localY + 20 });
+        const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
+        const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
+        e.target.position({ x: localX + anchorX, y: localY + anchorY });
         updateNodePosition(node.id, localX, localY);
       }}
       onDragEnd={(e) => {
-        const localX = Math.round((e.target.x() - 20) / 20) * 20;
-        const localY = Math.round((e.target.y() - 20) / 20) * 20;
-        e.target.position({ x: localX + 20, y: localY + 20 });
+        const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
+        const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
+        e.target.position({ x: localX + anchorX, y: localY + anchorY });
         updateNodePosition(node.id, localX, localY);
       }}
       onMouseEnter={(e) => {

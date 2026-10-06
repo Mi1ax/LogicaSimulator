@@ -57,6 +57,40 @@ export const XorNode: NodeDefinition = {
   }
 };
 
+export const NandNode: NodeDefinition = {
+  type: 'NAND',
+  label: 'NAND Gate',
+  numInputs: 2,
+  numOutputs: 1,
+  evaluate: (inputs) => {
+    if (inputs.includes(undefined)) return [undefined];
+    return [inputs.every(i => i === 1) ? 0 : 1];
+  }
+};
+
+export const XnorNode: NodeDefinition = {
+  type: 'XNOR',
+  label: 'XNOR Gate',
+  numInputs: 2,
+  numOutputs: 1,
+  evaluate: (inputs) => {
+    if (inputs.includes(undefined)) return [undefined];
+    const count = inputs.filter(i => i === 1).length;
+    return [count % 2 === 1 ? 0 : 1];
+  }
+};
+
+export const BufferNode: NodeDefinition = {
+  type: 'BUFFER',
+  label: 'Buffer',
+  numInputs: 1,
+  numOutputs: 1,
+  evaluate: (inputs) => {
+    if (inputs[0] === undefined) return [undefined];
+    return [inputs[0] === 1 ? 1 : 0];
+  }
+};
+
 export const InputNode: NodeDefinition = {
   type: 'INPUT',
   label: 'Input Switch',

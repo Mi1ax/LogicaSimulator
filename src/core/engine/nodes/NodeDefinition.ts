@@ -19,7 +19,10 @@ export interface NodeDefinition {
    * @param inputs Array of signals corresponding to the input pins (ordered by index)
    * @param properties Custom properties for the node (e.g., clock interval, input value)
    * @param tickCount The current simulation tick count
+   * @param internal Mutable per-node simulation state (registers, counters, last clock level).
+   *   Owned by the simulation (`SimulationState.nodeStates`), so it is cleared on reset and
+   *   never leaks into the persisted circuit. Sequential nodes must use this, not `properties`.
    * @returns Array of signals for the output pins (ordered by index)
    */
-  evaluate: (inputs: Signal[], properties?: Record<string, any>, tickCount?: number) => Signal[];
+  evaluate: (inputs: Signal[], properties?: Record<string, any>, tickCount?: number, internal?: Record<string, any>) => Signal[];
 }

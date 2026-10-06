@@ -2,7 +2,7 @@ import React from 'react';
 import { Group, Rect, Text, Path } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
-import { getSchematicDimensions } from '../../../../core/utils/schematicLayout';
+import { getSchematicDimensions, getSchematicAnchor } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
 import { Pin } from '../../primitives/Pin';
 
@@ -23,8 +23,7 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
   const isSelected = selection?.type === 'node' && selection.id === node.id;
   const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
 
-  const anchorX = Math.round(width / 40) * 20;
-  const anchorY = Math.round(height / 40) * 20;
+  const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
 
   const numSwitches = node.outputs.length || 4;
   let switches = node.properties?.switches || [];
@@ -51,6 +50,7 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
         e.cancelBubble = true;
         select({ type: 'node', id: node.id });
       }}
+      onDragStart={() => useSimulatorStore.getState().saveHistory()}
       onDragMove={(e) => {
         const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
         const localY = Math.round((e.target.y() - anchorY) / 20) * 20;

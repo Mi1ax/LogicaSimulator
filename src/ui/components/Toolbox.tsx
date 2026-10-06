@@ -26,10 +26,13 @@ const CATEGORIES: ToolCategory[] = [
     name: 'Basic Logic',
     items: [
       { type: 'AND', icon: <Cpu size={18} /> },
+      { type: 'NAND', icon: <Cpu size={18} /> },
       { type: 'OR', icon: <Cpu size={18} /> },
       { type: 'NOR', icon: <Cpu size={18} /> },
-      { type: 'NOT', icon: <BoxSelect size={18} /> },
       { type: 'XOR', icon: <Cpu size={18} /> },
+      { type: 'XNOR', icon: <Cpu size={18} /> },
+      { type: 'NOT', icon: <BoxSelect size={18} /> },
+      { type: 'BUFFER', icon: <BoxSelect size={18} /> },
     ]
   },
   {

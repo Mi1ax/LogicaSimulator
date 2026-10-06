@@ -2,7 +2,7 @@ import React from 'react';
 import { Group, Rect, Text, Path } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
-import { getSchematicDimensions } from '../../../../core/utils/schematicLayout';
+import { getSchematicDimensions, getSchematicAnchor } from '../../../../core/utils/schematicLayout';
 import { getSafePinNumber } from '../../../../core/utils/layoutUtils';
 import { getCanvasTheme } from '../../theme';
 import { Pin } from '../../primitives/Pin';
@@ -31,8 +31,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
   
   const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
 
-  const anchorX = width / 2;
-  const anchorY = height / 2;
+  const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
 
   return (
     <Group
@@ -53,6 +52,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
         e.cancelBubble = true;
         select({ type: 'node', id: node.id });
       }}
+      onDragStart={() => useSimulatorStore.getState().saveHistory()}
       onDragMove={(e) => {
         const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
         const localY = Math.round((e.target.y() - anchorY) / 20) * 20;

@@ -1,7 +1,7 @@
 import { NodeDefinition } from './NodeDefinition';
 import {
   AndNode, OrNode, NotNode, XorNode,
-  NorNode,
+  NorNode, NandNode, XnorNode, BufferNode,
   InputNode, OutputNode, ClockNode,
   VccNode, GndNode, JunctionNode,
   DipSwitchNode, SevenSegNode
@@ -13,8 +13,11 @@ export const NodeRegistry: Record<string, NodeDefinition> = {
   [AndNode.type]: AndNode,
   [OrNode.type]: OrNode,
   [NorNode.type]: NorNode,
+  [NandNode.type]: NandNode,
   [NotNode.type]: NotNode,
   [XorNode.type]: XorNode,
+  [XnorNode.type]: XnorNode,
+  [BufferNode.type]: BufferNode,
   [InputNode.type]: InputNode,
   [OutputNode.type]: OutputNode,
   [ClockNode.type]: ClockNode,
