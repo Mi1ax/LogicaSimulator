@@ -34,6 +34,7 @@ export const BoardTraceRenderer: React.FC = () => {
           data={d}
           stroke="transparent"
           strokeWidth={Math.max(15, strokeWidth + 6)}
+          listening={!isDraft}
           onMouseEnter={(e) => {
             const container = e.target.getStage()?.container();
             if (container) container.style.cursor = 'pointer';
@@ -43,10 +44,53 @@ export const BoardTraceRenderer: React.FC = () => {
             if (container) container.style.cursor = 'default';
           }}
           onClick={(e) => {
-            if (!isDraft) {
-              e.cancelBubble = true;
-              select({ type: 'boardTrace', id });
+            if (isDraft) return;
+            e.cancelBubble = true;
+            
+            const store = useSimulatorStore.getState();
+            if (store.draftBoardTrace) {
+              const stage = e.target.getStage();
+              if (!stage) return;
+              const pointer = stage.getPointerPosition();
+              if (!pointer) return;
+              
+              const transform = stage.getAbsoluteTransform().copy().invert();
+              const pos = transform.point(pointer);
+              const gridX = Math.round(pos.x / 20) * 20;
+              const gridY = Math.round(pos.y / 20) * 20;
+              
+              store.updateDraftBoardTrace(gridX, gridY);
+              
+              if (store.draftBoardTrace.type === 'solder') {
+                if (!isTraceValid(store.draftBoardTrace.points, store.boardTraces)) {
+                  return;
+                }
+              }
+              store.completeBoardTrace();
+              return;
             }
+            
+            select({ type: 'boardTrace', id });
+          }}
+          onDblClick={(e) => {
+            if (isDraft) return;
+            e.cancelBubble = true;
+            
+            const store = useSimulatorStore.getState();
+            if (store.draftBoardTrace) return;
+            
+            const stage = e.target.getStage();
+            if (!stage) return;
+            const pointer = stage.getPointerPosition();
+            if (!pointer) return;
+            
+            const transform = stage.getAbsoluteTransform().copy().invert();
+            const pos = transform.point(pointer);
+            const gridX = Math.round(pos.x / 20) * 20;
+            const gridY = Math.round(pos.y / 20) * 20;
+            
+            store.select(null);
+            store.startBoardTrace(gridX, gridY);
           }}
         />
         <Path

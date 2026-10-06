@@ -259,6 +259,11 @@ export const BoardCanvas: React.FC = () => {
                     addBoardTraceWaypoint();
                   }
                 } else {
+                  if (store.selection) {
+                    select(null);
+                    return;
+                  }
+                  
                   select(null);
                   
                   const transform = stage.getAbsoluteTransform().copy().invert();
@@ -266,7 +271,6 @@ export const BoardCanvas: React.FC = () => {
                   const gridX = Math.round(pos.x / 20) * 20;
                   const gridY = Math.round(pos.y / 20) * 20;
                   
-                  const store = useSimulatorStore.getState();
                   store.startBoardTrace(gridX, gridY);
                 }
               }
