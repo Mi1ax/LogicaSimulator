@@ -44,8 +44,18 @@ interface SimulatorState {
 
   // UI state for selection
   selection: Selection;
-  select: (selection: Selection) => void;
+  select: (selection: Selection, append?: boolean) => void;
   deleteSelection: () => void;
+  multiSelection: string[];
+  setMultiSelection: (ids: string[]) => void;
+  openRomEditors: string[];
+  toggleRomEditor: (nodeId: string, force?: boolean) => void;
+  schematicPos: { x: number, y: number };
+  setSchematicPos: (pos: { x: number, y: number }) => void;
+  schematicScale: number;
+  setSchematicScale: (scale: number) => void;
+  canvasOffset: { x: number, y: number };
+  setCanvasOffset: (offset: { x: number, y: number }) => void;
 
   // UI state for node placement
   placingNodeId: string | null;
@@ -140,6 +150,25 @@ export const useSimulatorStore = create<SimulatorState>()(
   draftWire: null,
   draftBoardTrace: null,
   selection: null,
+  multiSelection: [],
+  setMultiSelection: (ids) => set({ multiSelection: ids, selection: ids.length > 0 ? { type: 'node', id: ids[0] } : null }),
+  openRomEditors: [],
+  toggleRomEditor: (id, force) => set((state) => {
+    const isOpen = (state.openRomEditors || []).includes(id);
+    const shouldOpen = force !== undefined ? force : !isOpen;
+    if (shouldOpen && !isOpen) {
+      return { openRomEditors: [...(state.openRomEditors || []), id] };
+    } else if (!shouldOpen && isOpen) {
+      return { openRomEditors: (state.openRomEditors || []).filter(i => i !== id) };
+    }
+    return state;
+  }),
+  schematicPos: { x: 0, y: 0 },
+  setSchematicPos: (pos) => set({ schematicPos: pos }),
+  schematicScale: 1,
+  setSchematicScale: (scale) => set({ schematicScale: scale }),
+  canvasOffset: { x: 0, y: 0 },
+  setCanvasOffset: (offset) => set({ canvasOffset: offset }),
   
   boardScale: 1,
   setBoardScale: (scale) => set({ boardScale: scale }),
@@ -179,26 +208,60 @@ export const useSimulatorStore = create<SimulatorState>()(
     };
   }),
 
-  select: (selection) => set({ selection }),
+  select: (selection, append = false) => set((state) => {
+    if (!selection) return { selection: null, multiSelection: [] };
+    const currentMulti = state.multiSelection || [];
+    if (append) {
+      const isSelected = currentMulti.includes(selection.id);
+      let nextMulti = [...currentMulti];
+      if (isSelected) {
+        nextMulti = nextMulti.filter(id => id !== selection.id);
+      } else {
+        nextMulti.push(selection.id);
+      }
+      return { 
+        selection: nextMulti.length > 0 ? { type: selection.type as any, id: nextMulti[0] } : null,
+        multiSelection: nextMulti
+      };
+    } else {
+      return { selection, multiSelection: [selection.id] };
+    }
+  }),
 
   deleteSelection: () => set((state) => {
-    if (!state.selection) return state;
-    if (state.selection.type === 'node') {
-      if (state.appMode === 'board') {
-        const nodes = state.nodes.map(n => n.id === state.selection!.id ? { ...n, boardX: undefined, boardY: undefined } : n);
-        return { ...state, nodes, ...pushHistory(state), selection: null };
-      } else {
-        const nextCircuit = circuit.deleteNode(state, state.selection.id);
-        return { ...state, ...nextCircuit, ...pushHistory(state), selection: null };
-      }
-    } else if (state.selection.type === 'wire') {
-      const nextCircuit = circuit.deleteWire(state, state.selection.id);
-      return { ...state, ...nextCircuit, ...pushHistory(state), selection: null };
-    } else if (state.selection.type === 'boardTrace') {
-      const boardTraces = state.boardTraces.filter(t => t.id !== state.selection!.id);
-      return { ...state, boardTraces, ...pushHistory(state), selection: null };
+    const currentMulti = state.multiSelection || [];
+    const idsToDelete = currentMulti.length > 0 ? currentMulti : (state.selection ? [state.selection.id] : []);
+    
+    if (idsToDelete.length === 0) return state;
+
+    if (state.appMode === 'board') {
+      let nextBoardTraces = [...state.boardTraces];
+      let nextNodes = [...state.nodes];
+      
+      idsToDelete.forEach(id => {
+        if (state.boardTraces.some(t => t.id === id)) {
+          nextBoardTraces = nextBoardTraces.filter(t => t.id !== id);
+        } else {
+          nextNodes = nextNodes.map(n => n.id === id ? { ...n, boardX: undefined, boardY: undefined } : n);
+        }
+      });
+      
+      return { ...state, boardTraces: nextBoardTraces, nodes: nextNodes, ...pushHistory(state), selection: null, multiSelection: [] };
+    } else {
+      let nextState = { ...state };
+      let nextOpenRomEditors = [...(state.openRomEditors || [])];
+      
+      idsToDelete.forEach(id => {
+        if (nextState.wires.some(w => w.id === id)) {
+          Object.assign(nextState, circuit.deleteWire(nextState, id));
+        } else if (nextState.nodes.some(n => n.id === id)) {
+          Object.assign(nextState, circuit.deleteNode(nextState, id));
+          nextOpenRomEditors = nextOpenRomEditors.filter(romId => romId !== id);
+        }
+      });
+      
+      return { ...nextState, ...pushHistory(state), selection: null, multiSelection: [], openRomEditors: nextOpenRomEditors };
     }
-    return state;
   }),
 
   placingNodeId: null,
@@ -567,6 +630,13 @@ export const useSimulatorStore = create<SimulatorState>()(
     }),
     {
       name: 'logica-project-storage',
+      version: 1,
+      migrate: (persistedState: any, version: number) => {
+        if (version === 0) {
+          // Future migration from unversioned (0) to 1
+        }
+        return persistedState as any;
+      },
       partialize: (state) => ({
         nodes: state.nodes,
         wires: state.wires,

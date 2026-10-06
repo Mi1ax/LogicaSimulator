@@ -51,7 +51,7 @@ export const getSchematicAnchor = (node: LogicNode): { x: number; y: number } =>
   const def = getNodeDefinition(node.type);
   const { width, height } = getSchematicDimensions(node);
 
-  if (node.type === 'JUNCTION') return { x: 0, y: 0 };
+  if (node.type === 'JUNCTION') return { x: 10, y: 10 };
   if (node.type === 'DIP_SWITCH' || node.type === '7_SEG_DISPLAY') {
     return { x: Math.round(width / 40) * 20, y: Math.round(height / 40) * 20 };
   }

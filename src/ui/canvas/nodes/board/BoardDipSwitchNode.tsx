@@ -15,6 +15,7 @@ export const BoardDipSwitchNode: React.FC<Props> = React.memo(({ node }) => {
   const updateNodeProperties = useSimulatorStore(state => state.updateNodeProperties);
   const theme = useSimulatorStore(state => state.theme);
   const selection = useSimulatorStore(state => state.selection);
+  const multiSelection = useSimulatorStore(state => state.multiSelection);
   const select = useSimulatorStore(state => state.select);
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
@@ -23,7 +24,7 @@ export const BoardDipSwitchNode: React.FC<Props> = React.memo(({ node }) => {
   const x = node.boardX ?? node.x;
   const y = node.boardY ?? node.y;
   
-  const isSelected = selection?.type === 'node' && selection.id === node.id;
+  const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
   const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
 
   const numSwitches = node.outputs.length || 4;
@@ -49,7 +50,7 @@ export const BoardDipSwitchNode: React.FC<Props> = React.memo(({ node }) => {
           return;
         }
         e.cancelBubble = true;
-        select({ type: 'node', id: node.id });
+        select({ type: 'node', id: node.id }, e.evt.shiftKey);
       }}
       onDragStart={() => useSimulatorStore.getState().saveHistory()}
       onDragMove={(e) => {

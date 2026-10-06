@@ -16,6 +16,7 @@ export const BoardICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
   const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
   const theme = useSimulatorStore(state => state.theme);
   const selection = useSimulatorStore(state => state.selection);
+  const multiSelection = useSimulatorStore(state => state.multiSelection);
   const select = useSimulatorStore(state => state.select);
   const boardScale = useSimulatorStore(state => state.boardScale);
 
@@ -23,7 +24,7 @@ export const BoardICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
   const { width, height } = getBoardDimensions(node);
   const showBoardPins = boardScale >= 1.5;
 
-  const isSelected = selection?.type === 'node' && selection.id === node.id;
+  const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
   const def = getNodeDefinition(node.type);
 
   const allPins = [...node.inputs, ...node.outputs];
@@ -55,7 +56,7 @@ export const BoardICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
 
 
         e.cancelBubble = true;
-        select({ type: 'node', id: node.id });
+        select({ type: 'node', id: node.id }, e.evt.shiftKey);
       }}
       onDragStart={() => useSimulatorStore.getState().saveHistory()}
       onDragMove={(e) => {

@@ -14,11 +14,12 @@ export const BoardGateNode: React.FC<GateNodeProps> = React.memo(({ node }) => {
   const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
   const theme = useSimulatorStore(state => state.theme);
   const selection = useSimulatorStore(state => state.selection);
+  const multiSelection = useSimulatorStore(state => state.multiSelection);
   const select = useSimulatorStore(state => state.select);
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getBoardDimensions(node);
-  const isSelected = selection?.type === 'node' && selection.id === node.id;
+  const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
   const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
 
   const x = node.boardX ?? 0;
@@ -40,7 +41,7 @@ export const BoardGateNode: React.FC<GateNodeProps> = React.memo(({ node }) => {
           store.finishPlacingNode();
           return;
         }
-        select({ type: 'node', id: node.id });
+        select({ type: 'node', id: node.id }, e.evt.shiftKey);
       }}
       onDragStart={() => useSimulatorStore.getState().saveHistory()}
       onDragMove={(e) => {

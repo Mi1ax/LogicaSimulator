@@ -62,9 +62,7 @@ export const BoardTraceRenderer: React.FC = () => {
               store.updateDraftBoardTrace(gridX, gridY);
               
               if (store.draftBoardTrace.type === 'solder') {
-                if (!isTraceValid(store.draftBoardTrace.points, store.boardTraces)) {
-                  return;
-                }
+                // Allow finishing on existing trace to merge
               }
               store.completeBoardTrace();
               return;

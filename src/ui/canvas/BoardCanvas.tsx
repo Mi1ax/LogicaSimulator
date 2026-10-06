@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Stage, Layer } from 'react-konva';
+import { Stage, Layer, Rect } from 'react-konva';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { Grid } from './Grid';
 import { BoardGateNode } from './nodes/board/BoardGateNode';
@@ -37,6 +37,7 @@ const ConnectedNode = React.memo(({ id }: { id: string }) => {
 export const BoardCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [selectionBox, setSelectionBox] = useState<{ startX: number, startY: number, width: number, height: number } | null>(null);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const scale = useSimulatorStore(state => state.boardScale);
   const setScale = useSimulatorStore(state => state.setBoardScale);
@@ -54,6 +55,7 @@ export const BoardCanvas: React.FC = () => {
   const settings = useSimulatorStore(state => state.settings);
 
   const initializedRef = useRef(false);
+  const clickTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -197,6 +199,15 @@ export const BoardCanvas: React.FC = () => {
           let gridX = Math.round(pos.x / 20) * 20;
           let gridY = Math.round(pos.y / 20) * 20;
 
+          if (selectionBox) {
+            setSelectionBox({
+              ...selectionBox,
+              width: pos.x - selectionBox.startX,
+              height: pos.y - selectionBox.startY
+            });
+            return;
+          }
+
           if (draftBoardTrace) {
             // Enforce strictly orthogonal 90-degree lines ONLY for solder
             if (draftBoardTrace.type === 'solder' && draftBoardTrace.points.length >= 2) {
@@ -225,6 +236,36 @@ export const BoardCanvas: React.FC = () => {
           }
         }}
         onMouseUp={(e) => {
+          if (selectionBox) {
+            const x1 = Math.min(selectionBox.startX, selectionBox.startX + selectionBox.width);
+            const y1 = Math.min(selectionBox.startY, selectionBox.startY + selectionBox.height);
+            const x2 = Math.max(selectionBox.startX, selectionBox.startX + selectionBox.width);
+            const y2 = Math.max(selectionBox.startY, selectionBox.startY + selectionBox.height);
+            
+            const store = useSimulatorStore.getState();
+            const selectedIds: string[] = [];
+            store.nodes.forEach(node => {
+              const { width, height } = getBoardDimensions(node);
+              const nx1 = node.boardX ?? node.x;
+              const ny1 = node.boardY ?? node.y;
+              const nx2 = nx1 + width;
+              const ny2 = ny1 + height;
+              if (nx1 < x2 && nx2 > x1 && ny1 < y2 && ny2 > y1) {
+                selectedIds.push(node.id);
+              }
+            });
+            
+            store.boardTraces.forEach(trace => {
+              const inside = trace.points.some(p => p.x >= x1 && p.x <= x2 && p.y >= y1 && p.y <= y2);
+              if (inside) selectedIds.push(trace.id);
+            });
+            
+            if (selectedIds.length > 0) {
+              store.setMultiSelection(selectedIds);
+            }
+            setSelectionBox(null);
+            return;
+          }
           if (e.target === e.target.getStage()) {
             const container = e.target.getStage()?.container();
             if (container && !draftBoardTrace && !useSimulatorStore.getState().placingNodeId) container.style.cursor = 'grab';
@@ -253,11 +294,18 @@ export const BoardCanvas: React.FC = () => {
                     }
                   }
 
-                  if (draftBoardTrace.type === 'jumper') {
-                    completeBoardTrace();
-                  } else {
-                    addBoardTraceWaypoint();
-                  }
+                  if (clickTimeout.current) clearTimeout(clickTimeout.current);
+                  clickTimeout.current = setTimeout(() => {
+                    // Check draftBoardTrace from store again in case it was cancelled
+                    const currentDraft = useSimulatorStore.getState().draftBoardTrace;
+                    if (!currentDraft) return;
+
+                    if (currentDraft.type === 'jumper') {
+                      completeBoardTrace();
+                    } else {
+                      addBoardTraceWaypoint();
+                    }
+                  }, 250);
                 } else {
                   if (store.selection) {
                     select(null);
@@ -278,6 +326,7 @@ export const BoardCanvas: React.FC = () => {
           }
         }}
         onDblClick={() => {
+          if (clickTimeout.current) clearTimeout(clickTimeout.current);
           if (draftBoardTrace) {
             if (draftBoardTrace.type === 'solder') {
               const store = useSimulatorStore.getState();
@@ -289,6 +338,17 @@ export const BoardCanvas: React.FC = () => {
           }
         }}
         onMouseDown={(e) => {
+          if (e.target === e.target.getStage() && e.evt.shiftKey && !draftBoardTrace && !useSimulatorStore.getState().placingNodeId) {
+            const stage = e.target.getStage();
+            const pointer = stage?.getPointerPosition();
+            if (stage && pointer) {
+              const transform = stage.getAbsoluteTransform().copy().invert();
+              const pos = transform.point(pointer);
+              setSelectionBox({ startX: pos.x, startY: pos.y, width: 0, height: 0 });
+              select(null);
+            }
+            return;
+          }
           if (e.evt.button === 2) {
             // Right click cancels
             if (draftBoardTrace) cancelBoardTrace();
@@ -314,6 +374,18 @@ export const BoardCanvas: React.FC = () => {
 
         <Layer>
           <BoardTraceRenderer />
+          {selectionBox && (
+            <Rect
+              x={selectionBox.width < 0 ? selectionBox.startX + selectionBox.width : selectionBox.startX}
+              y={selectionBox.height < 0 ? selectionBox.startY + selectionBox.height : selectionBox.startY}
+              width={Math.abs(selectionBox.width)}
+              height={Math.abs(selectionBox.height)}
+              fill="rgba(59, 130, 246, 0.2)"
+              stroke="#3b82f6"
+              strokeWidth={1}
+              listening={false}
+            />
+          )}
           {nodeIds.map((id) => (
             <ConnectedNode key={id} id={id} />
           ))}

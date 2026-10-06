@@ -12,12 +12,13 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
   const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
   const theme = useSimulatorStore(state => state.theme);
   const selection = useSimulatorStore(state => state.selection);
+  const multiSelection = useSimulatorStore(state => state.multiSelection);
   const select = useSimulatorStore(state => state.select);
   const startWire = useSimulatorStore(state => state.startWire);
   const completeWire = useSimulatorStore(state => state.completeWire);
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
-  const isSelected = selection?.type === 'node' && selection.id === node.id;
+  const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
 
   const clickTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -38,7 +39,7 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
           completeWire(node.id, node.inputs[0].id, 'input');
         } else {
           if (!isSelected) {
-            select({ type: 'node', id: node.id });
+            select({ type: 'node', id: node.id }, e.evt.shiftKey);
           } else {
             if (clickTimeout.current) clearTimeout(clickTimeout.current);
             clickTimeout.current = setTimeout(() => {
@@ -58,12 +59,12 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
         if (clickTimeout.current) clearTimeout(clickTimeout.current);
         useSimulatorStore.getState().deleteSelection(); // Actually wait, it might not be selected yet, so let's use a specific action or select and delete.
         const store = useSimulatorStore.getState();
-        store.select({ type: 'node', id: node.id });
+        store.select({ type: 'node', id: node.id }, e.evt.shiftKey);
         store.deleteSelection();
       }}
       onDragStart={(e) => {
         e.cancelBubble = true;
-        select({ type: 'node', id: node.id });
+        select({ type: 'node', id: node.id }, e.evt.shiftKey);
         useSimulatorStore.getState().saveHistory();
       }}
       onDragMove={(e) => {

@@ -1,6 +1,6 @@
 import { SchematicJunctionNode } from "./nodes/schematic/SchematicJunctionNode";
 import React, { useRef, useState, useEffect } from 'react';
-import { Stage, Layer } from 'react-konva';
+import { Stage, Layer, Rect } from 'react-konva';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { Grid } from './Grid';
 import { SchematicGateNode } from './nodes/schematic/SchematicGateNode';
@@ -9,8 +9,8 @@ import { SchematicICNode } from './nodes/schematic/SchematicICNode';
 import { SchematicDipSwitchNode } from './nodes/schematic/SchematicDipSwitchNode';
 import { WireRenderer } from './wires/WireRenderer';
 import { getNodeDefinition } from '../../core/engine/nodes';
-import { getSchematicDimensions } from '../../core/utils/schematicLayout';
-
+import { getSchematicDimensions, getSchematicAnchor } from '../../core/utils/schematicLayout';
+import { computeAllWirePaths } from '../../core/engine/routing';
 import { Schematic7SegNode } from './nodes/schematic/Schematic7SegNode';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -29,6 +29,7 @@ const ConnectedNode = React.memo(({ id }: { id: string }) => {
 export const SchematicCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [selectionBox, setSelectionBox] = useState<{ startX: number, startY: number, width: number, height: number } | null>(null);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
   
@@ -118,7 +119,7 @@ export const SchematicCanvas: React.FC = () => {
         <Stage
           width={dimensions.width}
           height={dimensions.height}
-        draggable={!draftWire} // Disable stage dragging while drawing wire
+        draggable={!draftWire && !selectionBox} // Disable stage dragging while drawing wire or selecting
         x={stagePos.x}
         y={stagePos.y}
         scaleX={scale}
@@ -192,6 +193,15 @@ export const SchematicCanvas: React.FC = () => {
           const transform = stage.getAbsoluteTransform().copy().invert();
           const pos = transform.point(pointer);
 
+          if (selectionBox) {
+            setSelectionBox({
+              ...selectionBox,
+              width: pos.x - selectionBox.startX,
+              height: pos.y - selectionBox.startY
+            });
+            return;
+          }
+
           if (draftWire) {
             updateDraftWire(Math.round(pos.x / 20) * 20, Math.round(pos.y / 20) * 20);
           } else if (store.placingNodeId) {
@@ -207,6 +217,41 @@ export const SchematicCanvas: React.FC = () => {
           }
         }}
         onMouseUp={(e) => {
+          if (selectionBox) {
+            const x1 = Math.min(selectionBox.startX, selectionBox.startX + selectionBox.width);
+            const y1 = Math.min(selectionBox.startY, selectionBox.startY + selectionBox.height);
+            const x2 = Math.max(selectionBox.startX, selectionBox.startX + selectionBox.width);
+            const y2 = Math.max(selectionBox.startY, selectionBox.startY + selectionBox.height);
+            
+            const store = useSimulatorStore.getState();
+            const selectedIds: string[] = [];
+            store.nodes.forEach(node => {
+              const { width, height } = getSchematicDimensions(node);
+              const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
+              const nx1 = node.x - anchorX;
+              const ny1 = node.y - anchorY;
+              const nx2 = nx1 + width;
+              const ny2 = ny1 + height;
+              if (nx1 < x2 && nx2 > x1 && ny1 < y2 && ny2 > y1) {
+                selectedIds.push(node.id);
+              }
+            });
+            
+            const { wirePaths } = computeAllWirePaths(store.wires, store.nodes);
+            store.wires.forEach(wire => {
+              const pathData = wirePaths.get(wire.id);
+              if (pathData) {
+                const inside = pathData.points.some(p => p.x >= x1 && p.x <= x2 && p.y >= y1 && p.y <= y2);
+                if (inside) selectedIds.push(wire.id);
+              }
+            });
+            
+            if (selectedIds.length > 0) {
+              store.setMultiSelection(selectedIds);
+            }
+            setSelectionBox(null);
+            return;
+          }
           if (e.target === e.target.getStage()) {
             const container = e.target.getStage()?.container();
             if (container && !draftWire && !useSimulatorStore.getState().placingNodeId) container.style.cursor = 'grab';
@@ -238,6 +283,17 @@ export const SchematicCanvas: React.FC = () => {
           }
         }}
         onMouseDown={(e) => {
+          if (e.target === e.target.getStage() && e.evt.shiftKey && !draftWire && !useSimulatorStore.getState().placingNodeId) {
+            const stage = e.target.getStage();
+            const pointer = stage?.getPointerPosition();
+            if (stage && pointer) {
+              const transform = stage.getAbsoluteTransform().copy().invert();
+              const pos = transform.point(pointer);
+              setSelectionBox({ startX: pos.x, startY: pos.y, width: 0, height: 0 });
+              select(null);
+            }
+            return;
+          }
           if (e.evt.button === 2) {
             // Right click
             const store = useSimulatorStore.getState();
@@ -265,6 +321,18 @@ export const SchematicCanvas: React.FC = () => {
 
         <Layer>
           <WireRenderer />
+          {selectionBox && (
+            <Rect
+              x={selectionBox.width < 0 ? selectionBox.startX + selectionBox.width : selectionBox.startX}
+              y={selectionBox.height < 0 ? selectionBox.startY + selectionBox.height : selectionBox.startY}
+              width={Math.abs(selectionBox.width)}
+              height={Math.abs(selectionBox.height)}
+              fill="rgba(59, 130, 246, 0.2)"
+              stroke="#3b82f6"
+              strokeWidth={1}
+              listening={false}
+            />
+          )}
           {nodeIds.map((id) => (
             <ConnectedNode key={id} id={id} />
           ))}

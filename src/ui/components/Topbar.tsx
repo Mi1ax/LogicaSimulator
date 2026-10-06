@@ -33,14 +33,18 @@ export const Topbar: React.FC = () => {
           </button>
           <button
             onClick={() => setAppMode('board')}
+            title="Board traces are purely visual and do not affect the logic simulation."
             className={`px-3 py-1 text-xs font-medium rounded transition-colors ${appMode === 'board' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
           >
             Board
           </button>
         </div>
         
-
-
+        {appMode === 'board' && (
+          <span className="text-[10px] text-gray-400 dark:text-slate-500 italic hidden md:inline-block">
+            (Visual layout only)
+          </span>
+        )}
         {/* Wire Type Switcher (Board Mode Only) */}
         {appMode === 'board' && (
           <div className="flex bg-gray-100 dark:bg-slate-900 p-1 rounded-md border border-gray-200 dark:border-slate-700 ml-2">
