@@ -14,10 +14,24 @@ export const getSchematicDimensions = (node: LogicNode) => {
   }
 
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
-    const visibleInputs = node.inputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
-    const visibleOutputs = node.outputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
-    const pinsPerSide = Math.max(visibleInputs.length, visibleOutputs.length);
-    return { width: 160, height: (pinsPerSide + 1) * 40 };
+    const visiblePins = [...node.inputs, ...node.outputs].filter(p => p.name !== 'VCC' && p.name !== 'GND');
+    let maxRow = 0;
+    
+    visiblePins.forEach(pin => {
+      const pinDef = def?.customPins?.find(cp => cp.name === pin.name);
+      if (pinDef?.schematicRow !== undefined) {
+        maxRow = Math.max(maxRow, pinDef.schematicRow);
+      }
+    });
+
+    if (maxRow === 0) {
+      const visibleInputs = node.inputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
+      const visibleOutputs = node.outputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
+      maxRow = Math.max(visibleInputs.length, visibleOutputs.length);
+    }
+    
+    // Stretch the chip view (width 200 instead of 160)
+    return { width: 200, height: (maxRow + 1) * 40 };
   }
 
   if (node.type === "VCC" || node.type === "GND") return { width: 40, height: 40 };
@@ -131,27 +145,51 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
   }
   
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
-    const allPins = [...node.inputs, ...node.outputs];
+    const allPins = Array.from(new Map([...node.inputs, ...node.outputs].map(p => [p.id, p])).values());
     const pin = allPins.find(p => p.id === pinId);
     if (pin) {
-      let rawX, rawY, rawNx, rawNy;
+      let rawX = 0, rawY = 0, rawNx = 0, rawNy = 0;
       if (pin.name === 'VCC') {
         rawX = width / 2; rawY = -20; rawNx = 0; rawNy = -1;
       } else if (pin.name === 'GND') {
         rawX = width / 2; rawY = height + 20; rawNx = 0; rawNy = 1;
       } else {
-        const isLeft = pin.type === 'input';
-        const visibleInputs = node.inputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
-        const visibleOutputs = node.outputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
-        const collection = isLeft ? visibleInputs : visibleOutputs;
-        const index = collection.findIndex(p => p.id === pinId);
-        const row = index + 1;
+        const pinDef = def?.customPins?.find(cp => cp.name === pin.name);
+        
+        let side = pinDef?.schematicSide;
+        if (!side) {
+           side = pin.type === 'input' ? 'left' : 'right';
+        }
+        
+        let row = pinDef?.schematicRow;
+        if (row === undefined) {
+           const collection = side === 'left' 
+              ? node.inputs.filter(p => p.name !== 'VCC' && p.name !== 'GND') 
+              : node.outputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
+           const index = collection.findIndex(p => p.id === pinId);
+           row = index + 1;
+        }
 
         const spacing = 40;
         const legLength = 20;
-        rawX = isLeft ? -legLength : width + legLength;
-        rawY = spacing + ((row - 1) * spacing);
-        rawNx = isLeft ? -1 : 1; rawNy = 0;
+
+        if (side === 'left') {
+          rawX = -legLength;
+          rawY = row * spacing;
+          rawNx = -1; rawNy = 0;
+        } else if (side === 'right') {
+          rawX = width + legLength;
+          rawY = row * spacing;
+          rawNx = 1; rawNy = 0;
+        } else if (side === 'top') {
+          rawX = row * spacing;
+          rawY = -legLength;
+          rawNx = 0; rawNy = -1;
+        } else if (side === 'bottom') {
+          rawX = row * spacing;
+          rawY = height + legLength;
+          rawNx = 0; rawNy = 1;
+        }
       }
       const rotated = applyRotation(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation);
       return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };

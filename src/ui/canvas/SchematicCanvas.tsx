@@ -43,6 +43,7 @@ export const SchematicCanvas: React.FC = () => {
   const settings = useSimulatorStore(state => state.settings);
 
   const initializedRef = useRef(false);
+  const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -131,7 +132,7 @@ export const SchematicCanvas: React.FC = () => {
         scaleY={scale}
         onDragMove={(e) => {
           if (e.target === e.target.getStage()) {
-            setStagePos({ x: e.target.x(), y: e.target.y() });
+            window.dispatchEvent(new CustomEvent('schematic-drag', { detail: { x: e.target.x(), y: e.target.y() } }));
           }
         }}
         onDragEnd={(e) => {
@@ -172,11 +173,19 @@ export const SchematicCanvas: React.FC = () => {
             
             if (newScale < 0.2 || newScale > 5) return;
             
-            setScale(newScale);
-            setStagePos({
-              x: pointer.x - mousePointTo.x * newScale,
-              y: pointer.y - mousePointTo.y * newScale,
-            });
+            const newX = pointer.x - mousePointTo.x * newScale;
+            const newY = pointer.y - mousePointTo.y * newScale;
+            
+            stage.scale({ x: newScale, y: newScale });
+            stage.position({ x: newX, y: newY });
+            
+            window.dispatchEvent(new CustomEvent('schematic-drag', { detail: { x: newX, y: newY, scale: newScale } }));
+            
+            if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
+            wheelTimeoutRef.current = setTimeout(() => {
+              setStagePos({ x: newX, y: newY });
+              setScale(newScale);
+            }, 100);
           } else {
             // Pan logic
             let panX = deltaX;
@@ -188,10 +197,17 @@ export const SchematicCanvas: React.FC = () => {
               panY = deltaX;
             }
 
-            setStagePos({
-              x: stagePos.x - panX * settings.panSpeed,
-              y: stagePos.y - panY * settings.panSpeed,
-            });
+            const newX = stage.x() - panX * settings.panSpeed;
+            const newY = stage.y() - panY * settings.panSpeed;
+            
+            stage.position({ x: newX, y: newY });
+            
+            window.dispatchEvent(new CustomEvent('schematic-drag', { detail: { x: newX, y: newY, scale: stage.scaleX() } }));
+            
+            if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
+            wheelTimeoutRef.current = setTimeout(() => {
+              setStagePos({ x: newX, y: newY });
+            }, 100);
           }
         }}
         onMouseMove={(e) => {

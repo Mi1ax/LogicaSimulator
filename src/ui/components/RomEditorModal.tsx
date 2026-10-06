@@ -111,7 +111,7 @@ const VirtualHexEditor: React.FC<{
 
       const hexStr = byte.toString(16).padStart(2, '0').toUpperCase();
       const asciiChar = byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : '.';
-      
+
       let bgClass = 'hover:bg-gray-200 dark:hover:bg-slate-700';
       if (isSelected) bgClass = 'bg-blue-500 text-white';
       else if (isHighlighted) bgClass = 'bg-green-500 text-white font-bold ring-2 ring-green-300 dark:ring-green-600 rounded-sm z-10 relative';
@@ -189,7 +189,7 @@ export const RomEditorModal: React.FC<{ nodeId: string, onClose: () => void }> =
 
   const [romData, setRomData] = useState<number[]>([]);
   const [pinMode, setPinMode] = useState<'unpinned' | 'screen' | 'schematic'>('unpinned');
-  const [customScale, setCustomScale] = useState(1.4);
+  const [customScale, setCustomScale] = useState(0.8);
 
   const isStopped = !simRunning && simState.tickCount === 0;
   const isReadOnly = !isStopped || pinMode === 'schematic';
@@ -249,9 +249,10 @@ export const RomEditorModal: React.FC<{ nodeId: string, onClose: () => void }> =
     }
   }, [node]);
 
-  if (!node) return null;
+
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!node) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -272,9 +273,28 @@ export const RomEditorModal: React.FC<{ nodeId: string, onClose: () => void }> =
   const schematicPos = useSimulatorStore(state => state.schematicPos);
   const schematicScale = useSimulatorStore(state => state.schematicScale);
   const appMode = useSimulatorStore(state => state.appMode);
+  const canvasOffset = useSimulatorStore(state => state.canvasOffset);
 
   const [schematicOffset, setSchematicOffset] = useState({ x: 80, y: 0 });
   const [position, setPosition] = useState({ x: window.innerWidth / 2 - 350, y: window.innerHeight / 2 - 300 });
+
+  const modalRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    if (pinMode !== 'schematic' || !node) return;
+    const handleDrag = (e: any) => {
+      if (modalRef.current) {
+        const currentScale = e.detail.scale ?? schematicScale;
+        const x = (node.x + schematicOffset.x) * currentScale + e.detail.x + canvasOffset.x;
+        const y = (node.y + schematicOffset.y) * currentScale + e.detail.y + canvasOffset.y;
+        modalRef.current.style.left = `${x}px`;
+        modalRef.current.style.top = `${y}px`;
+        modalRef.current.style.transform = `scale(${currentScale * customScale})`;
+      }
+    };
+    window.addEventListener('schematic-drag', handleDrag);
+    return () => window.removeEventListener('schematic-drag', handleDrag);
+  }, [pinMode, node, schematicOffset, schematicScale, canvasOffset, customScale]);
 
   const isDragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0, mode: '', initialScreen: { x: 0, y: 0 }, initialSchematic: { x: 0, y: 0 } });
@@ -340,7 +360,7 @@ export const RomEditorModal: React.FC<{ nodeId: string, onClose: () => void }> =
     e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
-  const canvasOffset = useSimulatorStore(state => state.canvasOffset);
+  if (!node) return null;
 
   let finalStyle: React.CSSProperties = {};
   if (pinMode === 'schematic' && appMode === 'schematic') {
@@ -360,19 +380,28 @@ export const RomEditorModal: React.FC<{ nodeId: string, onClose: () => void }> =
     };
   }
 
+  let displayData: number[] | Uint8Array = romData;
+  if (!isStopped && node?.type === '62256') {
+    const internalData = simState.nodeStates?.[nodeId]?.data;
+    if (internalData) {
+      displayData = internalData;
+    }
+  }
+
   return (
     <div
+      ref={modalRef}
       className={`fixed bg-white dark:bg-slate-800 rounded-lg shadow-2xl w-[850px] h-[750px] flex flex-col border border-gray-300 dark:border-slate-600 overflow-hidden group ${pinMode === 'schematic' ? 'pointer-events-auto !bg-transparent !shadow-none !border-transparent !rounded-none select-none' : (pinMode !== 'unpinned' ? 'pointer-events-auto z-50' : 'z-[100]')}`}
       style={finalStyle}
     >
       {pinMode === 'schematic' && (
-        <div 
+        <div
           className="bg-slate-700 text-white rounded-t-md px-3 py-1.5 flex justify-between items-center pointer-events-auto shadow-sm z-10 relative cursor-move"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
         >
-          <span className="text-[11px] font-bold tracking-wider uppercase text-slate-200">ROM Editor</span>
+          <span className="text-[11px] font-bold tracking-wider uppercase text-slate-200">{node?.type === '62256' ? 'Hex Viewer (62256)' : 'ROM Editor'}</span>
           <div className="flex gap-3 items-center">
             <button
               onPointerDown={(e) => e.stopPropagation()}
@@ -401,7 +430,9 @@ export const RomEditorModal: React.FC<{ nodeId: string, onClose: () => void }> =
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
         >
-          <h2 className="text-sm font-bold text-gray-800 dark:text-white">ROM Editor (27C256)</h2>
+          <h2 className="text-sm font-bold text-gray-800 dark:text-white">
+            {node?.type === '62256' ? 'Hex Viewer (62256 SRAM)' : 'ROM Editor (27C256)'}
+          </h2>
           <div className="flex gap-3">
             <button
               onPointerDown={(e) => e.stopPropagation()}
@@ -455,7 +486,7 @@ export const RomEditorModal: React.FC<{ nodeId: string, onClose: () => void }> =
           </div>
         )}
 
-        <VirtualHexEditor data={romData} onChange={setRomData} isReadOnly={isReadOnly} highlightAddress={currentAddress} />
+        <VirtualHexEditor data={displayData as number[]} onChange={setRomData} isReadOnly={isReadOnly} highlightAddress={currentAddress} />
 
         {pinMode === 'schematic' && (
           <div

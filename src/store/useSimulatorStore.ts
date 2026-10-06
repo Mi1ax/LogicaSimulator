@@ -34,11 +34,11 @@ interface SimulatorState {
   setActiveWireType: (type: 'solder' | 'jumper') => void;
   draftWire: DraftWire | null;
   startWireFromWaypoint: (wireId: string, waypointIndex: number) => void;
-  startWire: (nodeId: string, pinId: string, pinType: 'input' | 'output', x: number, y: number) => void;
+  startWire: (nodeId: string, pinId: string, pinType: 'input' | 'output' | 'bidir', x: number, y: number) => void;
   updateDraftWire: (x: number, y: number) => void;
   addWaypoint: (x: number, y: number) => void;
   updateWireWaypoints: (wireId: string, waypoints: {x: number, y: number}[]) => void;
-  completeWire: (nodeId: string, pinId: string, pinType: 'input' | 'output') => void;
+  completeWire: (nodeId: string, pinId: string, pinType: 'input' | 'output' | 'bidir') => void;
   completeWireOnWire: (wireId: string, dropX?: number, dropY?: number, wp1?: {x:number, y:number}[], wp2?: {x:number, y:number}[]) => void;
   cancelWire: () => void;
 

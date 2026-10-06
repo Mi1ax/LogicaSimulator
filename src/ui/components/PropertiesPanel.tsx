@@ -163,14 +163,14 @@ export const PropertiesPanel: React.FC = () => {
           </div>
         )}
 
-        {/* ROM Editor Button */}
-        {node.type === '27C256' && (
+        {/* Memory Editor Button */}
+        {['27C256', '62256'].includes(node.type) && (
           <div className="mt-4">
             <button
               onClick={() => useSimulatorStore.getState().toggleRomEditor(node.id, true)}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition-colors text-sm"
             >
-              Open ROM Editor
+              Open Hex Viewer
             </button>
           </div>
         )}

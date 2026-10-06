@@ -42,6 +42,7 @@ const CATEGORIES: ToolCategory[] = [
       { type: '74LS161', icon: <Cpu size={18} /> },
       { type: '74LS273', icon: <Cpu size={18} /> },
       { type: '27C256', icon: <Cpu size={18} /> },
+      { type: '62256', icon: <Cpu size={18} /> },
     ]
   }
 ];

@@ -183,7 +183,7 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
             fill={canvasTheme.nodeBg}
             stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
             strokeWidth={isSelected ? 3 : 2}
-            cornerRadius={4}
+            cornerRadius={0}
           />
           <Text
             text={node.type}

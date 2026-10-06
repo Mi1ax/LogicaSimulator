@@ -57,7 +57,7 @@ describe('schematicLayout', () => {
       // Width = 160
       const dims = getSchematicDimensions(node);
       expect(dims.height).toBe(120);
-      expect(dims.width).toBe(160);
+      expect(dims.width).toBe(200);
       
       // IN1 is first input -> row 1 left side
       // rawX = -legLength (-20)
@@ -67,16 +67,16 @@ describe('schematicLayout', () => {
       expect(in1.y).toBe(100 + 40); // 140
       
       // OUT1 is first output -> row 1 right side
-      // rawX = width + legLength (160 + 20 = 180)
+      // rawX = width + legLength (200 + 20 = 220)
       // rawY = 40
       const out1 = getSchematicPinPosition(node, 'p15');
-      expect(out1.x).toBe(100 + 180); // 280
+      expect(out1.x).toBe(100 + 220); // 320
       expect(out1.y).toBe(100 + 40); // 140
       
       // OUT2 is second output -> row 2 right side
       // rawY = 40 + 40 = 80
       const out2 = getSchematicPinPosition(node, 'p16');
-      expect(out2.x).toBe(280);
+      expect(out2.x).toBe(320);
       expect(out2.y).toBe(100 + 80); // 180
     });
   });

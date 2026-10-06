@@ -6,7 +6,7 @@ export type Signal = 0 | 1 | undefined | 'X';
 export interface Pin {
   id: string;
   nodeId: string;
-  type: 'input' | 'output';
+  type: 'input' | 'output' | 'bidir';
   index: number;
   name?: string;
   pinNumber?: number;
@@ -31,7 +31,7 @@ export interface BoardTrace {
 export interface DraftWire {
   sourceNodeId: string;
   sourcePinId: string;
-  sourceType: 'input' | 'output';
+  sourceType: 'input' | 'output' | 'bidir';
   endX: number;
   endY: number;
   waypoints?: { x: number; y: number }[];
