@@ -58,7 +58,9 @@ export const BoardCanvas: React.FC = () => {
   const clickTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const handleResize = () => {
+    if (!containerRef.current) return;
+
+    const observer = new ResizeObserver(() => {
       if (containerRef.current) {
         const w = containerRef.current.offsetWidth;
         const h = containerRef.current.offsetHeight;
@@ -68,11 +70,10 @@ export const BoardCanvas: React.FC = () => {
           initializedRef.current = true;
         }
       }
-    };
+    });
 
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
   }, []);
 
   return (

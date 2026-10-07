@@ -11,9 +11,41 @@ export interface SimulationState {
 
 export const computeNextState = (
   nodes: LogicNode[],
-  wires: Wire[],
+  baseWires: Wire[],
   prevState: SimulationState
 ): SimulationState => {
+  // Generate virtual wires for Net Labels
+  const virtualWires: Wire[] = [];
+  const netGroups: Record<string, LogicNode[]> = {};
+  
+  nodes.forEach(n => {
+    if (n.type === 'NET_LABEL' && n.properties?.label) {
+      const name = String(n.properties.label).trim();
+      if (name) {
+        if (!netGroups[name]) netGroups[name] = [];
+        netGroups[name].push(n);
+      }
+    }
+  });
+
+  Object.values(netGroups).forEach(group => {
+    for (let i = 0; i < group.length; i++) {
+      for (let j = 0; j < group.length; j++) {
+        if (i !== j) {
+          virtualWires.push({
+            id: `vw_${group[i].id}_${group[j].id}`,
+            sourceNodeId: group[i].id,
+            sourcePinId: group[i].outputs[0]?.id,
+            targetNodeId: group[j].id,
+            targetPinId: group[j].inputs[0]?.id,
+          });
+        }
+      }
+    }
+  });
+
+  const wires = [...baseWires, ...virtualWires];
+
   let currentPinStates: Record<string, Signal> = { ...prevState.pinStates };
   let finalWireStates: Record<string, Signal> = {};
   let finalNodeStates: Record<string, Record<string, any>> = {};
@@ -64,7 +96,10 @@ export const computeNextState = (
     });
 
     wires.forEach(wire => {
-      const val = nextIterPinStates[wire.sourcePinId];
+      let val = nextIterPinStates[wire.sourcePinId];
+      if (val === undefined && !(wire.sourcePinId in nextIterPinStates)) {
+        val = currentPinStates[wire.sourcePinId];
+      }
       finalWireStates[wire.id] = val;
       
       if (nextIterPinStates.hasOwnProperty(wire.targetPinId) && nextIterPinStates[wire.targetPinId] !== val) {

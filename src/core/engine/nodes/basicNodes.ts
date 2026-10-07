@@ -192,3 +192,14 @@ export const SevenSegNode: NodeDefinition = {
   ],
   evaluate: () => [] // Passive receiver
 };
+
+export const NetLabelNode: NodeDefinition = {
+  type: 'NET_LABEL',
+  label: 'Net Label',
+  numInputs: 1, // Will be mapped to a bidir pin
+  numOutputs: 1,
+  customPins: [
+    { name: 'NET', type: 'bidir', pinNumber: 1, schematicSide: 'right', schematicRow: 1 }
+  ],
+  evaluate: (inputs) => [inputs[0]],
+};

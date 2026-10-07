@@ -36,7 +36,7 @@ export const getSchematicDimensions = (node: LogicNode) => {
 
   if (node.type === "VCC" || node.type === "GND") return { width: 40, height: 40 };
 
-  if (node.type === 'INPUT' || node.type === 'OUTPUT' || node.type === 'CLOCK') {
+  if (node.type === 'INPUT' || node.type === 'OUTPUT' || node.type === 'CLOCK' || node.type === 'NET_LABEL') {
     return { width: 60, height: 40 };
   }
   
@@ -72,7 +72,7 @@ export const getSchematicAnchor = (node: LogicNode): { x: number; y: number } =>
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
     return { x: width / 2, y: height / 2 };
   }
-  if (['INPUT', 'OUTPUT', 'VCC', 'GND'].includes(node.type)) {
+  if (['INPUT', 'OUTPUT', 'VCC', 'GND', 'NET_LABEL'].includes(node.type)) {
     // IO nodes have always pivoted around (20,20); keep it so saved layouts don't shift.
     return { x: 20, y: 20 };
   }
@@ -205,6 +205,8 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
     let rawX, rawY, rawNx, rawNy;
     if (node.type === 'OUTPUT') {
       rawX = 0; rawY = height / 2; rawNx = -1; rawNy = 0;
+    } else if (node.type === 'NET_LABEL') {
+      rawX = width; rawY = height / 2; rawNx = 1; rawNy = 0;
     } else {
       const ys = getGridAlignedPinYs(node.inputs.length, height);
       rawX = 0; rawY = ys[inIndex]; rawNx = -1; rawNy = 0;

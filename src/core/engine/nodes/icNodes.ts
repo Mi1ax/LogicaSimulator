@@ -1,4 +1,5 @@
 import { NodeDefinition } from './NodeDefinition';
+import { Signal } from '../../models/types';
 
 export const IC74LS08: NodeDefinition = {
   type: '74LS08',
@@ -22,7 +23,7 @@ export const IC74LS08: NodeDefinition = {
     { name: '3B', type: 'input', pinNumber: 13 },
     { name: 'VCC', type: 'input', pinNumber: 14 }, // Pin 14 VCC
   ],
-  evaluate: (inputs) => {
+  evaluate: (inputs): Signal[] => {
     // Inputs array order matches the 'input' type pins in customPins:
     // 0: 1A, 1: 1B, 2: 2A, 3: 2B, 4: GND, 5: 4A, 6: 4B, 7: 3A, 8: 3B, 9: VCC
     
@@ -118,6 +119,90 @@ export const IC74LS161: NodeDefinition = {
     // In many software sims we ignore power pins unless strict. 
     // Here we'll just output the logic state unconditionally for ease of use.
     return [qd, qc, qb, qa, rco];
+  }
+};
+
+
+export const IC74LS191: NodeDefinition = {
+  type: '74LS191',
+  label: '74LS191 (Up/Down Counter)',
+  renderAs: 'DIP',
+  numInputs: 10,
+  numOutputs: 6,
+  customPins: [
+    { name: 'B', type: 'input', pinNumber: 1, schematicSide: 'left', schematicRow: 2 },
+    { name: 'QB', type: 'output', pinNumber: 2, schematicSide: 'right', schematicRow: 2 },
+    { name: 'QA', type: 'output', pinNumber: 3, schematicSide: 'right', schematicRow: 1 },
+    { name: '~CTEN', type: 'input', pinNumber: 4, schematicSide: 'left', schematicRow: 6 },
+    { name: 'D/~U', type: 'input', pinNumber: 5, schematicSide: 'left', schematicRow: 7 },
+    { name: 'QC', type: 'output', pinNumber: 6, schematicSide: 'right', schematicRow: 3 },
+    { name: 'QD', type: 'output', pinNumber: 7, schematicSide: 'right', schematicRow: 4 },
+    { name: 'GND', type: 'input', pinNumber: 8 },
+    { name: 'D', type: 'input', pinNumber: 9, schematicSide: 'left', schematicRow: 4 },
+    { name: 'C', type: 'input', pinNumber: 10, schematicSide: 'left', schematicRow: 3 },
+    { name: '~LOAD', type: 'input', pinNumber: 11, schematicSide: 'left', schematicRow: 8 },
+    { name: 'MAX/MIN', type: 'output', pinNumber: 12, schematicSide: 'right', schematicRow: 6 },
+    { name: '~RCO', type: 'output', pinNumber: 13, schematicSide: 'right', schematicRow: 7 },
+    { name: 'CLK', type: 'input', pinNumber: 14, schematicSide: 'left', schematicRow: 5 },
+    { name: 'A', type: 'input', pinNumber: 15, schematicSide: 'left', schematicRow: 1 },
+    { name: 'VCC', type: 'input', pinNumber: 16 }
+  ],
+  evaluate: (inputs, _props, _tick, internal = {}) => {
+    const b = inputs[0];
+    const ctenN = inputs[1] ?? 0;
+    const du = inputs[2] ?? 0;
+    const d = inputs[4];
+    const c = inputs[5];
+    const loadN = inputs[6] ?? 1;
+    const clk = inputs[7];
+    const a = inputs[8];
+
+    const st = internal;
+    if (st.counter === undefined) st.counter = 0;
+    if (st.lastClk === undefined) st.lastClk = 0;
+
+    if (loadN === 0) {
+       let val = 0;
+       if (a === 1) val |= 1;
+       if (b === 1) val |= 2;
+       if (c === 1) val |= 4;
+       if (d === 1) val |= 8;
+       if (a === 'X' || b === 'X' || c === 'X' || d === 'X' || a === undefined || b === undefined || c === undefined || d === undefined) {
+           st.counter = 'X';
+       } else {
+           st.counter = val;
+       }
+    } else {
+       const risingEdge = st.lastClk === 0 && clk === 1;
+       if (risingEdge && ctenN === 0 && st.counter !== 'X') {
+           if (du === 0) {
+               st.counter = (st.counter + 1) % 16;
+           } else if (du === 1) {
+               st.counter = (st.counter - 1 + 16) % 16;
+           }
+       }
+    }
+    
+    if (clk === 0 || clk === 1) {
+        st.lastClk = clk;
+    }
+
+    if (st.counter === 'X') return ['X', 'X', 'X', 'X', 'X', 'X'] as any;
+
+    const val = st.counter;
+    const qa = (val & 1) ? 1 : 0;
+    const qb = (val & 2) ? 1 : 0;
+    const qc = (val & 4) ? 1 : 0;
+    const qd = (val & 8) ? 1 : 0;
+
+    let maxMin = 0;
+    if (du === 0 && val === 15) maxMin = 1;
+    if (du === 1 && val === 0) maxMin = 1;
+
+    let rcoN = 1;
+    if (maxMin === 1 && ctenN === 0 && clk === 0) rcoN = 0;
+
+    return [qb, qa, qc, qd, maxMin, rcoN] as any;
   }
 };
 
@@ -381,5 +466,80 @@ export const SRAM_62256: NodeDefinition = {
     }
 
     return [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined];
+  }
+};
+
+export const IC74LS47: NodeDefinition = {
+  type: '74LS47',
+  label: '74LS47 (BCD to 7-Segment)',
+  numInputs: 0,
+  numOutputs: 0,
+  renderAs: 'DIP',
+  customPins: [
+    { type: 'input', name: 'B', pinNumber: 1 },
+    { type: 'input', name: 'C', pinNumber: 2 },
+    { type: 'input', name: 'LT\'', pinNumber: 3 },
+    { type: 'input', name: 'BI\'', pinNumber: 4 },
+    { type: 'input', name: 'RBI\'', pinNumber: 5 },
+    { type: 'input', name: 'D', pinNumber: 6 },
+    { type: 'input', name: 'A', pinNumber: 7 },
+    { type: 'output', name: 'e\'', pinNumber: 9 },
+    { type: 'output', name: 'd\'', pinNumber: 10 },
+    { type: 'output', name: 'c\'', pinNumber: 11 },
+    { type: 'output', name: 'b\'', pinNumber: 12 },
+    { type: 'output', name: 'a\'', pinNumber: 13 },
+    { type: 'output', name: 'g\'', pinNumber: 14 },
+    { type: 'output', name: 'f\'', pinNumber: 15 },
+  ],
+  evaluate: (inputs) => {
+    const B = inputs[0] ?? 0;
+    const C = inputs[1] ?? 0;
+    const LT_n = inputs[2] ?? 1;
+    const BI_n = inputs[3] ?? 1;
+    const RBI_n = inputs[4] ?? 1;
+    const D = inputs[5] ?? 0;
+    const A = inputs[6] ?? 0;
+
+    const value = ((D as number) << 3) | ((C as number) << 2) | ((B as number) << 1) | (A as number);
+
+    let segments = 0b1111111; 
+    
+    if (BI_n === 0) {
+      segments = 0b1111111; 
+    } else if (LT_n === 0) {
+      segments = 0b0000000; 
+    } else if (RBI_n === 0 && value === 0) {
+      segments = 0b1111111; 
+    } else {
+      switch (value) {
+        case 0: segments = 0b0000001; break;
+        case 1: segments = 0b1001111; break;
+        case 2: segments = 0b0010010; break;
+        case 3: segments = 0b0000110; break;
+        case 4: segments = 0b1001100; break;
+        case 5: segments = 0b0100100; break;
+        case 6: segments = 0b1100000; break;
+        case 7: segments = 0b0001111; break;
+        case 8: segments = 0b0000000; break;
+        case 9: segments = 0b0001100; break;
+        case 10: segments = 0b1110010; break;
+        case 11: segments = 0b0011000; break;
+        case 12: segments = 0b1011100; break;
+        case 13: segments = 0b1000110; break;
+        case 14: segments = 0b0111000; break;
+        case 15: segments = 0b1111111; break;
+        default: segments = 0b1111111;
+      }
+    }
+
+    return [
+      ((segments >> 2) & 1) as Signal, // e
+      ((segments >> 3) & 1) as Signal, // d
+      ((segments >> 4) & 1) as Signal, // c
+      ((segments >> 5) & 1) as Signal, // b
+      ((segments >> 6) & 1) as Signal, // a
+      ((segments >> 0) & 1) as Signal, // g
+      ((segments >> 1) & 1) as Signal, // f
+    ];
   }
 };

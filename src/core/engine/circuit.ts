@@ -96,6 +96,38 @@ export const moveNode = (state: CircuitState, id: string, x: number, y: number, 
   };
 };
 
+
+export const moveNodes = (state: CircuitState, ids: string[], primaryId: string, x: number, y: number, isBoardCoords: boolean = false): CircuitState => {
+  const primaryNode = state.nodes.find(n => n.id === primaryId);
+  if (!primaryNode) return state;
+
+  const snap = primaryNode.type === 'JUNCTION' ? 10 : GRID_SIZE;
+  const snappedX = Math.round(x / snap) * snap;
+  const snappedY = Math.round(y / snap) * snap;
+
+  const oldX = isBoardCoords ? (primaryNode.boardX ?? primaryNode.x) : primaryNode.x;
+  const oldY = isBoardCoords ? (primaryNode.boardY ?? primaryNode.y) : primaryNode.y;
+
+  const dx = snappedX - oldX;
+  const dy = snappedY - oldY;
+
+  if (dx === 0 && dy === 0) return state;
+
+  return {
+    ...state,
+    nodes: state.nodes.map(node => {
+      if (ids.includes(node.id)) {
+        const nx = isBoardCoords ? (node.boardX ?? node.x) : node.x;
+        const ny = isBoardCoords ? (node.boardY ?? node.y) : node.y;
+        return isBoardCoords
+          ? { ...node, boardX: nx + dx, boardY: ny + dy }
+          : { ...node, x: nx + dx, y: ny + dy };
+      }
+      return node;
+    })
+  };
+};
+
 export const deleteNode = (state: CircuitState, id: string): CircuitState => {
   const nodes = state.nodes.filter(n => n.id !== id);
   // Also delete all wires connected to this node

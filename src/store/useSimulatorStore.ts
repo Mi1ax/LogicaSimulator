@@ -301,7 +301,11 @@ export const useSimulatorStore = create<SimulatorState>()(
   }),
 
   addNode: (type, x, y) => set((state) => ({ ...circuit.addNode(state, type, x, y), ...pushHistory(state) })),
-  updateNodePosition: (id, x, y) => set((state) => circuit.moveNode(state, id, x, y, state.appMode === 'board')), // History saved on drag start
+  updateNodePosition: (id, x, y) => set((state) => {
+    const isMulti = state.multiSelection.includes(id);
+    const ids = isMulti ? state.multiSelection : [id];
+    return circuit.moveNodes(state, ids, id, x, y, state.appMode === 'board');
+  }), // History saved on drag start
   updateNodeProperties: (id, props) => set((state) => {
     if (state.placingNodeId === id) {
       return circuit.updateNodeProperties(state, id, props);
@@ -379,9 +383,8 @@ export const useSimulatorStore = create<SimulatorState>()(
     // If the types differ, standard logic: source is output, target is input.
     // Otherwise, just use the drag direction (start is source, drop is target).
     let isSourceOutput = true;
-    if (sourceType !== pinType) {
-      isSourceOutput = sourceType === 'output';
-    }
+    if (sourceType === 'input' && pinType !== 'input') isSourceOutput = false;
+    else if (pinType === 'output' && sourceType !== 'output') isSourceOutput = false;
 
     const outputPinId = isSourceOutput ? sourcePinId : pinId;
     const outputNodeId = isSourceOutput ? sourceNodeId : nodeId;
