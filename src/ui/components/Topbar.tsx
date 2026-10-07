@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
-import { Trash2, Sun, Moon,Settings } from 'lucide-react';
+import { Trash2, Sun, Moon, Settings, Save, FolderOpen, Library } from 'lucide-react';
 
 export const Topbar: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
+  const [showExamples, setShowExamples] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const clearNodes = useSimulatorStore(state => state.clearNodes);
   const theme = useSimulatorStore(state => state.theme);
   const toggleTheme = useSimulatorStore(state => state.toggleTheme);
@@ -14,6 +17,89 @@ export const Topbar: React.FC = () => {
   const setAppMode = useSimulatorStore(state => state.setAppMode);
   const activeWireType = useSimulatorStore(state => state.activeWireType);
   const setWireType = useSimulatorStore(state => state.setActiveWireType);
+
+  const handleSave = async () => {
+    const store = useSimulatorStore.getState();
+    const data = {
+      nodes: store.nodes,
+      wires: store.wires,
+      boardTraces: store.boardTraces,
+    };
+    const json = JSON.stringify(data, null, 2);
+    
+    if ('showSaveFilePicker' in window) {
+      try {
+        // @ts-ignore
+        const handle = await window.showSaveFilePicker({
+          suggestedName: 'circuit.logica',
+          types: [{
+            description: 'Logica Circuit File',
+            accept: { 'application/json': ['.logica'] },
+          }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(json);
+        await writable.close();
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          console.error('Failed to save file:', err);
+        }
+      }
+    } else {
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'circuit.logica';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const handleLoad = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = event.target?.result as string;
+        const data = JSON.parse(json);
+        useSimulatorStore.setState({
+          nodes: data.nodes || [],
+          wires: data.wires || [],
+          boardTraces: data.boardTraces || [],
+          history: [],
+          future: [],
+          simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} }
+        });
+      } catch (err) {
+        console.error('Failed to load circuit file:', err);
+        alert('Invalid circuit file.');
+      }
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const loadExample = async (filename: string) => {
+    try {
+      const response = await fetch(`/examples/${filename}`);
+      if (!response.ok) throw new Error('Failed to load example');
+      const data = await response.json();
+      useSimulatorStore.setState({
+        nodes: data.nodes || [],
+        wires: data.wires || [],
+        boardTraces: data.boardTraces || [],
+        history: [],
+        future: [],
+        simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} }
+      });
+      setShowExamples(false);
+    } catch (err) {
+      console.error(err);
+      alert('Could not load example.');
+    }
+  };
 
   return (
     <div className="h-14 bg-white dark:bg-slate-800 border-b border-gray-300 dark:border-slate-700 flex items-center justify-between px-6 shadow-sm z-10 relative transition-colors">
@@ -183,6 +269,64 @@ export const Topbar: React.FC = () => {
           )}
         </div>
         
+        <div className="w-px h-6 bg-gray-200 dark:bg-slate-700" />
+
+        <div className="relative">
+          <button
+            onClick={() => setShowExamples(!showExamples)}
+            className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${showExamples ? 'bg-gray-200 dark:bg-slate-600 text-gray-800 dark:text-slate-100' : 'text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700'}`}
+            title="Examples"
+          >
+            <Library size={16} />
+            <span className="hidden sm:inline">Examples</span>
+          </button>
+          
+          {showExamples && (
+            <>
+              <div 
+                className="fixed inset-0 z-40" 
+                onClick={() => setShowExamples(false)}
+              />
+              <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 py-2 z-50">
+                <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-400 px-4 mb-2 uppercase tracking-wider">Circuit Examples</h3>
+                <div className="flex flex-col">
+                  <button onClick={() => loadExample('01_logic_gates.logica')} className="text-left px-4 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700">01. Basic Logic Gates</button>
+                  <button onClick={() => loadExample('02_74LS161_counter.logica')} className="text-left px-4 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700">02. 74LS161 4-bit Counter</button>
+                  <button onClick={() => loadExample('03_74LS191_up_down_counter.logica')} className="text-left px-4 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700">03. 74LS191 Up/Down Counter</button>
+                  <button onClick={() => loadExample('04_62256_sram.logica')} className="text-left px-4 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700">04. 62256 SRAM Chip</button>
+                  <button onClick={() => loadExample('05_74LS273_register.logica')} className="text-left px-4 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700">05. 74LS273 Octal Register</button>
+                  <button onClick={() => loadExample('06_74LS08_quad_and.logica')} className="text-left px-4 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700">06. 74LS08 Quad AND Gate</button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+        
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-md transition-colors"
+          title="Load Circuit"
+        >
+          <FolderOpen size={16} />
+          <span className="hidden sm:inline">Load</span>
+        </button>
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleLoad}
+          accept=".logica,.json"
+          className="hidden"
+        />
+
+        <button
+          onClick={handleSave}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-md transition-colors"
+          title="Save Circuit"
+        >
+          <Save size={16} />
+          <span className="hidden sm:inline">Save</span>
+        </button>
+
         <div className="w-px h-6 bg-gray-200 dark:bg-slate-700" />
         
         <button

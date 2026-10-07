@@ -5,6 +5,7 @@ import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { Grid } from './Grid';
 import { SchematicGateNode } from './nodes/schematic/SchematicGateNode';
 import { SchematicIONode } from './nodes/schematic/SchematicIONode';
+import { SchematicNetLabelNode } from './nodes/schematic/SchematicNetLabelNode';
 import { SchematicICNode } from './nodes/schematic/SchematicICNode';
 import { SchematicDipSwitchNode } from './nodes/schematic/SchematicDipSwitchNode';
 import { WireRenderer } from './wires/WireRenderer';
@@ -23,6 +24,7 @@ const ConnectedNode = React.memo(({ id }: { id: string }) => {
   if (def?.renderAs === 'DIP') return <SchematicICNode node={node} />;
   if (['INPUT', 'OUTPUT', 'CLOCK', 'VCC', 'GND'].includes(node.type)) return <SchematicIONode node={node} />;
   if (node.type === 'JUNCTION') return <SchematicJunctionNode node={node} />;
+  if (node.type === 'NET_LABEL') return <SchematicNetLabelNode node={node} />;
   return <SchematicGateNode node={node} />;
 });
 
@@ -46,7 +48,9 @@ export const SchematicCanvas: React.FC = () => {
   const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const handleResize = () => {
+    if (!containerRef.current) return;
+
+    const observer = new ResizeObserver(() => {
       if (containerRef.current) {
         const w = containerRef.current.offsetWidth;
         const h = containerRef.current.offsetHeight;
@@ -58,11 +62,10 @@ export const SchematicCanvas: React.FC = () => {
           initializedRef.current = true;
         }
       }
-    };
+    });
 
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {

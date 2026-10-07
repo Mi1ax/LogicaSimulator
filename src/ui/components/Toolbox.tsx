@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { NodeType } from '../../core/models/types';
-import { BoxSelect, Cpu, ToggleLeft, Lightbulb, Timer, Zap, SlidersHorizontal } from 'lucide-react';
+import { BoxSelect, Cpu, ToggleLeft, Lightbulb, Timer, Zap, SlidersHorizontal, Tag } from 'lucide-react';
 import { getNodeDefinition } from '../../core/engine/nodes';
 
 interface ToolCategory {
@@ -20,6 +20,7 @@ const CATEGORIES: ToolCategory[] = [
       { type: 'OUTPUT', icon: <Lightbulb size={18} /> },
       { type: '7_SEG_DISPLAY', icon: <Lightbulb size={18} /> },
       { type: 'CLOCK', icon: <Timer size={18} /> },
+      { type: 'NET_LABEL', icon: <Tag size={18} /> },
     ]
   },
   {
@@ -39,7 +40,9 @@ const CATEGORIES: ToolCategory[] = [
     name: 'Integrated Circuits',
     items: [
       { type: '74LS08', icon: <Cpu size={18} /> },
+      { type: '74LS47', icon: <Cpu size={18} /> },
       { type: '74LS161', icon: <Cpu size={18} /> },
+      { type: '74LS191', icon: <Cpu size={18} /> },
       { type: '74LS273', icon: <Cpu size={18} /> },
       { type: '27C256', icon: <Cpu size={18} /> },
       { type: '62256', icon: <Cpu size={18} /> },

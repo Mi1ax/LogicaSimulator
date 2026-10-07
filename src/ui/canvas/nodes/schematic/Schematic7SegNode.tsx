@@ -20,7 +20,8 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
   const select = useSimulatorStore(state => state.select);
   
   const segments = useSimulatorStore(useShallow(state => {
-    return node.inputs.map(p => state.simState.pinStates[p.id] === 1 ? 1 : 0);
+    const activeLevel = node.properties?.commonAnode ? 0 : 1;
+    return node.inputs.map(p => state.simState.pinStates[p.id] === activeLevel ? 1 : 0);
   }));
   const [a, b, c, d, e, f, g, dp] = segments;
 

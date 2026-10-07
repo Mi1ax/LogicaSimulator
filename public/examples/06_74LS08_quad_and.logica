@@ -1,0 +1,251 @@
+{
+  "nodes": [
+    {
+      "id": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+      "type": "74LS08",
+      "x": 300,
+      "y": 200,
+      "inputs": [
+        {
+          "id": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-input-1A",
+          "nodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+          "type": "input",
+          "index": 0,
+          "name": "1A",
+          "pinNumber": 1
+        },
+        {
+          "id": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-input-1B",
+          "nodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+          "type": "input",
+          "index": 1,
+          "name": "1B",
+          "pinNumber": 2
+        },
+        {
+          "id": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-input-2A",
+          "nodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+          "type": "input",
+          "index": 3,
+          "name": "2A",
+          "pinNumber": 4
+        },
+        {
+          "id": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-input-2B",
+          "nodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+          "type": "input",
+          "index": 4,
+          "name": "2B",
+          "pinNumber": 5
+        },
+        {
+          "id": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-input-GND",
+          "nodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+          "type": "input",
+          "index": 6,
+          "name": "GND",
+          "pinNumber": 7
+        },
+        {
+          "id": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-input-4A",
+          "nodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+          "type": "input",
+          "index": 8,
+          "name": "4A",
+          "pinNumber": 9
+        },
+        {
+          "id": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-input-4B",
+          "nodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+          "type": "input",
+          "index": 9,
+          "name": "4B",
+          "pinNumber": 10
+        },
+        {
+          "id": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-input-3A",
+          "nodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+          "type": "input",
+          "index": 11,
+          "name": "3A",
+          "pinNumber": 12
+        },
+        {
+          "id": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-input-3B",
+          "nodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+          "type": "input",
+          "index": 12,
+          "name": "3B",
+          "pinNumber": 13
+        },
+        {
+          "id": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-input-VCC",
+          "nodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+          "type": "input",
+          "index": 13,
+          "name": "VCC",
+          "pinNumber": 14
+        }
+      ],
+      "outputs": [
+        {
+          "id": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-output-1Y",
+          "nodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+          "type": "output",
+          "index": 2,
+          "name": "1Y",
+          "pinNumber": 3
+        },
+        {
+          "id": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-output-2Y",
+          "nodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+          "type": "output",
+          "index": 5,
+          "name": "2Y",
+          "pinNumber": 6
+        },
+        {
+          "id": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-output-4Y",
+          "nodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+          "type": "output",
+          "index": 7,
+          "name": "4Y",
+          "pinNumber": 8
+        },
+        {
+          "id": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-output-3Y",
+          "nodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+          "type": "output",
+          "index": 10,
+          "name": "3Y",
+          "pinNumber": 11
+        }
+      ],
+      "properties": {
+        "renderAs": "DIP"
+      }
+    },
+    {
+      "id": "node-4ab54de1-01c5-490b-8223-fed472859ad7",
+      "type": "INPUT",
+      "x": 100,
+      "y": 100,
+      "inputs": [],
+      "outputs": [
+        {
+          "id": "pin-node-4ab54de1-01c5-490b-8223-fed472859ad7-out-0",
+          "nodeId": "node-4ab54de1-01c5-490b-8223-fed472859ad7",
+          "type": "output",
+          "index": 0
+        }
+      ],
+      "properties": {
+        "value": 0
+      }
+    },
+    {
+      "id": "node-118d15cc-fda5-464d-ae0e-4e4293003b3e",
+      "type": "INPUT",
+      "x": 100,
+      "y": 160,
+      "inputs": [],
+      "outputs": [
+        {
+          "id": "pin-node-118d15cc-fda5-464d-ae0e-4e4293003b3e-out-0",
+          "nodeId": "node-118d15cc-fda5-464d-ae0e-4e4293003b3e",
+          "type": "output",
+          "index": 0
+        }
+      ],
+      "properties": {
+        "value": 0
+      }
+    },
+    {
+      "id": "node-18653f50-40bb-4214-821e-0b553348dac8",
+      "type": "OUTPUT",
+      "x": 500,
+      "y": 120,
+      "inputs": [
+        {
+          "id": "pin-node-18653f50-40bb-4214-821e-0b553348dac8-in-0",
+          "nodeId": "node-18653f50-40bb-4214-821e-0b553348dac8",
+          "type": "input",
+          "index": 0
+        }
+      ],
+      "outputs": [],
+      "properties": {}
+    },
+    {
+      "id": "node-9808f4a7-9a7f-419f-91f4-73ed9140f64b",
+      "type": "VCC",
+      "x": 100,
+      "y": 60,
+      "inputs": [],
+      "outputs": [
+        {
+          "id": "pin-node-9808f4a7-9a7f-419f-91f4-73ed9140f64b-out-0",
+          "nodeId": "node-9808f4a7-9a7f-419f-91f4-73ed9140f64b",
+          "type": "output",
+          "index": 0
+        }
+      ],
+      "properties": {}
+    },
+    {
+      "id": "node-8312ef77-d352-495f-83a2-34676dae3a54",
+      "type": "GND",
+      "x": 100,
+      "y": 300,
+      "inputs": [],
+      "outputs": [
+        {
+          "id": "pin-node-8312ef77-d352-495f-83a2-34676dae3a54-out-0",
+          "nodeId": "node-8312ef77-d352-495f-83a2-34676dae3a54",
+          "type": "output",
+          "index": 0
+        }
+      ],
+      "properties": {}
+    }
+  ],
+  "wires": [
+    {
+      "id": "wire-68c31fd8-1168-4bf3-a559-b12103e44212",
+      "sourceNodeId": "node-9808f4a7-9a7f-419f-91f4-73ed9140f64b",
+      "sourcePinId": "pin-node-9808f4a7-9a7f-419f-91f4-73ed9140f64b-out-0",
+      "targetNodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+      "targetPinId": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-input-VCC"
+    },
+    {
+      "id": "wire-c8b88291-d5fe-47de-b399-75258e048875",
+      "sourceNodeId": "node-8312ef77-d352-495f-83a2-34676dae3a54",
+      "sourcePinId": "pin-node-8312ef77-d352-495f-83a2-34676dae3a54-out-0",
+      "targetNodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+      "targetPinId": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-input-GND"
+    },
+    {
+      "id": "wire-212b14b8-c720-475c-9f8a-4f67e01138d4",
+      "sourceNodeId": "node-4ab54de1-01c5-490b-8223-fed472859ad7",
+      "sourcePinId": "pin-node-4ab54de1-01c5-490b-8223-fed472859ad7-out-0",
+      "targetNodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+      "targetPinId": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-input-1A"
+    },
+    {
+      "id": "wire-cb7b681f-9289-455f-ac6f-01594de3a065",
+      "sourceNodeId": "node-118d15cc-fda5-464d-ae0e-4e4293003b3e",
+      "sourcePinId": "pin-node-118d15cc-fda5-464d-ae0e-4e4293003b3e-out-0",
+      "targetNodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+      "targetPinId": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-input-1B"
+    },
+    {
+      "id": "wire-1d19d68d-7fc2-4ad7-84a2-2ca8da9ef7a0",
+      "sourceNodeId": "node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441",
+      "sourcePinId": "pin-node-285cf4cc-6d8b-4f3e-9b11-c79c9548a441-output-1Y",
+      "targetNodeId": "node-18653f50-40bb-4214-821e-0b553348dac8",
+      "targetPinId": "pin-node-18653f50-40bb-4214-821e-0b553348dac8-in-0"
+    }
+  ],
+  "boardTraces": []
+}

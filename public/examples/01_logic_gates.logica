@@ -1,0 +1,113 @@
+{
+  "nodes": [
+    {
+      "id": "node-c76a3cbe-0e86-4011-9970-959e34d9497e",
+      "type": "AND",
+      "x": 200,
+      "y": 100,
+      "inputs": [
+        {
+          "id": "pin-node-c76a3cbe-0e86-4011-9970-959e34d9497e-in-0",
+          "nodeId": "node-c76a3cbe-0e86-4011-9970-959e34d9497e",
+          "type": "input",
+          "index": 0
+        },
+        {
+          "id": "pin-node-c76a3cbe-0e86-4011-9970-959e34d9497e-in-1",
+          "nodeId": "node-c76a3cbe-0e86-4011-9970-959e34d9497e",
+          "type": "input",
+          "index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "id": "pin-node-c76a3cbe-0e86-4011-9970-959e34d9497e-out-0",
+          "nodeId": "node-c76a3cbe-0e86-4011-9970-959e34d9497e",
+          "type": "output",
+          "index": 0
+        }
+      ],
+      "properties": {}
+    },
+    {
+      "id": "node-ea88145c-6bcf-4d8a-9574-14cee4b6699d",
+      "type": "OUTPUT",
+      "x": 320,
+      "y": 120,
+      "inputs": [
+        {
+          "id": "pin-node-ea88145c-6bcf-4d8a-9574-14cee4b6699d-in-0",
+          "nodeId": "node-ea88145c-6bcf-4d8a-9574-14cee4b6699d",
+          "type": "input",
+          "index": 0
+        }
+      ],
+      "outputs": [],
+      "properties": {}
+    },
+    {
+      "id": "node-222c6483-e686-47e7-bc65-f19744146d87",
+      "type": "DIP_SWITCH",
+      "x": 60,
+      "y": 100,
+      "inputs": [],
+      "outputs": [
+        {
+          "id": "pin-node-222c6483-e686-47e7-bc65-f19744146d87-out-0",
+          "nodeId": "node-222c6483-e686-47e7-bc65-f19744146d87",
+          "type": "output",
+          "index": 0
+        },
+        {
+          "id": "pin-node-222c6483-e686-47e7-bc65-f19744146d87-out-1",
+          "nodeId": "node-222c6483-e686-47e7-bc65-f19744146d87",
+          "type": "output",
+          "index": 1
+        }
+      ],
+      "properties": {
+        "switches": [
+          0,
+          1,
+          0,
+          0
+        ],
+        "numOutputs": 2
+      }
+    }
+  ],
+  "wires": [
+    {
+      "id": "wire-e844a9d3-3fc1-4fdb-a6a7-d84104cab937",
+      "sourceNodeId": "node-c76a3cbe-0e86-4011-9970-959e34d9497e",
+      "sourcePinId": "pin-node-c76a3cbe-0e86-4011-9970-959e34d9497e-out-0",
+      "targetNodeId": "node-ea88145c-6bcf-4d8a-9574-14cee4b6699d",
+      "targetPinId": "pin-node-ea88145c-6bcf-4d8a-9574-14cee4b6699d-in-0"
+    },
+    {
+      "id": "wire-79313c11-f849-495c-b1b2-a40372e99ce5",
+      "sourceNodeId": "node-222c6483-e686-47e7-bc65-f19744146d87",
+      "sourcePinId": "pin-node-222c6483-e686-47e7-bc65-f19744146d87-out-0",
+      "targetNodeId": "node-c76a3cbe-0e86-4011-9970-959e34d9497e",
+      "targetPinId": "pin-node-c76a3cbe-0e86-4011-9970-959e34d9497e-in-0"
+    },
+    {
+      "id": "wire-401ca27d-e9fe-4314-ad1b-d61ec14688a9",
+      "sourceNodeId": "node-222c6483-e686-47e7-bc65-f19744146d87",
+      "sourcePinId": "pin-node-222c6483-e686-47e7-bc65-f19744146d87-out-1",
+      "targetNodeId": "node-c76a3cbe-0e86-4011-9970-959e34d9497e",
+      "targetPinId": "pin-node-c76a3cbe-0e86-4011-9970-959e34d9497e-in-1",
+      "waypoints": [
+        {
+          "x": 180,
+          "y": 140
+        },
+        {
+          "x": 180,
+          "y": 160
+        }
+      ]
+    }
+  ],
+  "boardTraces": []
+}

@@ -97,6 +97,21 @@ export const PropertiesPanel: React.FC = () => {
           </select>
         </div>
 
+        {/* 7-Segment Type */}
+        {node.type === '7_SEG_DISPLAY' && (
+          <div>
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200 cursor-pointer">
+              <input
+                type="checkbox"
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                checked={!!node.properties?.commonAnode}
+                onChange={(e) => updateNodeProperties(node.id, { commonAnode: e.target.checked })}
+              />
+              Common Anode (Active Low)
+            </label>
+          </div>
+        )}
+
         {/* Variable Inputs */}
         {isVariableInputGate && (
           <div>
