@@ -150,9 +150,9 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
     if (pin) {
       let rawX = 0, rawY = 0, rawNx = 0, rawNy = 0;
       if (pin.name === 'VCC') {
-        rawX = width / 2; rawY = -20; rawNx = 0; rawNy = -1;
+        rawX = 20; rawY = -20; rawNx = 0; rawNy = -1;
       } else if (pin.name === 'GND') {
-        rawX = width / 2; rawY = height + 20; rawNx = 0; rawNy = 1;
+        rawX = 20; rawY = height + 20; rawNx = 0; rawNy = 1;
       } else {
         const pinDef = def?.customPins?.find(cp => cp.name === pin.name);
         
@@ -219,9 +219,9 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
   if (outIndex !== -1) {
     let rawX, rawY, rawNx, rawNy;
     if (node.type === 'VCC') {
-      rawX = width / 2; rawY = height; rawNx = 0; rawNy = 1;
+      rawX = 20; rawY = height; rawNx = 0; rawNy = 1;
     } else if (node.type === 'GND') {
-      rawX = width / 2; rawY = 0; rawNx = 0; rawNy = -1;
+      rawX = 20; rawY = 0; rawNx = 0; rawNy = -1;
     } else if (node.type === 'INPUT' || node.type === 'CLOCK') {
       rawX = width; rawY = height / 2; rawNx = 1; rawNy = 0;
     } else {
