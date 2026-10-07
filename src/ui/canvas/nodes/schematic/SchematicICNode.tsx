@@ -123,7 +123,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
             <Group key={pin.id}>
               {/* Pin Extension Leg */}
               <Path
-                data={`M ${width / 2} ${isVcc ? 0 : height} L ${width / 2} ${pinY}`}
+                data={`M 20 ${isVcc ? 0 : height} L 20 ${pinY}`}
                 stroke={canvasTheme.nodeBorder}
                 strokeWidth={2}
               />
@@ -131,7 +131,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
               <Pin
                 id={pin.id}
                 nodeId={node.id}
-                x={width / 2}
+                x={20}
                 y={pinY}
                 type={pin.type}
               />
@@ -142,7 +142,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
                 return (
                   <Text
                     text={String(safePin)}
-                    x={width / 2 + 6}
+                    x={26}
                     y={isVcc ? pinY + 6 : height + 6}
                     width={20}
                     align="left"
@@ -155,7 +155,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
               {/* Logical Pin Name Label (e.g. VCC, GND) */}
               <Text
                 text={pin.name}
-                x={width / 2 - 30}
+                x={-10}
                 y={isVcc ? 4 : height - 16}
                 width={60}
                 align="center"
@@ -178,14 +178,47 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
         }
 
         const spacing = 40;
-        const yOffset = row * spacing;
-        const isLeft = side === 'left';
-        
+        let legX = 0, legY = 0, toX = 0, toY = 0;
+        let pinX = 0, pinY = 0;
+        let numX = 0, numY = 0;
+        let labelX = 0, labelY = 0;
+        let labelAlign: 'left' | 'right' | 'center' = 'left';
+
+        if (side === 'left') {
+          legX = 0; legY = row * spacing;
+          toX = -20; toY = legY;
+          pinX = -20; pinY = legY;
+          numX = -20; numY = legY - 14;
+          labelX = 8; labelY = legY - 5;
+          labelAlign = 'left';
+        } else if (side === 'right') {
+          legX = width; legY = row * spacing;
+          toX = width + 20; toY = legY;
+          pinX = width + 20; pinY = legY;
+          numX = width; numY = legY - 14;
+          labelX = width - 68; labelY = legY - 5;
+          labelAlign = 'right';
+        } else if (side === 'top') {
+          legX = row * spacing; legY = 0;
+          toX = legX; toY = -20;
+          pinX = legX; pinY = -20;
+          numX = legX + 6; numY = -14;
+          labelX = legX - 30; labelY = 4;
+          labelAlign = 'center';
+        } else if (side === 'bottom') {
+          legX = row * spacing; legY = height;
+          toX = legX; toY = height + 20;
+          pinX = legX; pinY = height + 20;
+          numX = legX + 6; numY = height + 6;
+          labelX = legX - 30; labelY = height - 16;
+          labelAlign = 'center';
+        }
+
         return (
           <Group key={pin.id}>
             {/* Pin Extension Leg */}
             <Path
-              data={`M ${isLeft ? 0 : width} ${yOffset} L ${isLeft ? -20 : width + 20} ${yOffset}`}
+              data={`M ${legX} ${legY} L ${toX} ${toY}`}
               stroke={canvasTheme.nodeBorder}
               strokeWidth={2}
             />
@@ -193,8 +226,8 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
             <Pin
               id={pin.id}
               nodeId={node.id}
-              x={isLeft ? -20 : width + 20}
-              y={yOffset}
+              x={pinX}
+              y={pinY}
               type={pin.type}
             />
             {/* Physical Pin Number Label */}
@@ -204,10 +237,10 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
               return (
                 <Text
                   text={String(safePin)}
-                  x={isLeft ? -20 : width}
-                  y={yOffset - 14}
+                  x={numX}
+                  y={numY}
                   width={20}
-                  align="center"
+                  align={side === 'top' || side === 'bottom' ? 'left' : 'center'}
                   fontSize={10}
                   fill={canvasTheme.nodeBorder}
                   opacity={1}
@@ -218,11 +251,11 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
             {pin.name && (
               <Text
                 text={pin.name}
-                x={isLeft ? 8 : width - 68}
-                y={yOffset - 5}
+                x={labelX}
+                y={labelY}
                 width={60}
                 wrap="none"
-                align={isLeft ? 'left' : 'right'}
+                align={labelAlign}
                 fontSize={11}
                 fontStyle="bold"
                 fill={canvasTheme.textColor}

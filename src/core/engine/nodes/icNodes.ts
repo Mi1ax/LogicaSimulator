@@ -490,6 +490,8 @@ export const IC74LS47: NodeDefinition = {
     { type: 'output', name: 'a\'', pinNumber: 13 },
     { type: 'output', name: 'g\'', pinNumber: 14 },
     { type: 'output', name: 'f\'', pinNumber: 15 },
+    { type: 'input', name: 'GND', pinNumber: 8 },
+    { type: 'input', name: 'VCC', pinNumber: 16 },
   ],
   evaluate: (inputs) => {
     const B = inputs[0] ?? 0;
@@ -541,5 +543,238 @@ export const IC74LS47: NodeDefinition = {
       ((segments >> 0) & 1) as Signal, // g
       ((segments >> 1) & 1) as Signal, // f
     ];
+  }
+};
+
+
+export const IC74LS154: NodeDefinition = {
+  type: '74LS154',
+  label: '74LS154 (4-to-16 Decoder)',
+  numInputs: 0,
+  numOutputs: 0,
+  renderAs: 'DIP',
+  customPins: [
+    { type: 'output', name: 'Y0\'', pinNumber: 1, schematicSide: 'right', schematicRow: 1 },
+    { type: 'output', name: 'Y1\'', pinNumber: 2, schematicSide: 'right', schematicRow: 2 },
+    { type: 'output', name: 'Y2\'', pinNumber: 3, schematicSide: 'right', schematicRow: 3 },
+    { type: 'output', name: 'Y3\'', pinNumber: 4, schematicSide: 'right', schematicRow: 4 },
+    { type: 'output', name: 'Y4\'', pinNumber: 5, schematicSide: 'right', schematicRow: 5 },
+    { type: 'output', name: 'Y5\'', pinNumber: 6, schematicSide: 'right', schematicRow: 6 },
+    { type: 'output', name: 'Y6\'', pinNumber: 7, schematicSide: 'right', schematicRow: 7 },
+    { type: 'output', name: 'Y7\'', pinNumber: 8, schematicSide: 'right', schematicRow: 8 },
+    { type: 'output', name: 'Y8\'', pinNumber: 9, schematicSide: 'right', schematicRow: 9 },
+    { type: 'output', name: 'Y9\'', pinNumber: 10, schematicSide: 'right', schematicRow: 10 },
+    { type: 'output', name: 'Y10\'', pinNumber: 11, schematicSide: 'right', schematicRow: 11 },
+    { type: 'output', name: 'Y11\'', pinNumber: 13, schematicSide: 'right', schematicRow: 12 },
+    { type: 'output', name: 'Y12\'', pinNumber: 14, schematicSide: 'right', schematicRow: 13 },
+    { type: 'output', name: 'Y13\'', pinNumber: 15, schematicSide: 'right', schematicRow: 14 },
+    { type: 'output', name: 'Y14\'', pinNumber: 16, schematicSide: 'right', schematicRow: 15 },
+    { type: 'output', name: 'Y15\'', pinNumber: 17, schematicSide: 'right', schematicRow: 16 },
+    { type: 'input', name: 'G1\'', pinNumber: 18, schematicSide: 'bottom', schematicRow: 2 },
+    { type: 'input', name: 'G2\'', pinNumber: 19, schematicSide: 'bottom', schematicRow: 3 },
+    { type: 'input', name: 'D', pinNumber: 20, schematicSide: 'left', schematicRow: 4 },
+    { type: 'input', name: 'C', pinNumber: 21, schematicSide: 'left', schematicRow: 3 },
+    { type: 'input', name: 'B', pinNumber: 22, schematicSide: 'left', schematicRow: 2 },
+    { type: 'input', name: 'A', pinNumber: 23, schematicSide: 'left', schematicRow: 1 },
+    { type: 'input', name: 'GND', pinNumber: 12 },
+    { type: 'input', name: 'VCC', pinNumber: 24 },
+  ],
+  evaluate: (inputs): Signal[] => {
+    // Inputs (based on customPins order):
+    // order in inputs array: G1', G2', D, C, B, A
+    const G1_n = inputs[0] ?? 1;
+    const G2_n = inputs[1] ?? 1;
+    const D = inputs[2] ?? 0;
+    const C = inputs[3] ?? 0;
+    const B = inputs[4] ?? 0;
+    const A = inputs[5] ?? 0;
+
+    const outs: Signal[] = Array(16).fill(1); // Default HIGH (inactive)
+    
+    if (G1_n === 0 && G2_n === 0) {
+      const val = ((D as number) << 3) | ((C as number) << 2) | ((B as number) << 1) | (A as number);
+      if (val >= 0 && val <= 15) {
+        outs[val] = 0; // Active LOW
+      }
+    }
+
+    return outs;
+  }
+};
+
+
+export const IC74LS138: NodeDefinition = {
+  type: '74LS138',
+  label: '74LS138 (3-to-8 Decoder)',
+  numInputs: 0,
+  numOutputs: 0,
+  renderAs: 'DIP',
+  customPins: [
+    { type: 'input', name: 'A', pinNumber: 1, schematicSide: 'left', schematicRow: 1 },
+    { type: 'input', name: 'B', pinNumber: 2, schematicSide: 'left', schematicRow: 2 },
+    { type: 'input', name: 'C', pinNumber: 3, schematicSide: 'left', schematicRow: 3 },
+    { type: 'input', name: 'G2A\'', pinNumber: 4, schematicSide: 'bottom', schematicRow: 2 },
+    { type: 'input', name: 'G2B\'', pinNumber: 5, schematicSide: 'bottom', schematicRow: 3 },
+    { type: 'input', name: 'G1', pinNumber: 6, schematicSide: 'bottom', schematicRow: 4 },
+    { type: 'output', name: 'Y7\'', pinNumber: 7, schematicSide: 'right', schematicRow: 8 },
+    { type: 'input', name: 'GND', pinNumber: 8 },
+    { type: 'output', name: 'Y6\'', pinNumber: 9, schematicSide: 'right', schematicRow: 7 },
+    { type: 'output', name: 'Y5\'', pinNumber: 10, schematicSide: 'right', schematicRow: 6 },
+    { type: 'output', name: 'Y4\'', pinNumber: 11, schematicSide: 'right', schematicRow: 5 },
+    { type: 'output', name: 'Y3\'', pinNumber: 12, schematicSide: 'right', schematicRow: 4 },
+    { type: 'output', name: 'Y2\'', pinNumber: 13, schematicSide: 'right', schematicRow: 3 },
+    { type: 'output', name: 'Y1\'', pinNumber: 14, schematicSide: 'right', schematicRow: 2 },
+    { type: 'output', name: 'Y0\'', pinNumber: 15, schematicSide: 'right', schematicRow: 1 },
+    { type: 'input', name: 'VCC', pinNumber: 16 },
+  ],
+  evaluate: (inputs): Signal[] => {
+    // inputs: A, B, C, G2A', G2B', G1
+    const A = inputs[0] ?? 0;
+    const B = inputs[1] ?? 0;
+    const C = inputs[2] ?? 0;
+    const G2A_n = inputs[3] ?? 1;
+    const G2B_n = inputs[4] ?? 1;
+    const G1 = inputs[5] ?? 0;
+
+    const outs: Signal[] = Array(8).fill(1); // Default HIGH (inactive)
+
+    if (G1 === 1 && G2A_n === 0 && G2B_n === 0) {
+      const val = ((C as number) << 2) | ((B as number) << 1) | (A as number);
+      if (val >= 0 && val <= 7) {
+        outs[val] = 0; // Active LOW
+      }
+    }
+
+    // Output order in customPins: Y7', Y6', Y5', Y4', Y3', Y2', Y1', Y0'
+    // outs array is indexed by val: outs[0] is Y0', outs[7] is Y7'
+    return [outs[7], outs[6], outs[5], outs[4], outs[3], outs[2], outs[1], outs[0]];
+  }
+};
+
+
+export const IC74LS241: NodeDefinition = {
+  type: '74LS241',
+  label: '74LS241 (Octal Buffer/Line Driver)',
+  numInputs: 0,
+  numOutputs: 0,
+  renderAs: 'DIP',
+  customPins: [
+    { type: 'input', name: '1A1', pinNumber: 2, schematicSide: 'left', schematicRow: 1 },
+    { type: 'input', name: '1A2', pinNumber: 4, schematicSide: 'left', schematicRow: 2 },
+    { type: 'input', name: '1A3', pinNumber: 6, schematicSide: 'left', schematicRow: 3 },
+    { type: 'input', name: '1A4', pinNumber: 8, schematicSide: 'left', schematicRow: 4 },
+    { type: 'input', name: '2A1', pinNumber: 11, schematicSide: 'left', schematicRow: 5 },
+    { type: 'input', name: '2A2', pinNumber: 13, schematicSide: 'left', schematicRow: 6 },
+    { type: 'input', name: '2A3', pinNumber: 15, schematicSide: 'left', schematicRow: 7 },
+    { type: 'input', name: '2A4', pinNumber: 17, schematicSide: 'left', schematicRow: 8 },
+    
+    { type: 'input', name: '1G\'', pinNumber: 1, schematicSide: 'bottom', schematicRow: 2 },
+    { type: 'input', name: '2G', pinNumber: 19, schematicSide: 'bottom', schematicRow: 4 },
+
+    { type: 'output', name: '1Y1', pinNumber: 18, schematicSide: 'right', schematicRow: 1 },
+    { type: 'output', name: '1Y2', pinNumber: 16, schematicSide: 'right', schematicRow: 2 },
+    { type: 'output', name: '1Y3', pinNumber: 14, schematicSide: 'right', schematicRow: 3 },
+    { type: 'output', name: '1Y4', pinNumber: 12, schematicSide: 'right', schematicRow: 4 },
+    { type: 'output', name: '2Y1', pinNumber: 9, schematicSide: 'right', schematicRow: 5 },
+    { type: 'output', name: '2Y2', pinNumber: 7, schematicSide: 'right', schematicRow: 6 },
+    { type: 'output', name: '2Y3', pinNumber: 5, schematicSide: 'right', schematicRow: 7 },
+    { type: 'output', name: '2Y4', pinNumber: 3, schematicSide: 'right', schematicRow: 8 },
+
+    { type: 'input', name: 'GND', pinNumber: 10 },
+    { type: 'input', name: 'VCC', pinNumber: 20 },
+  ],
+  evaluate: (inputs): Signal[] => {
+    // Inputs (based on customPins order for type 'input'):
+    // 0: 1A1, 1: 1A2, 2: 1A3, 3: 1A4
+    // 4: 2A1, 5: 2A2, 6: 2A3, 7: 2A4
+    // 8: 1G', 9: 2G
+    const a1 = [inputs[0], inputs[1], inputs[2], inputs[3]];
+    const a2 = [inputs[4], inputs[5], inputs[6], inputs[7]];
+    const g1_n = inputs[8] ?? 1; // Default HIGH (inactive)
+    const g2 = inputs[9] ?? 0;   // Default LOW (inactive)
+
+    const outs: Signal[] = Array(8).fill(undefined);
+
+    // Group 1: Active Low Enable
+    if (g1_n === 0) {
+      outs[0] = a1[0];
+      outs[1] = a1[1];
+      outs[2] = a1[2];
+      outs[3] = a1[3];
+    }
+    
+    // Group 2: Active High Enable
+    if (g2 === 1) {
+      outs[4] = a2[0];
+      outs[5] = a2[1];
+      outs[6] = a2[2];
+      outs[7] = a2[3];
+    }
+
+    return outs;
+  }
+};
+
+
+export const IC74LS244: NodeDefinition = {
+  type: '74LS244',
+  label: '74LS244 (Octal Buffer/Line Driver)',
+  numInputs: 0,
+  numOutputs: 0,
+  renderAs: 'DIP',
+  customPins: [
+    { type: 'input', name: '1A1', pinNumber: 2, schematicSide: 'left', schematicRow: 1 },
+    { type: 'input', name: '1A2', pinNumber: 4, schematicSide: 'left', schematicRow: 2 },
+    { type: 'input', name: '1A3', pinNumber: 6, schematicSide: 'left', schematicRow: 3 },
+    { type: 'input', name: '1A4', pinNumber: 8, schematicSide: 'left', schematicRow: 4 },
+    { type: 'input', name: '2A1', pinNumber: 11, schematicSide: 'left', schematicRow: 5 },
+    { type: 'input', name: '2A2', pinNumber: 13, schematicSide: 'left', schematicRow: 6 },
+    { type: 'input', name: '2A3', pinNumber: 15, schematicSide: 'left', schematicRow: 7 },
+    { type: 'input', name: '2A4', pinNumber: 17, schematicSide: 'left', schematicRow: 8 },
+    
+    { type: 'input', name: '1G\'', pinNumber: 1, schematicSide: 'bottom', schematicRow: 2 },
+    { type: 'input', name: '2G\'', pinNumber: 19, schematicSide: 'bottom', schematicRow: 4 },
+
+    { type: 'output', name: '1Y1', pinNumber: 18, schematicSide: 'right', schematicRow: 1 },
+    { type: 'output', name: '1Y2', pinNumber: 16, schematicSide: 'right', schematicRow: 2 },
+    { type: 'output', name: '1Y3', pinNumber: 14, schematicSide: 'right', schematicRow: 3 },
+    { type: 'output', name: '1Y4', pinNumber: 12, schematicSide: 'right', schematicRow: 4 },
+    { type: 'output', name: '2Y1', pinNumber: 9, schematicSide: 'right', schematicRow: 5 },
+    { type: 'output', name: '2Y2', pinNumber: 7, schematicSide: 'right', schematicRow: 6 },
+    { type: 'output', name: '2Y3', pinNumber: 5, schematicSide: 'right', schematicRow: 7 },
+    { type: 'output', name: '2Y4', pinNumber: 3, schematicSide: 'right', schematicRow: 8 },
+
+    { type: 'input', name: 'GND', pinNumber: 10 },
+    { type: 'input', name: 'VCC', pinNumber: 20 },
+  ],
+  evaluate: (inputs): Signal[] => {
+    // Inputs (based on customPins order for type 'input'):
+    // 0: 1A1, 1: 1A2, 2: 1A3, 3: 1A4
+    // 4: 2A1, 5: 2A2, 6: 2A3, 7: 2A4
+    // 8: 1G', 9: 2G'
+    const a1 = [inputs[0], inputs[1], inputs[2], inputs[3]];
+    const a2 = [inputs[4], inputs[5], inputs[6], inputs[7]];
+    const g1_n = inputs[8] ?? 1; // Default HIGH (inactive)
+    const g2_n = inputs[9] ?? 1; // Default HIGH (inactive)
+
+    const outs: Signal[] = Array(8).fill(undefined);
+
+    // Group 1: Active Low Enable
+    if (g1_n === 0) {
+      outs[0] = a1[0];
+      outs[1] = a1[1];
+      outs[2] = a1[2];
+      outs[3] = a1[3];
+    }
+    
+    // Group 2: Active Low Enable
+    if (g2_n === 0) {
+      outs[4] = a2[0];
+      outs[5] = a2[1];
+      outs[6] = a2[2];
+      outs[7] = a2[3];
+    }
+
+    return outs;
   }
 };
