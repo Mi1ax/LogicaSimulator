@@ -94,7 +94,8 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
           y={-20}
           width={width}
           align="center"
-          fontSize={12}
+          fontSize={11}
+          fontFamily="sans-serif"
           fill={canvasTheme.textColor}
         />
       )}
@@ -102,16 +103,18 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
       {/* IC Label */}
       <Text
         text={def?.type || 'IC'}
-        x={0}
-        y={0}
-        width={width}
-        height={height}
+        x={width / 2}
+        y={height / 2}
+        width={height}
         align="center"
-        verticalAlign="middle"
-        fontSize={16}
-        fontFamily="monospace"
-        fontStyle="bold"
-        fill={canvasTheme.textColor}
+        fontSize={14}
+        fontFamily="sans-serif"
+        fontStyle="normal"
+        fill={canvasTheme.nodeBorder}
+        opacity={0.4}
+        rotation={-90}
+        offsetX={height / 2}
+        offsetY={8}
       />
 
       {/* Render Pins and Labels */}
@@ -119,11 +122,12 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
         if (pin.name === 'VCC' || pin.name === 'GND') {
           const isVcc = pin.name === 'VCC';
           const pinY = isVcc ? -20 : height + 20;
+          const pinX = width / 2;
           return (
             <Group key={pin.id}>
               {/* Pin Extension Leg */}
               <Path
-                data={`M 20 ${isVcc ? 0 : height} L 20 ${pinY}`}
+                data={`M ${pinX} ${isVcc ? 0 : height} L ${pinX} ${pinY}`}
                 stroke={canvasTheme.nodeBorder}
                 strokeWidth={2}
               />
@@ -131,7 +135,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
               <Pin
                 id={pin.id}
                 nodeId={node.id}
-                x={20}
+                x={pinX}
                 y={pinY}
                 type={pin.type}
               />
@@ -142,11 +146,12 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
                 return (
                   <Text
                     text={String(safePin)}
-                    x={26}
+                    x={pinX + 6}
                     y={isVcc ? pinY + 6 : height + 6}
                     width={20}
                     align="left"
-                    fontSize={10}
+                    fontSize={9}
+                    fontFamily="sans-serif"
                     fill={canvasTheme.nodeBorder}
                     opacity={1}
                   />
@@ -155,12 +160,13 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
               {/* Logical Pin Name Label (e.g. VCC, GND) */}
               <Text
                 text={pin.name}
-                x={-10}
+                x={pinX - 30}
                 y={isVcc ? 4 : height - 16}
                 width={60}
                 align="center"
-                fontSize={11}
-                fontStyle="bold"
+                fontSize={10}
+                fontFamily="sans-serif"
+                fontStyle="normal"
                 fill={canvasTheme.textColor}
                 opacity={1}
               />
@@ -177,7 +183,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
            row = collection.findIndex(p => p.id === pin.id) + 1;
         }
 
-        const spacing = 40;
+        const spacing = 20;
         let legX = 0, legY = 0, toX = 0, toY = 0;
         let pinX = 0, pinY = 0;
         let numX = 0, numY = 0;
@@ -185,31 +191,31 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
         let labelAlign: 'left' | 'right' | 'center' = 'left';
 
         if (side === 'left') {
-          legX = 0; legY = row * spacing;
+          legX = 0; legY = (row + 1) * spacing;
           toX = -20; toY = legY;
           pinX = -20; pinY = legY;
-          numX = -20; numY = legY - 14;
-          labelX = 8; labelY = legY - 5;
+          numX = -20; numY = legY - 12;
+          labelX = 5; labelY = legY - 6;
           labelAlign = 'left';
         } else if (side === 'right') {
-          legX = width; legY = row * spacing;
+          legX = width; legY = (row + 1) * spacing;
           toX = width + 20; toY = legY;
           pinX = width + 20; pinY = legY;
-          numX = width; numY = legY - 14;
-          labelX = width - 68; labelY = legY - 5;
+          numX = width; numY = legY - 12;
+          labelX = width - 65; labelY = legY - 6;
           labelAlign = 'right';
         } else if (side === 'top') {
           legX = row * spacing; legY = 0;
           toX = legX; toY = -20;
           pinX = legX; pinY = -20;
-          numX = legX + 6; numY = -14;
+          numX = legX + 6; numY = -12;
           labelX = legX - 30; labelY = 4;
           labelAlign = 'center';
         } else if (side === 'bottom') {
           legX = row * spacing; legY = height;
           toX = legX; toY = height + 20;
           pinX = legX; pinY = height + 20;
-          numX = legX + 6; numY = height + 6;
+          numX = legX + 6; numY = height + 4;
           labelX = legX - 30; labelY = height - 16;
           labelAlign = 'center';
         }
@@ -241,7 +247,8 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
                   y={numY}
                   width={20}
                   align={side === 'top' || side === 'bottom' ? 'left' : 'center'}
-                  fontSize={10}
+                  fontSize={9}
+                  fontFamily="sans-serif"
                   fill={canvasTheme.nodeBorder}
                   opacity={1}
                 />
@@ -256,8 +263,9 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
                 width={60}
                 wrap="none"
                 align={labelAlign}
-                fontSize={11}
-                fontStyle="bold"
+                fontSize={10}
+                fontFamily="sans-serif"
+                fontStyle="normal"
                 fill={canvasTheme.textColor}
                 opacity={1}
               />
