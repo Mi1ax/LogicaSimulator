@@ -67,10 +67,17 @@ const CATEGORIES: ToolCategory[] = [
         ]
       },
       {
+        name: 'Arithmetic & ALU',
+        items: [
+          { type: '74LS283', icon: <Cpu size={18} /> },
+        ]
+      },
+      {
         name: 'Registers & Buffers',
         items: [
           { type: '74LS241', icon: <Cpu size={18} /> },
           { type: '74LS244', icon: <Cpu size={18} /> },
+          { type: '74LS245', icon: <Cpu size={18} /> },
           { type: '74LS273', icon: <Cpu size={18} /> },
         ]
       },
@@ -107,6 +114,7 @@ export const Toolbox: React.FC = () => {
     'Integrated Circuits/Logic Gates': false,
     'Integrated Circuits/Decoders & Multiplexers': true,
     'Integrated Circuits/Counters & Timers': true,
+    'Integrated Circuits/Arithmetic & ALU': true,
     'Integrated Circuits/Registers & Buffers': true,
     'Integrated Circuits/Memory': true,
   });

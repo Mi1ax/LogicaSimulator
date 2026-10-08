@@ -789,3 +789,109 @@ export const IC74LS244: NodeDefinition = {
     return outs;
   }
 };
+
+export const IC_74LS283: NodeDefinition = {
+  type: '74LS283',
+  label: '74LS283 (4-bit Adder)',
+  tags: ["adder", "alu", "math"],
+  renderAs: 'DIP',
+  numInputs: 11,
+  numOutputs: 5,
+  customPins: [
+    { name: 'S2', type: 'output', pinNumber: 1, schematicSide: 'right', schematicRow: 2 },
+    { name: 'B2', type: 'input', pinNumber: 2, schematicSide: 'left', schematicRow: 4 },
+    { name: 'A2', type: 'input', pinNumber: 3, schematicSide: 'left', schematicRow: 3 },
+    { name: 'S1', type: 'output', pinNumber: 4, schematicSide: 'right', schematicRow: 1 },
+    { name: 'A1', type: 'input', pinNumber: 5, schematicSide: 'left', schematicRow: 1 },
+    { name: 'B1', type: 'input', pinNumber: 6, schematicSide: 'left', schematicRow: 2 },
+    { name: 'C0', type: 'input', pinNumber: 7, schematicSide: 'bottom', schematicRow: 1 },
+    { name: 'GND', type: 'input', pinNumber: 8 },
+    { name: 'C4', type: 'output', pinNumber: 9, schematicSide: 'right', schematicRow: 5 },
+    { name: 'S4', type: 'output', pinNumber: 10, schematicSide: 'right', schematicRow: 4 },
+    { name: 'B4', type: 'input', pinNumber: 11, schematicSide: 'left', schematicRow: 8 },
+    { name: 'A4', type: 'input', pinNumber: 12, schematicSide: 'left', schematicRow: 7 },
+    { name: 'S3', type: 'output', pinNumber: 13, schematicSide: 'right', schematicRow: 3 },
+    { name: 'B3', type: 'input', pinNumber: 14, schematicSide: 'left', schematicRow: 6 },
+    { name: 'A3', type: 'input', pinNumber: 15, schematicSide: 'left', schematicRow: 5 },
+    { name: 'VCC', type: 'input', pinNumber: 16 },
+  ],
+  evaluate: (inputs) => {
+    const getVal = (v: import('../../models/types').Signal) => v === 1 ? 1 : 0;
+    const A = [getVal(inputs[2]), getVal(inputs[1]), getVal(inputs[9]), getVal(inputs[7])];
+    const B = [getVal(inputs[3]), getVal(inputs[0]), getVal(inputs[8]), getVal(inputs[6])];
+    const C0 = getVal(inputs[4]);
+    
+    const valA = A[0] | (A[1] << 1) | (A[2] << 2) | (A[3] << 3);
+    const valB = B[0] | (B[1] << 1) | (B[2] << 2) | (B[3] << 3);
+    const sum = valA + valB + C0;
+    
+    const S1 = ((sum >> 0) & 1) as import('../../models/types').Signal;
+    const S2 = ((sum >> 1) & 1) as import('../../models/types').Signal;
+    const S3 = ((sum >> 2) & 1) as import('../../models/types').Signal;
+    const S4 = ((sum >> 3) & 1) as import('../../models/types').Signal;
+    const C4 = ((sum >> 4) & 1) as import('../../models/types').Signal;
+    
+    return [S2, S1, C4, S4, S3];
+  }
+};
+
+export const IC_74LS245: NodeDefinition = {
+  type: '74LS245',
+  label: '74LS245 (Octal Bus Transceiver)',
+  tags: ["buffer", "bus", "transceiver"],
+  renderAs: 'DIP',
+  numInputs: 20,
+  numOutputs: 16,
+  customPins: [
+    { name: 'DIR', type: 'input', pinNumber: 1, schematicSide: 'bottom', schematicRow: 1 },
+    { name: 'A1', type: 'bidir', pinNumber: 2, schematicSide: 'left', schematicRow: 1 },
+    { name: 'A2', type: 'bidir', pinNumber: 3, schematicSide: 'left', schematicRow: 2 },
+    { name: 'A3', type: 'bidir', pinNumber: 4, schematicSide: 'left', schematicRow: 3 },
+    { name: 'A4', type: 'bidir', pinNumber: 5, schematicSide: 'left', schematicRow: 4 },
+    { name: 'A5', type: 'bidir', pinNumber: 6, schematicSide: 'left', schematicRow: 5 },
+    { name: 'A6', type: 'bidir', pinNumber: 7, schematicSide: 'left', schematicRow: 6 },
+    { name: 'A7', type: 'bidir', pinNumber: 8, schematicSide: 'left', schematicRow: 7 },
+    { name: 'A8', type: 'bidir', pinNumber: 9, schematicSide: 'left', schematicRow: 8 },
+    { name: 'GND', type: 'input', pinNumber: 10 },
+    { name: 'B8', type: 'bidir', pinNumber: 11, schematicSide: 'right', schematicRow: 8 },
+    { name: 'B7', type: 'bidir', pinNumber: 12, schematicSide: 'right', schematicRow: 7 },
+    { name: 'B6', type: 'bidir', pinNumber: 13, schematicSide: 'right', schematicRow: 6 },
+    { name: 'B5', type: 'bidir', pinNumber: 14, schematicSide: 'right', schematicRow: 5 },
+    { name: 'B4', type: 'bidir', pinNumber: 15, schematicSide: 'right', schematicRow: 4 },
+    { name: 'B3', type: 'bidir', pinNumber: 16, schematicSide: 'right', schematicRow: 3 },
+    { name: 'B2', type: 'bidir', pinNumber: 17, schematicSide: 'right', schematicRow: 2 },
+    { name: 'B1', type: 'bidir', pinNumber: 18, schematicSide: 'right', schematicRow: 1 },
+    { name: 'OE\'', type: 'input', pinNumber: 19, schematicSide: 'bottom', schematicRow: 2 },
+    { name: 'VCC', type: 'input', pinNumber: 20 },
+  ],
+  evaluate: (inputs) => {
+    const DIR = inputs[0] === 0 ? 0 : 1;
+    const OE_n = inputs[18] === 0 ? 0 : 1;
+    
+    const outs = Array(16).fill(undefined) as import('../../models/types').Signal[];
+    
+    if (OE_n === 0) {
+      if (DIR === 1) {
+        outs[15] = inputs[1];
+        outs[14] = inputs[2];
+        outs[13] = inputs[3];
+        outs[12] = inputs[4];
+        outs[11] = inputs[5];
+        outs[10] = inputs[6];
+        outs[9]  = inputs[7];
+        outs[8]  = inputs[8];
+      } else {
+        outs[0] = inputs[17];
+        outs[1] = inputs[16];
+        outs[2] = inputs[15];
+        outs[3] = inputs[14];
+        outs[4] = inputs[13];
+        outs[5] = inputs[12];
+        outs[6] = inputs[11];
+        outs[7] = inputs[10];
+      }
+    }
+    
+    return outs;
+  }
+};
