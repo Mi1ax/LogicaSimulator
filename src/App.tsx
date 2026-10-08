@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Topbar } from './ui/components/Topbar';
 import { Bottombar } from './ui/components/Bottombar';
 import { Toolbox } from './ui/components/Toolbox';
@@ -13,7 +13,7 @@ function App() {
   const theme = useSimulatorStore(state => state.theme);
   const simRunning = useSimulatorStore(state => state.simRunning);
   const simSpeed = useSimulatorStore(state => state.simSpeed);
-  const stepSimulation = useSimulatorStore(state => state.stepSimulation);
+  const stepSimulationBatch = useSimulatorStore(state => state.stepSimulationBatch);
   const openRomEditors = useSimulatorStore(state => state.openRomEditors);
   const toggleRomEditor = useSimulatorStore(state => state.toggleRomEditor);
 
@@ -27,12 +27,44 @@ function App() {
   }, [theme]);
 
   // Simulation Loop
+  const lastSimTimeRef = useRef<number>(0);
+  const accumulatedTimeRef = useRef<number>(0);
+
   useEffect(() => {
     if (!simRunning) return;
-    const intervalMs = 1000 / simSpeed;
-    const id = setInterval(stepSimulation, intervalMs);
-    return () => clearInterval(id);
-  }, [simRunning, simSpeed, stepSimulation]);
+
+    let reqId: number;
+
+    const loop = (timestamp: number) => {
+      if (lastSimTimeRef.current === 0) {
+        lastSimTimeRef.current = timestamp;
+      }
+
+      const deltaTime = timestamp - lastSimTimeRef.current;
+      lastSimTimeRef.current = timestamp;
+
+      // Cap deltaTime at 100ms to avoid huge lag spikes if tab is suspended
+      accumulatedTimeRef.current += Math.min(deltaTime, 100);
+
+      const msPerTick = 1000 / simSpeed;
+      
+      if (accumulatedTimeRef.current >= msPerTick) {
+        const ticksToRun = Math.floor(accumulatedTimeRef.current / msPerTick);
+        accumulatedTimeRef.current -= ticksToRun * msPerTick;
+        stepSimulationBatch(ticksToRun);
+      }
+
+      reqId = requestAnimationFrame(loop);
+    };
+
+    reqId = requestAnimationFrame(loop);
+
+    return () => {
+      cancelAnimationFrame(reqId);
+      lastSimTimeRef.current = 0;
+      accumulatedTimeRef.current = 0;
+    };
+  }, [simRunning, simSpeed, stepSimulationBatch]);
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-slate-100 font-sans transition-colors relative">

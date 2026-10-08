@@ -122,7 +122,7 @@ export const ClockNode: NodeDefinition = {
     { type: 'input', name: 'EN', pinNumber: 4 }, // Acting like RESET on a 555
     { type: 'input', name: 'VCC', pinNumber: 8 },
   ],
-  defaultProperties: { interval: 10, label: '555 CLK' },
+  defaultProperties: { highTicks: 5, lowTicks: 5, label: '555 CLK' },
   evaluate: (inputs, props, tickCount) => {
     // Legacy nodes have 1 input (EN). New nodes have 3 (GND, EN, VCC).
     const isLegacy = inputs.length === 1;
@@ -132,8 +132,15 @@ export const ClockNode: NodeDefinition = {
       return [0];
     }
 
-    const interval = props?.interval ?? 10;
-    const val = Math.floor((tickCount ?? 0) / interval) % 2 === 0 ? 0 : 1;
+    const highTicks = props?.highTicks ?? props?.interval ?? 5; // fallback to interval for backwards compatibility
+    const lowTicks = props?.lowTicks ?? props?.interval ?? 5;
+    
+    const cycleLength = highTicks + lowTicks;
+    if (cycleLength <= 0) return [0]; // safeguard
+
+    const currentTick = (tickCount ?? 0) % cycleLength;
+    const val = currentTick < highTicks ? 1 : 0;
+    
     return [val];
   }
 };

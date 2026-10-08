@@ -59,13 +59,20 @@ export const Bottombar: React.FC = () => {
       </div>
 
       <div className="absolute right-6 flex items-center gap-2 px-2" title={`Speed: ${simSpeed} Hz`}>
-        <span className="text-xs font-medium text-gray-500 dark:text-slate-400 w-8 text-right">
-          {simSpeed}Hz
-        </span>
+        <input
+          type="number"
+          min="1"
+          max="100000"
+          value={simSpeed}
+          onChange={(e) => setSimSpeed(Number(e.target.value) || 1)}
+          className="text-xs font-medium text-gray-700 dark:text-slate-300 w-16 text-right bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded px-1"
+        />
+        <span className="text-xs font-medium text-gray-500 dark:text-slate-400">Hz</span>
         <input
           type="range"
           min="1"
-          max="50"
+          max="10000"
+          step="1"
           value={simSpeed}
           onChange={(e) => setSimSpeed(Number(e.target.value))}
           className="w-24 h-1 bg-gray-300 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
