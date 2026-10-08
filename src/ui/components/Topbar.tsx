@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import {  Trash2, Sun, Moon, Settings, Save, FolderOpen, Library , Menu as MenuIcon, ChevronRight } from 'lucide-react';
+import { NumberInput } from './NumberInput';
 
 export const Topbar: React.FC = () => {
   const [showMenu, setShowMenu] = useState(false);
@@ -309,21 +310,21 @@ export const Topbar: React.FC = () => {
                           <div className="flex gap-2">
                             <div className="flex-1">
                               <label className="block text-[10px] text-gray-500 dark:text-slate-400 mb-1">Width (mm)</label>
-                              <input
-                                type="number"
-                                min="10" max="1000"
+                              <NumberInput
+                                min={10} max={1000}
                                 value={settings.boardWidthMm}
-                                onChange={(e) => updateSettings({ boardWidthMm: Number(e.target.value) || 50 })}
+                                onChangeValue={(val) => updateSettings({ boardWidthMm: val })}
+                                fallbackValue={50}
                                 className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
                               />
                             </div>
                             <div className="flex-1">
                               <label className="block text-[10px] text-gray-500 dark:text-slate-400 mb-1">Height (mm)</label>
-                              <input
-                                type="number"
-                                min="10" max="1000"
+                              <NumberInput
+                                min={10} max={1000}
                                 value={settings.boardHeightMm}
-                                onChange={(e) => updateSettings({ boardHeightMm: Number(e.target.value) || 70 })}
+                                onChangeValue={(val) => updateSettings({ boardHeightMm: val })}
+                                fallbackValue={70}
                                 className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
                               />
                             </div>

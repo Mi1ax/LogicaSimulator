@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, Pause, StepForward, Square } from 'lucide-react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 
@@ -10,6 +10,11 @@ export const Bottombar: React.FC = () => {
   const simSpeed = useSimulatorStore(state => state.simSpeed);
   const setSimSpeed = useSimulatorStore(state => state.setSimSpeed);
   const simState = useSimulatorStore(state => state.simState);
+
+  const [localSpeed, setLocalSpeed] = useState(simSpeed.toString());
+  useEffect(() => {
+    setLocalSpeed(simSpeed.toString());
+  }, [simSpeed]);
 
   return (
     <div className="h-12 bg-white dark:bg-slate-800 border-t border-gray-300 dark:border-slate-700 flex items-center justify-center px-4 shadow-[0_-1px_2px_rgba(0,0,0,0.05)] z-20 relative transition-colors">
@@ -63,8 +68,20 @@ export const Bottombar: React.FC = () => {
           type="number"
           min="1"
           max="100000"
-          value={simSpeed}
-          onChange={(e) => setSimSpeed(Number(e.target.value) || 1)}
+          value={localSpeed}
+          onChange={(e) => {
+            setLocalSpeed(e.target.value);
+            const num = parseInt(e.target.value, 10);
+            if (!isNaN(num) && num >= 1) {
+              setSimSpeed(num);
+            }
+          }}
+          onBlur={() => {
+            if (!localSpeed || isNaN(parseInt(localSpeed, 10)) || parseInt(localSpeed, 10) < 1) {
+              setLocalSpeed('1');
+              setSimSpeed(1);
+            }
+          }}
           className="text-xs font-medium text-gray-700 dark:text-slate-300 w-16 text-right bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded px-1"
         />
         <span className="text-xs font-medium text-gray-500 dark:text-slate-400">Hz</span>

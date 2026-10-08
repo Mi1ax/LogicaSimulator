@@ -91,7 +91,14 @@ export const Toolbox: React.FC = () => {
   const nodes = useSimulatorStore((state) => state.nodes);
 
   const [search, setSearch] = useState('');
-  
+  const [recentNodes, setRecentNodes] = useState<NodeType[]>(() => {
+    try {
+      const stored = localStorage.getItem('logica-recent-nodes');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
   // Track expanded state for categories and subcategories
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({
     'Power & I/O': true,
@@ -126,6 +133,12 @@ export const Toolbox: React.FC = () => {
 
   const handleAddNode = (type: NodeType) => {
     startPlacingNode(type);
+    setRecentNodes(prev => {
+      const filtered = prev.filter(t => t !== type);
+      const next = [type, ...filtered].slice(0, 5);
+      localStorage.setItem('logica-recent-nodes', JSON.stringify(next));
+      return next;
+    });
   };
 
   // Helper to filter items based on search and tags
@@ -286,6 +299,29 @@ export const Toolbox: React.FC = () => {
       </div>
 
       <div className="flex flex-col p-4 gap-4 overflow-y-auto flex-1">
+        {!search && recentNodes.length > 0 && (
+          <div className="flex flex-col gap-1 mb-2">
+            <h3 className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-1 ml-1">
+              Recently Used
+            </h3>
+            <div className="flex flex-col gap-2">
+              {renderItems(recentNodes.map(type => {
+                let icon: React.ReactNode = <Cpu size={16} />;
+                const findIcon = (cats: ToolCategory[]) => {
+                  for (const cat of cats) {
+                    if (cat.items) {
+                      const item = cat.items.find(i => i.type === type);
+                      if (item) icon = item.icon;
+                    }
+                    if (cat.subcategories) findIcon(cat.subcategories);
+                  }
+                };
+                findIcon(CATEGORIES);
+                return { type, icon };
+              }))}
+            </div>
+          </div>
+        )}
         {renderedContent.length > 0 ? (
           renderedContent
         ) : (
