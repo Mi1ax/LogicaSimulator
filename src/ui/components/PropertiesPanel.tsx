@@ -158,23 +158,41 @@ export const PropertiesPanel: React.FC = () => {
 
         {/* Clock Frequency */}
         {isClock && (
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
-              Toggle Interval (ticks)
-            </label>
-            <input
-              type="number"
-              min={1}
-              max={100}
-              className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
-              value={node.properties?.interval || 10}
-              onChange={(e) => {
-                const count = parseInt(e.target.value, 10);
-                if (!isNaN(count) && count >= 1) {
-                  updateNodeProperties(node.id, { interval: count });
-                }
-              }}
-            />
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+                High Ticks
+              </label>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
+                value={node.properties?.highTicks ?? node.properties?.interval ?? 5}
+                onChange={(e) => {
+                  const count = parseInt(e.target.value, 10);
+                  if (!isNaN(count) && count >= 1) {
+                    updateNodeProperties(node.id, { highTicks: count });
+                  }
+                }}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+                Low Ticks
+              </label>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
+                value={node.properties?.lowTicks ?? node.properties?.interval ?? 5}
+                onChange={(e) => {
+                  const count = parseInt(e.target.value, 10);
+                  if (!isNaN(count) && count >= 1) {
+                    updateNodeProperties(node.id, { lowTicks: count });
+                  }
+                }}
+              />
+            </div>
           </div>
         )}
 

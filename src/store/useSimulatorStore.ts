@@ -96,6 +96,7 @@ interface SimulatorState {
   // Simulation Controls
   resetSimulation: () => void;
   stepSimulation: () => void;
+  stepSimulationBatch: (ticks: number) => void;
   setSimRunning: (running: boolean) => void;
   setSimSpeed: (hz: number) => void;
   toggleInputNode: (nodeId: string) => void;
@@ -336,6 +337,14 @@ export const useSimulatorStore = create<SimulatorState>()(
   stepSimulation: () => set((state) => ({
     simState: computeNextState(state.nodes, state.wires, state.simState)
   })),
+
+  stepSimulationBatch: (ticks) => set((state) => {
+    let nextSimState = state.simState;
+    for (let i = 0; i < ticks; i++) {
+      nextSimState = computeNextState(state.nodes, state.wires, nextSimState);
+    }
+    return { simState: nextSimState };
+  }),
 
   setSimRunning: (running) => set({ simRunning: running }),
   setSimSpeed: (hz) => set({ simSpeed: hz }),
