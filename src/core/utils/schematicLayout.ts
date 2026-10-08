@@ -30,8 +30,8 @@ export const getSchematicDimensions = (node: LogicNode) => {
       maxRow = Math.max(visibleInputs.length, visibleOutputs.length);
     }
     
-    // Stretch the chip view (width 200 instead of 160)
-    return { width: 200, height: (maxRow + 1) * 40 };
+    // Standard chip dimensions with 2 grid dots padding top and bottom
+    return { width: 120, height: (maxRow + 3) * 20 };
   }
 
   if (node.type === "VCC" || node.type === "GND") return { width: 40, height: 40 };
@@ -150,9 +150,9 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
     if (pin) {
       let rawX = 0, rawY = 0, rawNx = 0, rawNy = 0;
       if (pin.name === 'VCC') {
-        rawX = 20; rawY = -20; rawNx = 0; rawNy = -1;
+        rawX = width / 2; rawY = -20; rawNx = 0; rawNy = -1;
       } else if (pin.name === 'GND') {
-        rawX = 20; rawY = height + 20; rawNx = 0; rawNy = 1;
+        rawX = width / 2; rawY = height + 20; rawNx = 0; rawNy = 1;
       } else {
         const pinDef = def?.customPins?.find(cp => cp.name === pin.name);
         
@@ -170,16 +170,16 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
            row = index + 1;
         }
 
-        const spacing = 40;
+        const spacing = 20;
         const legLength = 20;
 
         if (side === 'left') {
           rawX = -legLength;
-          rawY = row * spacing;
+          rawY = (row + 1) * spacing;
           rawNx = -1; rawNy = 0;
         } else if (side === 'right') {
           rawX = width + legLength;
-          rawY = row * spacing;
+          rawY = (row + 1) * spacing;
           rawNx = 1; rawNy = 0;
         } else if (side === 'top') {
           rawX = row * spacing;
