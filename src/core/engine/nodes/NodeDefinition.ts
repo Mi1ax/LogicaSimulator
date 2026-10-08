@@ -14,6 +14,7 @@ export interface NodeDefinition {
   numInputs: number; // Ignored if customPins is provided
   numOutputs: number; // Ignored if customPins is provided
   defaultProperties?: Record<string, any>;
+  tags?: string[];
   renderAs?: 'GATE' | 'DIP';
   customPins?: PinDefinition[];
   /**
