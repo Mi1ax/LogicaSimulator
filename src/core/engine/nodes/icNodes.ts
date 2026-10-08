@@ -4,6 +4,7 @@ import { Signal } from '../../models/types';
 export const IC74LS08: NodeDefinition = {
   type: '74LS08',
   label: '74LS08 (Quad AND)',
+  tags: ["gate","and","logic"],
   renderAs: 'DIP',
   numInputs: 10,
   numOutputs: 4,
@@ -50,6 +51,7 @@ export const IC74LS08: NodeDefinition = {
 export const IC74LS161: NodeDefinition = {
   type: '74LS161',
   label: '74LS161 (4-bit Counter)',
+  tags: ["counter","timer","sync"],
   renderAs: 'DIP',
   numInputs: 11,
   numOutputs: 5,
@@ -126,6 +128,7 @@ export const IC74LS161: NodeDefinition = {
 export const IC74LS191: NodeDefinition = {
   type: '74LS191',
   label: '74LS191 (Up/Down Counter)',
+  tags: ["counter","up","down","timer"],
   renderAs: 'DIP',
   numInputs: 10,
   numOutputs: 6,
@@ -209,6 +212,7 @@ export const IC74LS191: NodeDefinition = {
 export const IC74LS273: NodeDefinition = {
   type: '74LS273',
   label: '74LS273 (Octal D Flip-Flop)',
+  tags: ["register","flip-flop","dff","memory"],
   renderAs: 'DIP',
   numInputs: 12,
   numOutputs: 8,
@@ -283,6 +287,7 @@ export const IC74LS273: NodeDefinition = {
 export const ROM_27C256: NodeDefinition = {
   type: '27C256',
   label: '27C256 (32K x 8 EPROM)',
+  tags: ["rom","memory","eprom"],
   renderAs: 'DIP',
   numInputs: 20,
   numOutputs: 8,
@@ -369,6 +374,7 @@ export const ROM_27C256: NodeDefinition = {
 export const SRAM_62256: NodeDefinition = {
   type: '62256',
   label: '62256 (32K x 8 SRAM)',
+  tags: ["ram","memory","sram"],
   renderAs: 'DIP',
   numInputs: 28, // 15 addr + 8 data + 3 ctrl + 2 pwr
   numOutputs: 8, // 8 data
@@ -472,6 +478,7 @@ export const SRAM_62256: NodeDefinition = {
 export const IC74LS47: NodeDefinition = {
   type: '74LS47',
   label: '74LS47 (BCD to 7-Segment)',
+  tags: ["decoder","7seg","display"],
   numInputs: 0,
   numOutputs: 0,
   renderAs: 'DIP',
@@ -550,6 +557,7 @@ export const IC74LS47: NodeDefinition = {
 export const IC74LS154: NodeDefinition = {
   type: '74LS154',
   label: '74LS154 (4-to-16 Decoder)',
+  tags: ["decoder","demux","multiplexer"],
   numInputs: 0,
   numOutputs: 0,
   renderAs: 'DIP',
@@ -606,6 +614,7 @@ export const IC74LS154: NodeDefinition = {
 export const IC74LS138: NodeDefinition = {
   type: '74LS138',
   label: '74LS138 (3-to-8 Decoder)',
+  tags: ["decoder","demux","multiplexer"],
   numInputs: 0,
   numOutputs: 0,
   renderAs: 'DIP',
@@ -655,6 +664,7 @@ export const IC74LS138: NodeDefinition = {
 export const IC74LS241: NodeDefinition = {
   type: '74LS241',
   label: '74LS241 (Octal Buffer/Line Driver)',
+  tags: ["buffer","driver","tri-state"],
   numInputs: 0,
   numOutputs: 0,
   renderAs: 'DIP',
@@ -719,6 +729,7 @@ export const IC74LS241: NodeDefinition = {
 export const IC74LS244: NodeDefinition = {
   type: '74LS244',
   label: '74LS244 (Octal Buffer/Line Driver)',
+  tags: ["buffer","driver","tri-state"],
   numInputs: 0,
   numOutputs: 0,
   renderAs: 'DIP',
