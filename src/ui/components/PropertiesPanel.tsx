@@ -2,6 +2,7 @@ import React from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { getNodeDefinition } from '../../core/engine/nodes';
 import { getSafePinNumber } from '../../core/utils/layoutUtils';
+import { NumberInput } from './NumberInput';
 
 export const PropertiesPanel: React.FC = () => {
   const selection = useSimulatorStore(state => state.selection);
@@ -118,18 +119,13 @@ export const PropertiesPanel: React.FC = () => {
             <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
               Number of Inputs
             </label>
-            <input
-              type="number"
+            <NumberInput
               min={2}
               max={8}
               className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
               value={node.inputs.length}
-              onChange={(e) => {
-                const count = parseInt(e.target.value, 10);
-                if (!isNaN(count) && count >= 2 && count <= 8) {
-                  setNodeInputCount(node.id, count);
-                }
-              }}
+              onChangeValue={(val) => setNodeInputCount(node.id, val)}
+              fallbackValue={node.inputs.length}
             />
           </div>
         )}
@@ -140,18 +136,13 @@ export const PropertiesPanel: React.FC = () => {
             <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
               Number of Outputs (Switches)
             </label>
-            <input
-              type="number"
+            <NumberInput
               min={1}
               max={12}
               className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
               value={node.outputs.length}
-              onChange={(e) => {
-                const count = parseInt(e.target.value, 10);
-                if (!isNaN(count) && count >= 1 && count <= 12) {
-                  setNodeOutputCount(node.id, count);
-                }
-              }}
+              onChangeValue={(val) => setNodeOutputCount(node.id, val)}
+              fallbackValue={node.outputs.length}
             />
           </div>
         )}
@@ -163,34 +154,24 @@ export const PropertiesPanel: React.FC = () => {
               <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
                 High Ticks
               </label>
-              <input
-                type="number"
+              <NumberInput
                 min={1}
                 className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
                 value={node.properties?.highTicks ?? node.properties?.interval ?? 5}
-                onChange={(e) => {
-                  const count = parseInt(e.target.value, 10);
-                  if (!isNaN(count) && count >= 1) {
-                    updateNodeProperties(node.id, { highTicks: count });
-                  }
-                }}
+                onChangeValue={(val) => updateNodeProperties(node.id, { highTicks: val })}
+                fallbackValue={node.properties?.highTicks ?? node.properties?.interval ?? 5}
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
                 Low Ticks
               </label>
-              <input
-                type="number"
+              <NumberInput
                 min={1}
                 className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
                 value={node.properties?.lowTicks ?? node.properties?.interval ?? 5}
-                onChange={(e) => {
-                  const count = parseInt(e.target.value, 10);
-                  if (!isNaN(count) && count >= 1) {
-                    updateNodeProperties(node.id, { lowTicks: count });
-                  }
-                }}
+                onChangeValue={(val) => updateNodeProperties(node.id, { lowTicks: val })}
+                fallbackValue={node.properties?.lowTicks ?? node.properties?.interval ?? 5}
               />
             </div>
           </div>
