@@ -27,17 +27,17 @@ export const IC74LS08: NodeDefinition = {
   evaluate: (inputs): Signal[] => {
     // Inputs array order matches the 'input' type pins in customPins:
     // 0: 1A, 1: 1B, 2: 2A, 3: 2B, 4: GND, 5: 4A, 6: 4B, 7: 3A, 8: 3B, 9: VCC
-    
+
     // We ignore VCC and GND for pure logic simulation right now, but they are physically required for 74LS series
-    
+
     // Output array order matches the 'output' type pins in customPins:
     // 0: 1Y, 1: 2Y, 2: 4Y, 3: 3Y
-    
+
     const out1Y = (inputs[0] === 1 && inputs[1] === 1) ? 1 : 0;
     const out2Y = (inputs[2] === 1 && inputs[3] === 1) ? 1 : 0;
     const out4Y = (inputs[5] === 1 && inputs[6] === 1) ? 1 : 0;
     const out3Y = (inputs[7] === 1 && inputs[8] === 1) ? 1 : 0;
-    
+
     // If inputs to a specific gate are missing/floating, output is floating
     const res1 = (inputs[0] === undefined || inputs[1] === undefined) ? undefined : out1Y;
     const res2 = (inputs[2] === undefined || inputs[3] === undefined) ? undefined : out2Y;
@@ -77,7 +77,7 @@ export const IC74LS161: NodeDefinition = {
     // Inputs:
     // 0: ~CLR, 1: CLK, 2: A, 3: B, 4: C, 5: D, 6: ENP, 7: GND, 8: ~LOAD, 9: ENT, 10: VCC
     const [clrN, clk, a, b, c, d, enp, , loadN, ent] = inputs;
-    
+
     const st = internal;
     if (st.counter === undefined) st.counter = 0;
     if (st.lastClk === undefined) st.lastClk = 0;
@@ -87,38 +87,38 @@ export const IC74LS161: NodeDefinition = {
     const safeLoadN = loadN ?? 1; // Default 1: Don't load
     const safeEnp = enp ?? 1;     // Default 1: Enable counting
     const safeEnt = ent ?? 1;     // Default 1: Enable counting
-    
+
     // Async clear (active low)
     if (safeClrN === 0) {
       st.counter = 0;
-    } 
+    }
     // Synchronous operations on rising edge
     else if (clk === 1 && st.lastClk === 0) {
       // Synchronous load (active low)
       if (safeLoadN === 0) {
         // Parallel data defaults to 0 if floating
         st.counter = ((d === 1 ? 1 : 0) << 3) | ((c === 1 ? 1 : 0) << 2) | ((b === 1 ? 1 : 0) << 1) | ((a === 1 ? 1 : 0));
-      } 
+      }
       // Count enable (both ENP and ENT must be high to count)
       else if (safeEnp === 1 && safeEnt === 1) {
         st.counter = (st.counter + 1) % 16;
       }
     }
-    
+
     st.lastClk = clk || 0;
-    
+
     // Outputs:
     // 0: QD, 1: QC, 2: QB, 3: QA, 4: RCO
     const qa = (st.counter & 1) ? 1 : 0;
     const qb = (st.counter & 2) ? 1 : 0;
     const qc = (st.counter & 4) ? 1 : 0;
     const qd = (st.counter & 8) ? 1 : 0;
-    
+
     // Ripple Carry Output (high when counter is 15 and ENT is high)
     const rco = (st.counter === 15 && safeEnt === 1) ? 1 : 0;
-    
-    // Output floating state if VCC/GND are not connected properly? 
-    // In many software sims we ignore power pins unless strict. 
+
+    // Output floating state if VCC/GND are not connected properly?
+    // In many software sims we ignore power pins unless strict.
     // Here we'll just output the logic state unconditionally for ease of use.
     return [qd, qc, qb, qa, rco];
   }
@@ -185,7 +185,7 @@ export const IC74LS191: NodeDefinition = {
            }
        }
     }
-    
+
     if (clk === 0 || clk === 1) {
         st.lastClk = clk;
     }
@@ -217,42 +217,42 @@ export const IC74LS273: NodeDefinition = {
   numInputs: 12,
   numOutputs: 8,
   customPins: [
-    { name: '~MR', type: 'input', pinNumber: 1 },
-    { name: 'Q0', type: 'output', pinNumber: 2 },
-    { name: 'D0', type: 'input', pinNumber: 3 },
-    { name: 'D1', type: 'input', pinNumber: 4 },
-    { name: 'Q1', type: 'output', pinNumber: 5 },
-    { name: 'Q2', type: 'output', pinNumber: 6 },
-    { name: 'D2', type: 'input', pinNumber: 7 },
-    { name: 'D3', type: 'input', pinNumber: 8 },
-    { name: 'Q3', type: 'output', pinNumber: 9 },
+    { name: '~MR', type: 'input', pinNumber: 1, schematicSide: 'left', schematicRow: 11 },
+    { name: 'Q0', type: 'output', pinNumber: 2, schematicSide: 'right', schematicRow: 1 },
+    { name: 'D0', type: 'input', pinNumber: 3, schematicSide: 'left', schematicRow: 1 },
+    { name: 'D1', type: 'input', pinNumber: 4, schematicSide: 'left', schematicRow: 2 },
+    { name: 'Q1', type: 'output', pinNumber: 5, schematicSide: 'right', schematicRow: 2 },
+    { name: 'Q2', type: 'output', pinNumber: 6, schematicSide: 'right', schematicRow: 3 },
+    { name: 'D2', type: 'input', pinNumber: 7, schematicSide: 'left', schematicRow: 3 },
+    { name: 'D3', type: 'input', pinNumber: 8, schematicSide: 'left', schematicRow: 4 },
+    { name: 'Q3', type: 'output', pinNumber: 9, schematicSide: 'right', schematicRow: 4 },
     { name: 'GND', type: 'input', pinNumber: 10 },
-    { name: 'CP', type: 'input', pinNumber: 11 },
-    { name: 'Q4', type: 'output', pinNumber: 12 },
-    { name: 'D4', type: 'input', pinNumber: 13 },
-    { name: 'D5', type: 'input', pinNumber: 14 },
-    { name: 'Q5', type: 'output', pinNumber: 15 },
-    { name: 'Q6', type: 'output', pinNumber: 16 },
-    { name: 'D6', type: 'input', pinNumber: 17 },
-    { name: 'D7', type: 'input', pinNumber: 18 },
-    { name: 'Q7', type: 'output', pinNumber: 19 },
+    { name: 'CP', type: 'input', pinNumber: 11, schematicSide: 'left', schematicRow: 10 },
+    { name: 'Q4', type: 'output', pinNumber: 12, schematicSide: 'right', schematicRow: 5 },
+    { name: 'D4', type: 'input', pinNumber: 13, schematicSide: 'left', schematicRow: 5 },
+    { name: 'D5', type: 'input', pinNumber: 14, schematicSide: 'left', schematicRow: 6 },
+    { name: 'Q5', type: 'output', pinNumber: 15, schematicSide: 'right', schematicRow: 6 },
+    { name: 'Q6', type: 'output', pinNumber: 16, schematicSide: 'right', schematicRow: 7 },
+    { name: 'D6', type: 'input', pinNumber: 17, schematicSide: 'left', schematicRow: 7 },
+    { name: 'D7', type: 'input', pinNumber: 18, schematicSide: 'left', schematicRow: 8 },
+    { name: 'Q7', type: 'output', pinNumber: 19, schematicSide: 'right', schematicRow: 8 },
     { name: 'VCC', type: 'input', pinNumber: 20 }
   ],
   evaluate: (inputs, _props, _tick, internal = {}) => {
     // Inputs (12):
     // 0: ~MR, 1: D0, 2: D1, 3: D2, 4: D3, 5: GND, 6: CP, 7: D4, 8: D5, 9: D6, 10: D7, 11: VCC
     const [mrN, d0, d1, d2, d3, , cp, d4, d5, d6, d7] = inputs;
-    
+
     const st = internal;
     if (st.state === undefined) st.state = 0;
     if (st.lastClk === undefined) st.lastClk = 0;
 
     const safeMrN = mrN ?? 1; // Default 1: Don't reset
-    
+
     // Async reset (active low)
     if (safeMrN === 0) {
       st.state = 0;
-    } 
+    }
     // Synchronous operations on rising edge
     else if (cp === 1 && st.lastClk === 0) {
       const bit0 = d0 === 1 ? 1 : 0;
@@ -263,12 +263,12 @@ export const IC74LS273: NodeDefinition = {
       const bit5 = d5 === 1 ? 1 : 0;
       const bit6 = d6 === 1 ? 1 : 0;
       const bit7 = d7 === 1 ? 1 : 0;
-      
+
       st.state = (bit7 << 7) | (bit6 << 6) | (bit5 << 5) | (bit4 << 4) | (bit3 << 3) | (bit2 << 2) | (bit1 << 1) | bit0;
     }
-    
+
     st.lastClk = cp || 0;
-    
+
     // Outputs (8):
     // 0: Q0, 1: Q1, 2: Q2, 3: Q3, 4: Q4, 5: Q5, 6: Q6, 7: Q7
     const q0 = (st.state & (1 << 0)) ? 1 : 0;
@@ -279,7 +279,7 @@ export const IC74LS273: NodeDefinition = {
     const q5 = (st.state & (1 << 5)) ? 1 : 0;
     const q6 = (st.state & (1 << 6)) ? 1 : 0;
     const q7 = (st.state & (1 << 7)) ? 1 : 0;
-    
+
     return [q0, q1, q2, q3, q4, q5, q6, q7];
   }
 };
@@ -308,7 +308,7 @@ export const ROM_27C256: NodeDefinition = {
     { name: 'A13', type: 'input', pinNumber: 26, schematicSide: 'left', schematicRow: 14 },
     { name: 'A14', type: 'input', pinNumber: 27, schematicSide: 'left', schematicRow: 15 },
     { name: 'VPP', type: 'input', pinNumber: 1, schematicSide: 'left', schematicRow: 17 }, // Gap after A14
-    
+
     { name: 'D0', type: 'output', pinNumber: 11, schematicSide: 'right', schematicRow: 1 },
     { name: 'D1', type: 'output', pinNumber: 12, schematicSide: 'right', schematicRow: 2 },
     { name: 'D2', type: 'output', pinNumber: 13, schematicSide: 'right', schematicRow: 3 },
@@ -317,7 +317,7 @@ export const ROM_27C256: NodeDefinition = {
     { name: 'D5', type: 'output', pinNumber: 17, schematicSide: 'right', schematicRow: 6 },
     { name: 'D6', type: 'output', pinNumber: 18, schematicSide: 'right', schematicRow: 7 },
     { name: 'D7', type: 'output', pinNumber: 19, schematicSide: 'right', schematicRow: 8 },
-    
+
     { name: '/CE', type: 'input', pinNumber: 20, schematicSide: 'right', schematicRow: 10 }, // Gap after D7
     { name: '/OE', type: 'input', pinNumber: 22, schematicSide: 'right', schematicRow: 11 },
 
@@ -339,7 +339,7 @@ export const ROM_27C256: NodeDefinition = {
 
     // Read address
     let address = 0;
-    
+
     for (let i = 0; i < 15; i++) {
       const val = inputs[i];
       if (val === 'X') return [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined]; // Unstable address
@@ -350,7 +350,7 @@ export const ROM_27C256: NodeDefinition = {
     // Read data from properties
     const rawData = properties?.data; // Array of numbers or base64
     let byteVal = 0;
-    
+
     if (Array.isArray(rawData) && rawData.length > address) {
       byteVal = rawData[address] || 0;
     } else if (typeof rawData === 'string') {
@@ -395,7 +395,7 @@ export const SRAM_62256: NodeDefinition = {
     { name: 'A12', type: 'input', pinNumber: 2, schematicSide: 'left', schematicRow: 13 },
     { name: 'A13', type: 'input', pinNumber: 26, schematicSide: 'left', schematicRow: 14 },
     { name: 'A14', type: 'input', pinNumber: 1, schematicSide: 'left', schematicRow: 15 },
-    
+
     { name: 'D0', type: 'bidir', pinNumber: 11, schematicSide: 'right', schematicRow: 1 },
     { name: 'D1', type: 'bidir', pinNumber: 12, schematicSide: 'right', schematicRow: 2 },
     { name: 'D2', type: 'bidir', pinNumber: 13, schematicSide: 'right', schematicRow: 3 },
@@ -404,7 +404,7 @@ export const SRAM_62256: NodeDefinition = {
     { name: 'D5', type: 'bidir', pinNumber: 17, schematicSide: 'right', schematicRow: 6 },
     { name: 'D6', type: 'bidir', pinNumber: 18, schematicSide: 'right', schematicRow: 7 },
     { name: 'D7', type: 'bidir', pinNumber: 19, schematicSide: 'right', schematicRow: 8 },
-    
+
     { name: '/CE', type: 'input', pinNumber: 20, schematicSide: 'right', schematicRow: 10 },
     { name: '/OE', type: 'input', pinNumber: 22, schematicSide: 'right', schematicRow: 11 },
     { name: '/WE', type: 'input', pinNumber: 27, schematicSide: 'right', schematicRow: 12 },
@@ -513,14 +513,14 @@ export const IC74LS47: NodeDefinition = {
 
     const value = ((D as number) << 3) | ((C as number) << 2) | ((B as number) << 1) | (A as number);
 
-    let segments = 0b1111111; 
-    
+    let segments = 0b1111111;
+
     if (BI_n === 0) {
-      segments = 0b1111111; 
+      segments = 0b1111111;
     } else if (LT_n === 0) {
-      segments = 0b0000000; 
+      segments = 0b0000000;
     } else if (RBI_n === 0 && value === 0) {
-      segments = 0b1111111; 
+      segments = 0b1111111;
     } else {
       switch (value) {
         case 0: segments = 0b0000001; break;
@@ -600,7 +600,7 @@ export const IC74LS154: NodeDefinition = {
     const A = inputs[5] ?? 0;
 
     const outs: Signal[] = Array(16).fill(1); // Default HIGH (inactive)
-    
+
     if (G1_n === 0 && G2_n === 0) {
       const val = ((D as number) << 3) | ((C as number) << 2) | ((B as number) << 1) | (A as number);
       if (val >= 0 && val <= 15) {
@@ -679,7 +679,7 @@ export const IC74LS241: NodeDefinition = {
     { type: 'input', name: '2A2', pinNumber: 13, schematicSide: 'left', schematicRow: 6 },
     { type: 'input', name: '2A3', pinNumber: 15, schematicSide: 'left', schematicRow: 7 },
     { type: 'input', name: '2A4', pinNumber: 17, schematicSide: 'left', schematicRow: 8 },
-    
+
     { type: 'input', name: '1G\'', pinNumber: 1, schematicSide: 'bottom', schematicRow: 2 },
     { type: 'input', name: '2G', pinNumber: 19, schematicSide: 'bottom', schematicRow: 4 },
 
@@ -714,7 +714,7 @@ export const IC74LS241: NodeDefinition = {
       outs[2] = a1[2];
       outs[3] = a1[3];
     }
-    
+
     // Group 2: Active High Enable
     if (g2 === 1) {
       outs[4] = a2[0];
@@ -744,7 +744,7 @@ export const IC74LS244: NodeDefinition = {
     { type: 'input', name: '2A2', pinNumber: 13, schematicSide: 'left', schematicRow: 6 },
     { type: 'input', name: '2A3', pinNumber: 15, schematicSide: 'left', schematicRow: 7 },
     { type: 'input', name: '2A4', pinNumber: 17, schematicSide: 'left', schematicRow: 8 },
-    
+
     { type: 'input', name: '1G\'', pinNumber: 1, schematicSide: 'bottom', schematicRow: 2 },
     { type: 'input', name: '2G\'', pinNumber: 19, schematicSide: 'bottom', schematicRow: 4 },
 
@@ -779,7 +779,7 @@ export const IC74LS244: NodeDefinition = {
       outs[2] = a1[2];
       outs[3] = a1[3];
     }
-    
+
     // Group 2: Active Low Enable
     if (g2_n === 0) {
       outs[4] = a2[0];
@@ -822,17 +822,17 @@ export const IC_74LS283: NodeDefinition = {
     const A = [getVal(inputs[2]), getVal(inputs[1]), getVal(inputs[9]), getVal(inputs[7])];
     const B = [getVal(inputs[3]), getVal(inputs[0]), getVal(inputs[8]), getVal(inputs[6])];
     const C0 = getVal(inputs[4]);
-    
+
     const valA = A[0] | (A[1] << 1) | (A[2] << 2) | (A[3] << 3);
     const valB = B[0] | (B[1] << 1) | (B[2] << 2) | (B[3] << 3);
     const sum = valA + valB + C0;
-    
+
     const S1 = ((sum >> 0) & 1) as import('../../models/types').Signal;
     const S2 = ((sum >> 1) & 1) as import('../../models/types').Signal;
     const S3 = ((sum >> 2) & 1) as import('../../models/types').Signal;
     const S4 = ((sum >> 3) & 1) as import('../../models/types').Signal;
     const C4 = ((sum >> 4) & 1) as import('../../models/types').Signal;
-    
+
     return [S2, S1, C4, S4, S3];
   }
 };
@@ -869,9 +869,9 @@ export const IC_74LS245: NodeDefinition = {
   evaluate: (inputs) => {
     const DIR = inputs[0] === 0 ? 0 : 1;
     const OE_n = inputs[18] === 0 ? 0 : 1;
-    
+
     const outs = Array(16).fill(undefined) as import('../../models/types').Signal[];
-    
+
     if (OE_n === 0) {
       if (DIR === 1) {
         outs[15] = inputs[1];
@@ -893,7 +893,7 @@ export const IC_74LS245: NodeDefinition = {
         outs[7] = inputs[10];
       }
     }
-    
+
     return outs;
   }
 };
@@ -932,7 +932,7 @@ const createQuad2InputGate = (type: string, label: string, fn: (a: number, b: nu
     const i3b = inputs[6] === 1 ? 1 : 0;
     const i4a = inputs[7] === 1 ? 1 : 0;
     const i4b = inputs[8] === 1 ? 1 : 0;
-    
+
     return [
       fn(i1a, i1b),
       fn(i2a, i2b),
@@ -1160,7 +1160,7 @@ export const IC74LS181: NodeDefinition = {
         case 2: op1 = A | (~B); op2 = Cn; break; // A | ~B
         case 3: op1 = -1; op2 = Cn; break; // minus 1 (2s comp)
         case 4: op1 = A; op2 = (A & ~B) + Cn; break; // A plus (A & ~B)
-        case 5: op1 = (A | B); op2 = (A & ~B) + Cn; break; 
+        case 5: op1 = (A | B); op2 = (A & ~B) + Cn; break;
         case 6: op1 = A; op2 = -B - 1 + Cn; break; // A minus B minus 1
         case 7: op1 = (A & ~B); op2 = -1 + Cn; break;
         case 8: op1 = A; op2 = (A & B) + Cn; break;
@@ -1176,10 +1176,10 @@ export const IC74LS181: NodeDefinition = {
       F = sum & 15;
       cout = (sum > 15) ? 0 : 1; // Active LOW carry out
     }
-    
+
     // P and G are complex, simplified for now
     const eq = ((F === 15) ? 1 : 0) as Signal;
-    
+
     // Outputs: F0(9), F1(10), F2(11), F3(13), A=B(14), P(15), Cn+4(16), G(17)
     // indices 8, 9, 10, 11 (F0-F3), 12 (A=B), 13 (P), 14 (Cn+4), 15 (G)
     return [
@@ -1195,3 +1195,53 @@ export const IC74LS181: NodeDefinition = {
   }
 };
 
+
+export const IC74LS541: NodeDefinition = {
+  type: '74LS541',
+  label: '74LS541 (Octal Buffer/Line Driver)',
+  tags: ["buffer","driver","tri-state"],
+  numInputs: 0,
+  numOutputs: 0,
+  renderAs: 'DIP',
+  customPins: [
+    { type: 'input', name: '!OE1', pinNumber: 1, schematicSide: 'bottom', schematicRow: 2 },
+    { type: 'input', name: 'A1', pinNumber: 2, schematicSide: 'left', schematicRow: 1 },
+    { type: 'input', name: 'A2', pinNumber: 3, schematicSide: 'left', schematicRow: 2 },
+    { type: 'input', name: 'A3', pinNumber: 4, schematicSide: 'left', schematicRow: 3 },
+    { type: 'input', name: 'A4', pinNumber: 5, schematicSide: 'left', schematicRow: 4 },
+    { type: 'input', name: 'A5', pinNumber: 6, schematicSide: 'left', schematicRow: 5 },
+    { type: 'input', name: 'A6', pinNumber: 7, schematicSide: 'left', schematicRow: 6 },
+    { type: 'input', name: 'A7', pinNumber: 8, schematicSide: 'left', schematicRow: 7 },
+    { type: 'input', name: 'A8', pinNumber: 9, schematicSide: 'left', schematicRow: 8 },
+    { type: 'input', name: 'GND', pinNumber: 10 },
+    { type: 'output', name: 'Y8', pinNumber: 11, schematicSide: 'right', schematicRow: 8 },
+    { type: 'output', name: 'Y7', pinNumber: 12, schematicSide: 'right', schematicRow: 7 },
+    { type: 'output', name: 'Y6', pinNumber: 13, schematicSide: 'right', schematicRow: 6 },
+    { type: 'output', name: 'Y5', pinNumber: 14, schematicSide: 'right', schematicRow: 5 },
+    { type: 'output', name: 'Y4', pinNumber: 15, schematicSide: 'right', schematicRow: 4 },
+    { type: 'output', name: 'Y3', pinNumber: 16, schematicSide: 'right', schematicRow: 3 },
+    { type: 'output', name: 'Y2', pinNumber: 17, schematicSide: 'right', schematicRow: 2 },
+    { type: 'output', name: 'Y1', pinNumber: 18, schematicSide: 'right', schematicRow: 1 },
+    { type: 'input', name: '!OE2', pinNumber: 19, schematicSide: 'bottom', schematicRow: 4 },
+    { type: 'input', name: 'VCC', pinNumber: 20 },
+  ],
+  evaluate: (inputs): import('../../models/types').Signal[] => {
+    const oe1_n = inputs[0] ?? 1;
+    const oe2_n = inputs[10] ?? 1;
+    
+    const outs: import('../../models/types').Signal[] = Array(8).fill(undefined);
+    
+    if (oe1_n === 0 && oe2_n === 0) {
+      outs[0] = inputs[8]; // Y8 <- A8
+      outs[1] = inputs[7]; // Y7 <- A7
+      outs[2] = inputs[6]; // Y6 <- A6
+      outs[3] = inputs[5]; // Y5 <- A5
+      outs[4] = inputs[4]; // Y4 <- A4
+      outs[5] = inputs[3]; // Y3 <- A3
+      outs[6] = inputs[2]; // Y2 <- A2
+      outs[7] = inputs[1]; // Y1 <- A1
+    }
+    
+    return outs;
+  }
+};
