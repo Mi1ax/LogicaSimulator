@@ -127,62 +127,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
       {/* Render Pins and Labels */}
       {allPins.map((pin) => {
         if (pin.name === 'VCC' || pin.name === 'GND') {
-          const isVcc = pin.name === 'VCC';
-          const pinY = isVcc ? -20 : height + 20;
-          const pinX = width / 2;
-          return (
-            <Group key={pin.id}>
-              {/* Pin Extension Leg */}
-              <Path
-                data={`M ${pinX} ${isVcc ? 0 : height} L ${pinX} ${pinY}`}
-                stroke={canvasTheme.nodeBorder}
-                strokeWidth={2}
-              />
-              {/* The actual connection pin */}
-              <Pin
-                id={pin.id}
-                nodeId={node.id}
-                x={pinX}
-                y={pinY}
-                type={pin.type}
-              />
-              {/* Physical Pin Number Label */}
-              {(() => {
-                const safePin = getSafePinNumber(node.type, pin);
-                if (safePin === undefined) return null;
-                return (
-                  <Group x={pinX + 16} y={(isVcc ? pinY + 6 : height + 6) + 4.5} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
-                    <Text
-                      text={String(safePin)}
-                      x={-10}
-                      y={-4.5}
-                      width={20}
-                      align="center"
-                      fontSize={9}
-                      fontFamily="sans-serif"
-                      fill={canvasTheme.nodeBorder}
-                      opacity={1}
-                    />
-                  </Group>
-                );
-              })()}
-              {/* Logical Pin Name Label (e.g. VCC, GND) */}
-              <Group x={pinX} y={(isVcc ? 4 : height - 16) + 5} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
-                <Text
-                  text={pin.name}
-                  x={-30}
-                  y={-5}
-                  width={60}
-                  align="center"
-                  fontSize={10}
-                  fontFamily="sans-serif"
-                  fontStyle="normal"
-                  fill={canvasTheme.textColor}
-                  opacity={1}
-                />
-              </Group>
-            </Group>
-          );
+          return null;
         }
 
         const pinDef = def?.customPins?.find(cp => cp.name === pin.name);

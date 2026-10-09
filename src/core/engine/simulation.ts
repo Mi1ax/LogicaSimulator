@@ -218,8 +218,8 @@ export const computeNextState = (
       let isPowered = true;
       if (def.renderAs === 'DIP') {
         node.inputs.forEach((pin, idx) => {
-          if (pin.name === 'VCC' && inVals[idx] !== 1) isPowered = false;
-          if (pin.name === 'GND' && inVals[idx] !== 0) isPowered = false;
+          if (pin.name === 'VCC' && inVals[idx] === 0) isPowered = false;
+          if (pin.name === 'GND' && inVals[idx] === 1) isPowered = false;
         });
       }
 
