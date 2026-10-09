@@ -75,46 +75,26 @@ export const PropertiesPanel: React.FC = () => {
           />
         </div>
 
-        {/* Rotation */}
-        <div>
-          <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
-            Schematic Rotation
-          </label>
-          <select
-            className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
-            value={node.properties?.rotation || 0}
-            onChange={(e) => {
-              const newRotation = Number(e.target.value);
-              useSimulatorStore.getState().updateNodeProperties(node.id, { rotation: newRotation });
-            }}
-          >
-            <option value={0}>0°</option>
-            <option value={90}>90°</option>
-            <option value={180}>180°</option>
-            <option value={270}>270°</option>
-          </select>
-        </div>
-
         {/* Flip Controls (Schematic Only) */}
         {appMode === 'schematic' && (
           <div className="flex gap-4">
-            <label className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-slate-400 cursor-pointer">
+            <label className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-slate-400 cursor-pointer" title="Hotkey: X">
               <input
                 type="checkbox"
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 bg-gray-50 dark:bg-slate-900"
                 checked={!!node.properties?.flipX}
                 onChange={(e) => updateNodeProperties(node.id, { flipX: e.target.checked })}
               />
-              Flip X
+              Flip X (X)
             </label>
-            <label className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-slate-400 cursor-pointer">
+            <label className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-slate-400 cursor-pointer" title="Hotkey: Y">
               <input
                 type="checkbox"
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 bg-gray-50 dark:bg-slate-900"
                 checked={!!node.properties?.flipY}
                 onChange={(e) => updateNodeProperties(node.id, { flipY: e.target.checked })}
               />
-              Flip Y
+              Flip Y (Y)
             </label>
           </div>
         )}

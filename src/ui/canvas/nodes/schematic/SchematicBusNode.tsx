@@ -81,7 +81,7 @@ export const SchematicBusNode: React.FC<BusProps> = React.memo(({ node }) => {
       <Line points={[width, 20, width, height - 20]} stroke={canvasTheme.nodeBorder} strokeWidth={4} />
       
       {/* Label for the bus */}
-      <Group x={width / 2} y={-10} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+      <Group x={width / 2} y={-10} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
         <Text 
           x={-100}
           y={-14}
@@ -120,7 +120,7 @@ export const SchematicBusNode: React.FC<BusProps> = React.memo(({ node }) => {
               strokeWidth={side === 'right' ? 4 : 2} 
             />
             {side === 'left' && (
-              <Group x={pinX + 10} y={pinY - 9} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+              <Group x={pinX + 10} y={pinY - 9} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
                 <Text 
                   x={-6}
                   y={-5}

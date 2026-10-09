@@ -109,6 +109,24 @@ export const SchematicCanvas: React.FC = () => {
         if (store.placingNodeId) store.cancelPlacingNode();
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         store.deleteSelection();
+      } else if (e.key.toLowerCase() === 'x') {
+        const targetNodeId = store.placingNodeId || (store.selection?.type === 'node' ? store.selection.id : null);
+        if (targetNodeId) {
+          const node = store.nodes.find(n => n.id === targetNodeId);
+          if (node && node.type !== 'JUNCTION') {
+            const currentFlipX = node.properties?.flipX || false;
+            store.updateNodeProperties(node.id, { flipX: !currentFlipX });
+          }
+        }
+      } else if (e.key.toLowerCase() === 'y' && !e.ctrlKey && !e.metaKey) {
+        const targetNodeId = store.placingNodeId || (store.selection?.type === 'node' ? store.selection.id : null);
+        if (targetNodeId) {
+          const node = store.nodes.find(n => n.id === targetNodeId);
+          if (node && node.type !== 'JUNCTION') {
+            const currentFlipY = node.properties?.flipY || false;
+            store.updateNodeProperties(node.id, { flipY: !currentFlipY });
+          }
+        }
       } else if (e.key.toLowerCase() === 'r') {
         const targetNodeId = store.placingNodeId || (store.selection?.type === 'node' ? store.selection.id : null);
         if (targetNodeId) {
@@ -244,11 +262,13 @@ export const SchematicCanvas: React.FC = () => {
             let offsetX = 0;
             let offsetY = 0;
             if (node) {
-              const { width, height } = getSchematicDimensions(node);
-              offsetX = width / 2;
-              offsetY = height / 2;
+              const anchor = getSchematicAnchor(node);
+              offsetX = anchor.x;
+              offsetY = anchor.y;
             }
-            store.updatePlacingNode(pos.x - offsetX, pos.y - offsetY);
+            const gridX = Math.round((pos.x - offsetX) / 20) * 20;
+            const gridY = Math.round((pos.y - offsetY) / 20) * 20;
+            store.updatePlacingNode(gridX, gridY);
           }
         }}
         onMouseUp={(e) => {
@@ -263,11 +283,34 @@ export const SchematicCanvas: React.FC = () => {
             store.nodes.forEach(node => {
               const { width, height } = getSchematicDimensions(node);
               const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
-              const nx1 = node.x - anchorX;
-              const ny1 = node.y - anchorY;
-              const nx2 = nx1 + width;
-              const ny2 = ny1 + height;
-              if (nx1 < x2 && nx2 > x1 && ny1 < y2 && ny2 > y1) {
+              
+              const rot = (node.properties?.rotation || 0) * Math.PI / 180;
+              const cos = Math.cos(rot);
+              const sin = Math.sin(rot);
+              const flipX = node.properties?.flipX ? -1 : 1;
+              const flipY = node.properties?.flipY ? -1 : 1;
+
+              const getPt = (px: number, py: number) => {
+                let dx = px - anchorX;
+                let dy = py - anchorY;
+                dx *= flipX;
+                dy *= flipY;
+                const rx = dx * cos - dy * sin;
+                const ry = dx * sin + dy * cos;
+                return { x: node.x + anchorX + rx, y: node.y + anchorY + ry };
+              };
+
+              const p1 = getPt(0, 0);
+              const p2 = getPt(width, 0);
+              const p3 = getPt(0, height);
+              const p4 = getPt(width, height);
+
+              const minX = Math.min(p1.x, p2.x, p3.x, p4.x);
+              const maxX = Math.max(p1.x, p2.x, p3.x, p4.x);
+              const minY = Math.min(p1.y, p2.y, p3.y, p4.y);
+              const maxY = Math.max(p1.y, p2.y, p3.y, p4.y);
+
+              if (minX < x2 && maxX > x1 && minY < y2 && maxY > y1) {
                 selectedIds.push(node.id);
               }
             });

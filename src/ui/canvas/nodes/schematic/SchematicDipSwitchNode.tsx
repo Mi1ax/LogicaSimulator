@@ -88,7 +88,7 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
       />
 
       {/* Label */}
-      <Group x={width / 2} y={9} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+      <Group x={width / 2} y={9} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
         <Text
           text="ON"
           x={-width / 2}
@@ -142,7 +142,7 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
               }}
             />
             {/* Number Label */}
-            <Group x={10} y={yOffset} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+            <Group x={10} y={yOffset} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
               <Text
                 text={String(i + 1)}
                 x={-5}

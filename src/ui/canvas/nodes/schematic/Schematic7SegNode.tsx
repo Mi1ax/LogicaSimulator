@@ -166,7 +166,7 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
               y={yOffset}
               type={pin.type}
             />
-            <Group x={xOffset} y={isTop ? 16 : height - 16} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+            <Group x={xOffset} y={isTop ? 16 : height - 16} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
               <Text
                 text={pin.name}
                 x={-10}
