@@ -1,8 +1,9 @@
+import { SubcircuitRegistry } from '../subcircuitRegistry';
 import { NodeDefinition } from './NodeDefinition';
 import {
   AndNode, OrNode, NotNode, XorNode,
   NorNode, NandNode, XnorNode, BufferNode,
-  InputNode, OutputNode, ClockNode,
+  SubInNode, SubOutNode, SubIoNode, ClockNode,
   VccNode, GndNode, JunctionNode,
   DipSwitchNode, SevenSegNode, NetLabelNode, BusBreakoutNode, PushButtonNode, LedBarNode
 } from './basicNodes';
@@ -18,8 +19,9 @@ export const NodeRegistry: Record<string, NodeDefinition> = {
   [XorNode.type]: XorNode,
   [XnorNode.type]: XnorNode,
   [BufferNode.type]: BufferNode,
-  [InputNode.type]: InputNode,
-  [OutputNode.type]: OutputNode,
+  [SubInNode.type]: SubInNode,
+  [SubOutNode.type]: SubOutNode,
+  [SubIoNode.type]: SubIoNode,
   [ClockNode.type]: ClockNode,
   [VccNode.type]: VccNode,
   [GndNode.type]: GndNode,
@@ -53,5 +55,6 @@ export const NodeRegistry: Record<string, NodeDefinition> = {
 };
 
 export const getNodeDefinition = (type: string): NodeDefinition | undefined => {
+  if (type.startsWith('SUBCIRCUIT:')) return SubcircuitRegistry[type];
   return NodeRegistry[type];
 };

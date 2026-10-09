@@ -1,5 +1,5 @@
 import React from 'react';
-import { Group, Rect, Text, Circle, Line } from 'react-konva';
+import { Group, Rect, Text, Line } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
 import { Pin } from '../../primitives/Pin';
@@ -42,7 +42,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   if (isInputLike) indicatorFill = canvasTheme.inputIndicator;
   if (val === 1) indicatorFill = canvasTheme.signalHigh;
   if (val === 'X') indicatorFill = '#ef4444';
-  const bgFill = isInputLike ? canvasTheme.inputNodeBg : canvasTheme.outputNodeBg;
+  
   const borderStroke = isInputLike ? canvasTheme.inputNodeBorder : canvasTheme.outputNodeBorder;
 
   const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
@@ -60,17 +60,13 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
       opacity={isPlacing ? 0.6 : 1}
       draggable={!isPlacing}
       onClick={(e) => {
-        e.cancelBubble = true;
         const store = useSimulatorStore.getState();
         if (store.placingNodeId === node.id) {
+          e.cancelBubble = true;
           store.finishPlacingNode();
           return;
         }
         select({ type: 'node', id: node.id }, e.evt.shiftKey);
-        
-        if (isInput) {
-          toggleInputNode(node.id);
-        }
       }}
       onDragStart={() => useSimulatorStore.getState().saveHistory()}
       onDragMove={(e) => {
@@ -155,46 +151,72 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
             y={0}
             width={width}
             height={height}
-            fill={bgFill}
-            stroke={isSelected ? canvasTheme.selectedNodeColor : borderStroke}
+            fill={canvasTheme.nodeBg}
+            stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
             strokeWidth={isSelected ? 3 : 2}
-            cornerRadius={30}
+            cornerRadius={4}
           />
-          {isInputLike && (
-            <Circle
-              x={12}
-              y={height / 2}
-              radius={6}
-              fill={indicatorFill}
-              stroke={canvasTheme.nodeBorder}
-              strokeWidth={1}
-            />
+          {isInput && (
+            <Group
+              x={4}
+              y={4}
+              onMouseEnter={(e) => {
+                const container = e.target.getStage()?.container();
+                if (container && !useSimulatorStore.getState().placingNodeId) container.style.cursor = 'pointer';
+              }}
+              onMouseLeave={(e) => {
+                const container = e.target.getStage()?.container();
+                if (container && !useSimulatorStore.getState().placingNodeId) container.style.cursor = 'grab';
+              }}
+              onClick={(e) => {
+                if (!isPlacing) {
+                  e.cancelBubble = true;
+                  toggleInputNode(node.id);
+                }
+              }}
+            >
+              <Rect
+                x={0}
+                y={0}
+                width={width - 8}
+                height={height - 8}
+                fill={val === 1 ? '#3b82f6' : canvasTheme.nodeBg}
+                stroke={canvasTheme.nodeBorder}
+                strokeWidth={1}
+                cornerRadius={2}
+              />
+              <Text
+                text={val === 1 ? '1' : '0'}
+                x={0}
+                y={0}
+                width={width - 8}
+                height={height - 8}
+                align="center"
+                verticalAlign="middle"
+                fontSize={20}
+                fontFamily="monospace"
+                fontStyle="bold"
+                fill={val === 1 ? '#ffffff' : canvasTheme.textColor}
+              />
+            </Group>
           )}
-          {!isInputLike && (
-            <Circle
-              x={width - 12}
-              y={height / 2}
-              radius={6}
-              fill={indicatorFill}
-              stroke={canvasTheme.nodeBorder}
-              strokeWidth={1}
-            />
+          {isClock && (
+            <Group x={width / 2} y={height / 2}>
+              <Text
+                text="CLK"
+                x={-width / 2}
+                y={-height / 2}
+                width={width}
+                height={height}
+                align="center"
+                verticalAlign="middle"
+                fontSize={14}
+                fontFamily="monospace"
+                fontStyle="bold"
+                fill={canvasTheme.textColor}
+              />
+            </Group>
           )}
-          <Group x={width / 2} y={height / 2} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
-            <Text
-              text={isClock ? 'CLK' : (val === 1 ? '1' : '0')}
-              x={-width / 2}
-              y={-height / 2}
-              width={width}
-              height={height}
-              align="center"
-              verticalAlign="middle"
-              fontSize={isClock ? 14 : 20}
-              fontFamily="monospace"
-              fontStyle="bold"
-              fill={canvasTheme.textColor}
-            />
-          </Group>
         </>
       )}
 

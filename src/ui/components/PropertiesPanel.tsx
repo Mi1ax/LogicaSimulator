@@ -78,17 +78,14 @@ export const PropertiesPanel: React.FC = () => {
         {/* Rotation */}
         <div>
           <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
-            {appMode === 'board' ? 'Board Rotation' : 'Schematic Rotation'}
+            Schematic Rotation
           </label>
           <select
             className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
-            value={appMode === 'board' ? (node.properties?.boardRotation || 0) : (node.properties?.rotation || 0)}
+            value={node.properties?.rotation || 0}
             onChange={(e) => {
-              if (appMode === 'board') {
-                updateNodeProperties(node.id, { boardRotation: parseInt(e.target.value, 10) });
-              } else {
-                updateNodeProperties(node.id, { rotation: parseInt(e.target.value, 10) });
-              }
+              const newRotation = Number(e.target.value);
+              useSimulatorStore.getState().updateNodeProperties(node.id, { rotation: newRotation });
             }}
           >
             <option value={0}>0°</option>

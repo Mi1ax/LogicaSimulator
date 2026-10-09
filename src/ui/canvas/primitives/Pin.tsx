@@ -16,14 +16,13 @@ export const Pin: React.FC<PinProps> = ({ x, y, type, id, nodeId, opacity }) => 
   const startWire = useSimulatorStore(state => state.startWire);
   const completeWire = useSimulatorStore(state => state.completeWire);
   const theme = useSimulatorStore(state => state.theme);
-  const appMode = useSimulatorStore(state => state.appMode);
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const pinState = useSimulatorStore(state => state.simState.pinStates[id]);
 
-  let fill = appMode === 'board' ? (theme === 'dark' ? '#94a3b8' : '#cbd5e1') : (type === 'input' ? canvasTheme.pinInputFill : canvasTheme.pinOutputFill);
-  let stroke = appMode === 'board' ? '#334155' : (type === 'input' ? canvasTheme.pinInputStroke : canvasTheme.pinOutputStroke);
-  let radius = appMode === 'board' ? 4 : 5;
+  let fill = type === 'input' ? canvasTheme.pinInputFill : canvasTheme.pinOutputFill;
+  let stroke = type === 'input' ? canvasTheme.pinInputStroke : canvasTheme.pinOutputStroke;
+  let radius = 5;
 
   if (pinState === 1) {
     fill = canvasTheme.signalHigh;
@@ -61,33 +60,6 @@ export const Pin: React.FC<PinProps> = ({ x, y, type, id, nodeId, opacity }) => 
       onClick={(e) => {
         const store = useSimulatorStore.getState();
         if (store.placingNodeId) return;
-
-        if (appMode === 'board') {
-          e.cancelBubble = true;
-          const node = store.nodes.find(n => n.id === nodeId);
-          if (node) {
-            const stage = e.target.getStage();
-            if (!stage) return;
-            const absolutePos = e.target.getAbsolutePosition();
-            const transform = stage.getAbsoluteTransform().copy().invert();
-            const boardPos = transform.point(absolutePos);
-            const absX = Math.round(boardPos.x / 20) * 20;
-            const absY = Math.round(boardPos.y / 20) * 20;
-            
-            if (store.draftBoardTrace) {
-              if (store.draftBoardTrace.type === 'jumper') {
-                store.completeBoardTrace();
-              } else {
-                // For solder, if clicking a pin, we complete the trace
-                store.updateDraftBoardTrace(absX, absY);
-                store.completeBoardTrace();
-              }
-            } else {
-              store.startBoardTrace(absX, absY);
-            }
-          }
-          return;
-        }
 
         e.cancelBubble = true;
         const state = useSimulatorStore.getState();

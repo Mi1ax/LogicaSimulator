@@ -1,25 +1,31 @@
+import { updateSubcircuitRegistry, removeSubcircuitFromRegistry } from '../core/engine/subcircuitRegistry';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { LogicNode, NodeType, Wire, DraftWire } from '../core/models/types';
 import * as circuit from '../core/engine/circuit';
+import { syncSubcircuitInstances } from '../core/engine/circuit';
 import { computeNextState } from '../core/engine/simulation';
 import { getSchematicPinPosition } from '../core/utils/schematicLayout';
 import { generateId } from '../core/utils/id';
 
-export type Selection = { type: 'node' | 'wire' | 'boardTrace', id: string } | null;
+export type Selection = { type: 'node' | 'wire', id: string } | null;
 
 export interface PointerSettings {
   mouseWheelBehavior: 'zoom' | 'pan'; // 'zoom' = CAD style, 'pan' = Figma style
   panSpeed: number;
   zoomSensitivity: number;
   invertZoom: boolean;
-  boardWidthMm: number;
-  boardHeightMm: number;
 }
 
 interface SimulatorState {
-  appMode: 'schematic' | 'board' | 'hex' | 'code';
-  setAppMode: (mode: 'schematic' | 'board' | 'hex' | 'code') => void;
+  appMode: 'schematic' | 'hex' | 'code';
+  setAppMode: (mode: 'schematic' | 'hex' | 'code') => void;
+
+  savedCircuits: Record<string, { name: string, nodes: LogicNode[], wires: Wire[], history: any[], future: any[] }>;
+  activeSubcircuitId: string;
+  addSubcircuit: (name: string) => void;
+  setActiveSubcircuit: (id: string) => void;
+  deleteSubcircuit: (id: string) => void;
 
   theme: 'light' | 'dark';
   toggleTheme: () => void;
@@ -31,8 +37,6 @@ interface SimulatorState {
   // Global Interaction Mode (Cursor vs Wire drawing)
 
   // UI state for drawing wires
-  activeWireType: 'solder' | 'jumper';
-  setActiveWireType: (type: 'solder' | 'jumper') => void;
   draftWire: DraftWire | null;
   startWireFromWaypoint: (wireId: string, waypointIndex: number) => void;
   startWire: (nodeId: string, pinId: string, pinType: 'input' | 'output' | 'bidir', x: number, y: number) => void;
@@ -61,33 +65,20 @@ interface SimulatorState {
   // UI state for node placement
   placingNodeId: string | null;
   startPlacingNode: (type: NodeType) => void;
-  startPlacingBoardNode: (id: string) => void;
   updatePlacingNode: (x: number, y: number) => void;
   finishPlacingNode: () => void;
+
   cancelPlacingNode: () => void;
 
   // Core circuit state (delegated to pure logic)
   nodes: LogicNode[];
   wires: Wire[];
-  boardTraces: import('../core/models/types').BoardTrace[];
-
-  // Board drawing state
-  draftBoardTrace: import('../core/models/types').BoardTrace | null;
-  startBoardTrace: (x: number, y: number) => void;
-  updateDraftBoardTrace: (x: number, y: number) => void;
-  addBoardTraceWaypoint: () => void;
-  completeBoardTrace: () => void;
-  cancelBoardTrace: () => void;
-  updateBoardTracePoints: (id: string, points: {x: number, y: number}[]) => void;
-
   // Simulation State
   simState: import('../core/engine/simulation').SimulationState;
   simRunning: boolean;
   simSpeed: number; // Hz (ticks per second)
   
   // View State
-  boardScale: number;
-  setBoardScale: (scale: number) => void;
 
   addNode: (type: NodeType, x: number, y: number) => void;
   updateNodePosition: (id: string, x: number, y: number, finalize?: boolean) => void;
@@ -105,8 +96,8 @@ interface SimulatorState {
   setNodeOutputCount: (nodeId: string, count: number) => void;
 
   // Undo / Redo
-  history: { nodes: LogicNode[], wires: Wire[], boardTraces: import('../core/models/types').BoardTrace[] }[];
-  future: { nodes: LogicNode[], wires: Wire[], boardTraces: import('../core/models/types').BoardTrace[] }[];
+  history: { nodes: LogicNode[], wires: Wire[] }[];
+  future: { nodes: LogicNode[], wires: Wire[] }[];
   undo: () => void;
   redo: () => void;
   saveHistory: () => void;
@@ -115,8 +106,7 @@ interface SimulatorState {
 const pushHistory = (state: SimulatorState) => ({
   history: [...state.history, {
     nodes: structuredClone(state.nodes),
-    wires: structuredClone(state.wires),
-    boardTraces: structuredClone(state.boardTraces || [])
+    wires: structuredClone(state.wires)
   }].slice(-50),
   future: []
 });
@@ -127,6 +117,84 @@ export const useSimulatorStore = create<SimulatorState>()(
   appMode: 'schematic',
   setAppMode: (mode) => set({ appMode: mode, selection: null }),
 
+  savedCircuits: { 'main': { name: 'Main', nodes: [], wires: [], history: [], future: [] } },
+  activeSubcircuitId: 'main',
+  addSubcircuit: (name) => set((state) => {
+    const id = generateId('circuit');
+    updateSubcircuitRegistry(id, name, []);
+    return {
+      savedCircuits: { ...state.savedCircuits, [id]: { name, nodes: [], wires: [], history: [], future: [] } }
+    };
+  }),
+  setActiveSubcircuit: (id) => set((state) => {
+    if (state.activeSubcircuitId === id) return {};
+    
+    // Save current to savedCircuits
+    const newSaved = {
+      ...state.savedCircuits,
+      [state.activeSubcircuitId]: {
+        name: state.savedCircuits[state.activeSubcircuitId]?.name || 'Unknown',
+        nodes: state.nodes,
+        wires: state.wires,
+        
+        history: state.history,
+        future: state.future
+      }
+    };
+    
+    // Load new from savedCircuits
+    let target = newSaved[id] || { name: 'Unknown', nodes: [], wires: [], history: [], future: [] };
+    
+    // Sync instantiated subcircuits
+    const synced = syncSubcircuitInstances(target.nodes, target.wires);
+    target = { ...target, nodes: synced.nodes, wires: synced.wires };
+    
+    return {
+      savedCircuits: newSaved,
+      activeSubcircuitId: id,
+      nodes: target.nodes,
+      wires: target.wires,
+      
+      history: target.history,
+      future: target.future,
+      selection: null,
+      multiSelection: [],
+      placingNodeId: null,
+      draftWire: null,
+      draftBoardTrace: null
+    };
+  }),
+
+  
+  deleteSubcircuit: (id) => set((state) => {
+    if (id === 'main') return state; // Cannot delete main
+    
+    const newSaved = { ...state.savedCircuits };
+    delete newSaved[id];
+    removeSubcircuitFromRegistry(id);
+    
+    if (state.activeSubcircuitId === id) {
+      const target = newSaved['main'];
+      const synced = syncSubcircuitInstances(target.nodes, target.wires);
+      
+      return {
+        savedCircuits: newSaved,
+        activeSubcircuitId: 'main',
+        nodes: synced.nodes,
+        wires: synced.wires,
+        
+        history: target.history,
+        future: target.future,
+        selection: null,
+        multiSelection: [],
+        placingNodeId: null,
+        draftWire: null,
+      };
+    }
+    
+    return { savedCircuits: newSaved };
+  }),
+
   theme: 'dark',
   toggleTheme: () => set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
 
@@ -135,22 +203,15 @@ export const useSimulatorStore = create<SimulatorState>()(
     panSpeed: 1.0,
     zoomSensitivity: 1.0,
     invertZoom: false,
-    boardWidthMm: 50,
-    boardHeightMm: 70,
   },
   updateSettings: (newSettings) => set((state) => ({
     settings: { ...state.settings, ...newSettings }
   })),
 
-  activeWireType: 'solder',
-  setActiveWireType: (type) => set({ activeWireType: type }),
-
-
   nodes: [],
   wires: [],
-  boardTraces: [],
+  
   draftWire: null,
-  draftBoardTrace: null,
   selection: null,
   multiSelection: [],
   setMultiSelection: (ids) => set({ multiSelection: ids, selection: ids.length > 0 ? { type: 'node', id: ids[0] } : null }),
@@ -163,8 +224,6 @@ export const useSimulatorStore = create<SimulatorState>()(
   canvasOffset: { x: 0, y: 0 },
   setCanvasOffset: (offset) => set({ canvasOffset: offset }),
   
-  boardScale: 1,
-  setBoardScale: (scale) => set({ boardScale: scale }),
 
   simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} },
   simRunning: false,
@@ -181,10 +240,10 @@ export const useSimulatorStore = create<SimulatorState>()(
     return {
       nodes: structuredClone(previous.nodes),
       wires: structuredClone(previous.wires),
-      boardTraces: structuredClone(previous.boardTraces),
+      
       selection: null,
       history: state.history.slice(0, -1),
-      future: [{ nodes: state.nodes, wires: state.wires, boardTraces: state.boardTraces }, ...state.future],
+      future: [{ nodes: state.nodes, wires: state.wires }, ...state.future],
     };
   }),
 
@@ -194,9 +253,9 @@ export const useSimulatorStore = create<SimulatorState>()(
     return {
       nodes: structuredClone(next.nodes),
       wires: structuredClone(next.wires),
-      boardTraces: structuredClone(next.boardTraces),
+      
       selection: null,
-      history: [...state.history, { nodes: state.nodes, wires: state.wires, boardTraces: state.boardTraces }],
+      history: [...state.history, { nodes: state.nodes, wires: state.wires }],
       future: state.future.slice(1),
     };
   }),
@@ -227,20 +286,7 @@ export const useSimulatorStore = create<SimulatorState>()(
     
     if (idsToDelete.length === 0) return state;
 
-    if (state.appMode === 'board') {
-      let nextBoardTraces = [...state.boardTraces];
-      let nextNodes = [...state.nodes];
-      
-      idsToDelete.forEach(id => {
-        if (state.boardTraces.some(t => t.id === id)) {
-          nextBoardTraces = nextBoardTraces.filter(t => t.id !== id);
-        } else {
-          nextNodes = nextNodes.map(n => n.id === id ? { ...n, boardX: undefined, boardY: undefined } : n);
-        }
-      });
-      
-      return { ...state, boardTraces: nextBoardTraces, nodes: nextNodes, ...pushHistory(state), selection: null, multiSelection: [] };
-    } else {
+    
       let nextState = { ...state };
       let nextSelectedMemoryNodeId = state.selectedMemoryNodeId;
       
@@ -256,7 +302,6 @@ export const useSimulatorStore = create<SimulatorState>()(
       });
       
       return { ...nextState, ...pushHistory(state), selection: null, multiSelection: [], selectedMemoryNodeId: nextSelectedMemoryNodeId };
-    }
   }),
 
   placingNodeId: null,
@@ -267,14 +312,9 @@ export const useSimulatorStore = create<SimulatorState>()(
     return { ...nextState, placingNodeId: newNode.id };
   }),
 
-  startPlacingBoardNode: (id) => set((state) => {
-    const nextState = circuit.moveNode(state, id, 0, 0, true);
-    return { ...nextState, placingNodeId: id };
-  }),
-
   updatePlacingNode: (x, y) => set((state) => {
     if (!state.placingNodeId) return state;
-    return circuit.moveNode(state, state.placingNodeId, x, y, state.appMode === 'board');
+    return circuit.moveNode(state, state.placingNodeId, x, y);
   }),
 
   finishPlacingNode: () => set((state) => {
@@ -284,24 +324,16 @@ export const useSimulatorStore = create<SimulatorState>()(
 
   cancelPlacingNode: () => set((state) => {
     if (!state.placingNodeId) return state;
-    if (state.appMode === 'schematic') {
-      return { ...state, ...circuit.deleteNode(state, state.placingNodeId), placingNodeId: null };
-    } else {
-      return {
-        ...state,
-        nodes: state.nodes.map(n => n.id === state.placingNodeId ? { ...n, boardX: undefined, boardY: undefined } : n),
-        placingNodeId: null
-      };
-    }
+    return { ...state, ...circuit.deleteNode(state, state.placingNodeId), placingNodeId: null };
   }),
 
   addNode: (type, x, y) => set((state) => ({ ...circuit.addNode(state, type, x, y), ...pushHistory(state) })),
   updateNodePosition: (id, x, y, finalize) => set((state) => {
     const isMulti = state.multiSelection.includes(id);
     const ids = isMulti ? state.multiSelection : [id];
-    let nextState = { ...state, ...circuit.moveNodes(state, ids, id, x, y, state.appMode === 'board') };
+    let nextState = { ...state, ...circuit.moveNodes(state, ids, id, x, y) };
     
-    if (finalize && state.appMode !== 'board') {
+    if (finalize) {
       const movedNodes = nextState.nodes.filter(n => ids.includes(n.id));
       const otherNodes = nextState.nodes.filter(n => !ids.includes(n.id));
       
@@ -376,9 +408,8 @@ export const useSimulatorStore = create<SimulatorState>()(
     ...pushHistory(state),
     nodes: [],
     wires: [],
-    boardTraces: [],
+    
     draftWire: null,
-    draftBoardTrace: null,
     placingNodeId: null,
     selection: null,
     simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} },
@@ -390,13 +421,13 @@ export const useSimulatorStore = create<SimulatorState>()(
   resetSimulation: () => set({ simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} } }),
 
   stepSimulation: () => set((state) => ({
-    simState: computeNextState(state.nodes, state.wires, state.simState)
+    simState: computeNextState(state.nodes, state.wires, state.simState, state.savedCircuits)
   })),
 
   stepSimulationBatch: (ticks) => set((state) => {
     let nextSimState = state.simState;
     for (let i = 0; i < ticks; i++) {
-      nextSimState = computeNextState(state.nodes, state.wires, nextSimState);
+      nextSimState = computeNextState(state.nodes, state.wires, nextSimState, state.savedCircuits);
     }
     return { simState: nextSimState };
   }),
@@ -460,8 +491,7 @@ export const useSimulatorStore = create<SimulatorState>()(
       outputNodeId, 
       outputPinId, 
       inputNodeId, 
-      inputPinId, 
-      state.appMode === 'board' ? state.activeWireType : undefined
+      inputPinId
     );
 
     const waypoints = state.draftWire.waypoints;
@@ -498,8 +528,7 @@ export const useSimulatorStore = create<SimulatorState>()(
         targetWire.sourceNodeId,
         targetWire.sourcePinId,
         junctionNode.id,
-        jInPin.id,
-        state.appMode === 'board' ? state.activeWireType : undefined
+        jInPin.id
       );
 
       if (splitWp1 && splitWp1.length > 0) {
@@ -518,8 +547,7 @@ export const useSimulatorStore = create<SimulatorState>()(
         junctionNode.id,
         jOutPin.id,
         sourceNodeId,
-        sourcePinId,
-        state.appMode === 'board' ? state.activeWireType : undefined
+        sourcePinId
       );
 
       const waypoints = state.draftWire.waypoints;
@@ -542,8 +570,7 @@ export const useSimulatorStore = create<SimulatorState>()(
         targetWire.sourceNodeId,
         targetWire.sourcePinId,
         junctionNode.id,
-        jInPin.id,
-        state.appMode === 'board' ? state.activeWireType : undefined
+        jInPin.id
       );
 
       if (splitWp1 && splitWp1.length > 0) {
@@ -562,8 +589,7 @@ export const useSimulatorStore = create<SimulatorState>()(
         sourceNodeId,
         sourcePinId,
         junctionNode.id,
-        jInPin.id,
-        state.appMode === 'board' ? state.activeWireType : undefined
+        jInPin.id
       );
 
       const waypoints = state.draftWire.waypoints;
@@ -599,8 +625,7 @@ export const useSimulatorStore = create<SimulatorState>()(
       targetWire.sourceNodeId,
       targetWire.sourcePinId,
       junctionNode.id,
-      jInPin.id,
-      state.appMode === 'board' ? state.activeWireType : undefined
+      jInPin.id
     );
 
     if (splitWp1.length > 0) {
@@ -633,67 +658,6 @@ export const useSimulatorStore = create<SimulatorState>()(
 
 
   
-  startBoardTrace: (x, y) => set((state) => {
-    // Provide TWO points so updateDraftBoardTrace can replace the second one as the floating preview!
-    return { draftBoardTrace: { id: 'draft', type: state.activeWireType, points: [{ x, y }, { x, y }] } };
-  }),
-
-  updateDraftBoardTrace: (x, y) => set((state) => {
-    if (!state.draftBoardTrace) return state;
-    
-    // We keep points as the fixed waypoints, and the UI can append the floating cursor point
-    // Let's store the floating cursor directly in the store to make it easy.
-    return { 
-      draftBoardTrace: { 
-        ...state.draftBoardTrace, 
-        // We'll treat the last point as the floating point, or let's add a separate property `previewPoint: {x,y}`
-        // For simplicity, let's just make points include the floating point at the end!
-        points: [...state.draftBoardTrace.points.slice(0, -1), { x, y }] 
-      } 
-    };
-  }),
-
-  addBoardTraceWaypoint: () => set((state) => {
-    if (!state.draftBoardTrace) return state;
-    const points = state.draftBoardTrace.points;
-    const last = points[points.length - 1];
-    return {
-      draftBoardTrace: {
-        ...state.draftBoardTrace,
-        points: [...points, { ...last }] // Duplicate the last point so updateDraft modifies the new tail
-      }
-    };
-  }),
-
-  completeBoardTrace: () => set((state) => {
-    if (!state.draftBoardTrace || state.draftBoardTrace.points.length < 2) return { draftBoardTrace: null };
-    
-    // Filter out consecutive identical points (often caused by double-clicking to finish)
-    const rawPoints = state.draftBoardTrace.points;
-    const cleanPoints = rawPoints.filter((p, i) => {
-      if (i === 0) return true;
-      const prev = rawPoints[i - 1];
-      return p.x !== prev.x || p.y !== prev.y;
-    });
-
-    if (cleanPoints.length < 2) return { draftBoardTrace: null };
-
-    const newTrace: import('../core/models/types').BoardTrace = {
-      id: generateId('trace'),
-      type: state.draftBoardTrace.type,
-      points: cleanPoints
-    };
-    return { boardTraces: [...state.boardTraces, newTrace], ...pushHistory(state), draftBoardTrace: null };
-  }),
-
-  updateBoardTracePoints: (id, points) => set((state) => {
-    const boardTraces = state.boardTraces.map(t => 
-      t.id === id ? { ...t, points } : t
-    );
-    return { boardTraces, ...pushHistory(state) };
-  }),
-
-  cancelBoardTrace: () => set({ draftBoardTrace: null }),
     }),
     {
       name: 'logica-project-storage',
@@ -707,10 +671,12 @@ export const useSimulatorStore = create<SimulatorState>()(
       partialize: (state) => ({
         nodes: state.nodes,
         wires: state.wires,
-        boardTraces: state.boardTraces,
+        
         settings: state.settings,
         theme: state.theme,
-        appMode: state.appMode
+        appMode: state.appMode,
+        savedCircuits: state.savedCircuits,
+        activeSubcircuitId: state.activeSubcircuitId
       })
     }
   )
@@ -718,3 +684,31 @@ export const useSimulatorStore = create<SimulatorState>()(
 
 // Provide grid size constant exported from core
 export { GRID_SIZE } from '../core/engine/circuit';
+
+
+
+useSimulatorStore.subscribe((state, prevState) => {
+  // If active subcircuit nodes change, update its registry entry
+  if (state.nodes !== prevState.nodes) {
+    if (state.activeSubcircuitId !== 'main') {
+      const name = state.savedCircuits[state.activeSubcircuitId]?.name || 'Unknown';
+      updateSubcircuitRegistry(state.activeSubcircuitId, name, state.nodes);
+    }
+  }
+  
+  // If saved circuits map changes (e.g., on load, add, delete), sync registry
+  if (state.savedCircuits !== prevState.savedCircuits) {
+    Object.entries(state.savedCircuits).forEach(([id, sc]) => {
+      if (id !== 'main') {
+        updateSubcircuitRegistry(id, sc.name, sc.nodes);
+      }
+    });
+  }
+});
+
+// Initialize on load (in case synchronous)
+Object.entries(useSimulatorStore.getState().savedCircuits).forEach(([id, sc]) => {
+  if (id !== 'main') {
+    updateSubcircuitRegistry(id, sc.name, sc.nodes);
+  }
+});
