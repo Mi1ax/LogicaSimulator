@@ -7,15 +7,11 @@ import { PropertiesPanel } from './ui/components/PropertiesPanel';
 import { useSimulatorStore } from './store/useSimulatorStore';
 import { ErrorBoundary } from './ui/components/ErrorBoundary';
 
-import { RomEditorModal } from './ui/components/RomEditorModal';
-
 function App() {
   const theme = useSimulatorStore(state => state.theme);
   const simRunning = useSimulatorStore(state => state.simRunning);
   const simSpeed = useSimulatorStore(state => state.simSpeed);
   const stepSimulationBatch = useSimulatorStore(state => state.stepSimulationBatch);
-  const openRomEditors = useSimulatorStore(state => state.openRomEditors);
-  const toggleRomEditor = useSimulatorStore(state => state.toggleRomEditor);
 
   // Theme Sync
   useEffect(() => {
@@ -77,10 +73,6 @@ function App() {
         <PropertiesPanel />
       </div>
       <Bottombar />
-      
-      {openRomEditors.map(id => (
-        <RomEditorModal key={id} nodeId={id} onClose={() => toggleRomEditor(id, false)} />
-      ))}
     </div>
   );
 }

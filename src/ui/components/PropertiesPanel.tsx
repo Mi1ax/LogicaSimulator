@@ -205,7 +205,11 @@ export const PropertiesPanel: React.FC = () => {
         {['27C256', '62256'].includes(node.type) && (
           <div className="mt-4">
             <button
-              onClick={() => useSimulatorStore.getState().toggleRomEditor(node.id, true)}
+              onClick={() => {
+                const store = useSimulatorStore.getState();
+                store.setSelectedMemoryNodeId(node.id);
+                store.setAppMode('hex');
+              }}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition-colors text-sm"
             >
               Open Hex Viewer
