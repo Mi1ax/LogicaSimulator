@@ -22,6 +22,15 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
 
   const clickTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const simState = useSimulatorStore(state => state.simState);
+  
+  const signal = simState.pinStates[node.inputs[0].id] ?? simState.pinStates[node.outputs[0].id];
+  let color = canvasTheme.wireColor;
+  if (signal === 1) color = canvasTheme.signalHigh;
+  else if (signal === 0) color = canvasTheme.signalLow;
+  else if (signal === 'X') color = '#ef4444';
+  if (isSelected) color = canvasTheme.selectedNodeColor;
+
   return (
     <Group
       x={node.x}
@@ -99,7 +108,10 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
         x={0}
         y={0}
         radius={isSelected ? 6 : 4}
-        fill={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.wireColor}
+        fill={color}
+        shadowColor={signal === 1 ? canvasTheme.signalHigh : 'transparent'}
+        shadowBlur={signal === 1 ? 4 : 0}
+        shadowOpacity={0.8}
       />
     </Group>
   );
