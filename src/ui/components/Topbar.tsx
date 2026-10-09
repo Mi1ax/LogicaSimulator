@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import {  Trash2, Sun, Moon, Settings, Save, FolderOpen, Library , Menu as MenuIcon, ChevronRight } from 'lucide-react';
-import { NumberInput } from './NumberInput';
 
 export const Topbar: React.FC = () => {
   const [showMenu, setShowMenu] = useState(false);
@@ -17,15 +16,12 @@ export const Topbar: React.FC = () => {
 
   const appMode = useSimulatorStore(state => state.appMode);
   const setAppMode = useSimulatorStore(state => state.setAppMode);
-  const activeWireType = useSimulatorStore(state => state.activeWireType);
-  const setWireType = useSimulatorStore(state => state.setActiveWireType);
 
   const handleSave = async () => {
     const store = useSimulatorStore.getState();
     const data = {
       nodes: store.nodes,
       wires: store.wires,
-      boardTraces: store.boardTraces,
     };
     const json = JSON.stringify(data, null, 2);
     
@@ -69,7 +65,6 @@ export const Topbar: React.FC = () => {
         useSimulatorStore.setState({
           nodes: data.nodes || [],
           wires: data.wires || [],
-          boardTraces: data.boardTraces || [],
           history: [],
           future: [],
           simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} }
@@ -91,7 +86,6 @@ export const Topbar: React.FC = () => {
       useSimulatorStore.setState({
         nodes: data.nodes || [],
         wires: data.wires || [],
-        boardTraces: data.boardTraces || [],
         history: [],
         future: [],
         simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} }
@@ -120,13 +114,6 @@ export const Topbar: React.FC = () => {
             Schematic
           </button>
           <button
-            onClick={() => setAppMode('board')}
-            title="Board traces are purely visual and do not affect the logic simulation."
-            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${appMode === 'board' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
-          >
-            Board
-          </button>
-          <button
             onClick={() => setAppMode('hex')}
             className={`px-3 py-1 text-xs font-medium rounded transition-colors ${appMode === 'hex' ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
           >
@@ -139,29 +126,6 @@ export const Topbar: React.FC = () => {
             Code Editor
           </button>
         </div>
-        
-        {appMode === 'board' && (
-          <span className="text-[10px] text-gray-400 dark:text-slate-500 italic hidden md:inline-block">
-            (Visual layout only)
-          </span>
-        )}
-        {/* Wire Type Switcher (Board Mode Only) */}
-        {appMode === 'board' && (
-          <div className="flex bg-gray-100 dark:bg-slate-900 p-1 rounded-md border border-gray-200 dark:border-slate-700 ml-2">
-            <button
-              onClick={() => setWireType('solder')}
-              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${activeWireType === 'solder' ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-500 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
-            >
-              Solder
-            </button>
-            <button
-              onClick={() => setWireType('jumper')}
-              className={`px-3 py-1 text-xs font-medium rounded transition-colors ${activeWireType === 'jumper' ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
-            >
-              Jumper
-            </button>
-          </div>
-        )}
       </div>
 
 
@@ -317,32 +281,7 @@ export const Topbar: React.FC = () => {
                           </button>
                         </div>
 
-                        <div className="pt-2 border-t border-gray-200 dark:border-slate-700">
-                          <h4 className="text-xs font-semibold text-gray-700 dark:text-slate-300 mb-2">Board Dimensions</h4>
-                          <div className="flex gap-2">
-                            <div className="flex-1">
-                              <label className="block text-[10px] text-gray-500 dark:text-slate-400 mb-1">Width (mm)</label>
-                              <NumberInput
-                                min={10} max={1000}
-                                value={settings.boardWidthMm}
-                                onChangeValue={(val) => updateSettings({ boardWidthMm: val })}
-                                fallbackValue={50}
-                                className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
-                              />
-                            </div>
-                            <div className="flex-1">
-                              <label className="block text-[10px] text-gray-500 dark:text-slate-400 mb-1">Height (mm)</label>
-                              <NumberInput
-                                min={10} max={1000}
-                                value={settings.boardHeightMm}
-                                onChangeValue={(val) => updateSettings({ boardHeightMm: val })}
-                                fallbackValue={70}
-                                className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                        
+
                         <p className="text-[10px] text-gray-400 dark:text-slate-500 pt-2 border-t border-gray-200 dark:border-slate-700">
                           Tip: Trackpad pinch-to-zoom and two-finger pan are automatically detected on modern browsers.
                         </p>

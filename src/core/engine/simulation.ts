@@ -1,6 +1,91 @@
 import { LogicNode, Wire, Signal } from '../models/types';
 import { getNodeDefinition } from './nodes';
 
+export const flattenCircuit = (
+  rootNodes: LogicNode[],
+  rootWires: Wire[],
+  savedCircuits: Record<string, { nodes: LogicNode[], wires: Wire[] }>,
+  prefix: string = ''
+): { nodes: LogicNode[], wires: Wire[] } => {
+  let flatNodes: LogicNode[] = [];
+  let flatWires: Wire[] = [...rootWires.map(w => ({
+    ...w,
+    id: `${prefix}${w.id}`,
+    sourceNodeId: `${prefix}${w.sourceNodeId}`,
+    sourcePinId: `${prefix}${w.sourcePinId}`,
+    targetNodeId: `${prefix}${w.targetNodeId}`,
+    targetPinId: `${prefix}${w.targetPinId}`
+  }))];
+
+  rootNodes.forEach(node => {
+    if (node.type.startsWith('SUBCIRCUIT:')) {
+      const subId = node.type.split(':')[1];
+      const sub = savedCircuits[subId];
+      if (sub) {
+        const subPrefix = `${prefix}${node.id}_`;
+        
+        const flattened = flattenCircuit(sub.nodes, sub.wires, savedCircuits, subPrefix);
+        flatNodes.push(...flattened.nodes);
+        flatWires.push(...flattened.wires);
+
+        node.inputs.forEach((chipPin) => {
+          const internalNode = sub.nodes.find(n => n.id === chipPin.internalNodeId);
+          if (internalNode) {
+            // For SUB_IN, the internal node has an output pin. 
+            // For SUB_IO, the internal node has a bidir pin.
+            // chipPin gets signal from parent, so virtual wire goes from chipPin (source) to internal node's pin (target).
+            const internalPin = internalNode.outputs[0] || internalNode.inputs[0];
+            if (internalPin) {
+              flatWires.push({
+                id: `vw_subin_${prefix}${chipPin.id}`,
+                sourceNodeId: `${prefix}${node.id}`,
+                sourcePinId: `${prefix}${chipPin.id}`,
+                targetNodeId: `${subPrefix}${internalNode.id}`,
+                targetPinId: `${subPrefix}${internalPin.id}`
+              });
+            }
+          }
+        });
+        
+        node.outputs.forEach((chipPin) => {
+          const internalNode = sub.nodes.find(n => n.id === chipPin.internalNodeId);
+          if (internalNode && internalNode.inputs[0]) {
+            // Signal propagates from internal OUTPUT node's input pin to the chip's output pin
+            flatWires.push({
+              id: `vw_subout_${prefix}${chipPin.id}`,
+              sourceNodeId: `${subPrefix}${internalNode.id}`,
+              sourcePinId: `${subPrefix}${internalNode.inputs[0].id}`,
+              targetNodeId: `${prefix}${node.id}`,
+              targetPinId: `${prefix}${chipPin.id}`
+            });
+          }
+        });
+        
+        flatNodes.push({
+          ...node,
+          id: `${prefix}${node.id}`,
+          inputs: node.inputs.map(p => ({ ...p, id: `${prefix}${p.id}` })),
+          outputs: node.outputs.map(p => ({ ...p, id: `${prefix}${p.id}` }))
+        });
+      }
+    } else {
+      
+      flatNodes.push({
+        ...node,
+        id: `${prefix}${node.id}`,
+        inputs: node.inputs.map(p => ({ ...p, id: `${prefix}${p.id}` })),
+        outputs: node.outputs.map(p => ({ ...p, id: `${prefix}${p.id}` })),
+        // A hack: we can store a property to disable evaluation
+        properties: { ...node.properties, _isFlattened: prefix !== '' }
+      });
+    }
+  });
+
+  return { nodes: flatNodes, wires: flatWires };
+};
+
+
+
 export interface SimulationState {
   tickCount: number;
   pinStates: Record<string, Signal>;
@@ -10,10 +95,13 @@ export interface SimulationState {
 }
 
 export const computeNextState = (
-  nodes: LogicNode[],
-  baseWires: Wire[],
-  prevState: SimulationState
+  rootNodes: LogicNode[],
+  rootWires: Wire[],
+  prevState: SimulationState,
+  savedCircuits: Record<string, { nodes: LogicNode[], wires: Wire[] }> = {}
 ): SimulationState => {
+  const { nodes, wires: baseWires } = flattenCircuit(rootNodes, rootWires, savedCircuits);
+
   // Generate virtual wires for Net Labels
   const virtualWires: Wire[] = [];
   const netPinGroups: Record<string, { nodeId: string; pinId: string }[]> = {};

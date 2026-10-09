@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { NodeType } from '../../core/models/types';
-import { BoxSelect, Cpu, ToggleLeft, Lightbulb, Timer, Zap, SlidersHorizontal, Tag, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
+import { BoxSelect, Cpu, ToggleLeft, Lightbulb, Zap, SlidersHorizontal, Tag, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp , Trash2 } from 'lucide-react';
 import { getNodeDefinition } from '../../core/engine/nodes';
 
 interface ToolItem {
@@ -21,13 +21,10 @@ const CATEGORIES: ToolCategory[] = [
     items: [
       { type: 'VCC', icon: <Zap size={18} /> },
       { type: 'GND', icon: <Zap size={18} /> },
-      { type: 'INPUT', icon: <ToggleLeft size={18} /> },
       { type: 'BUTTON', icon: <ToggleLeft size={18} /> },
       { type: 'DIP_SWITCH', icon: <SlidersHorizontal size={18} /> },
-      { type: 'OUTPUT', icon: <Lightbulb size={18} /> },
-      { type: '7_SEG_DISPLAY', icon: <Lightbulb size={18} /> },
       { type: 'LED_BAR', icon: <Lightbulb size={18} /> },
-      { type: 'CLOCK', icon: <Timer size={18} /> },
+      { type: '7_SEG_DISPLAY', icon: <Lightbulb size={18} /> },
       { type: 'NET_LABEL', icon: <Tag size={18} /> },
       { type: 'BUS_BREAKOUT', icon: <Tag size={18} /> },
     ]
@@ -105,7 +102,33 @@ const CATEGORIES: ToolCategory[] = [
 export const Toolbox: React.FC = () => {
   const startPlacingNode = useSimulatorStore((state) => state.startPlacingNode);
   const appMode = useSimulatorStore((state) => state.appMode);
-  const nodes = useSimulatorStore((state) => state.nodes);
+  const savedCircuits = useSimulatorStore((state) => state.savedCircuits);
+  const subcircuits = Object.entries(savedCircuits).map(([id, sc]) => ({id, name: sc.name}));
+
+  const activeSubcircuitId = useSimulatorStore(state => state.activeSubcircuitId);
+  const customCircuits = subcircuits.filter(sc => sc.id !== 'main');
+  const displayCategories = [...CATEGORIES];
+  
+  if (activeSubcircuitId !== 'main') {
+    displayCategories.unshift({
+      name: 'Subcircuit Pins',
+      items: [
+        { type: 'SUB_IN' as NodeType, icon: <ToggleLeft size={18} /> },
+        { type: 'SUB_OUT' as NodeType, icon: <Lightbulb size={18} /> },
+        { type: 'SUB_IO' as NodeType, icon: <Tag size={18} /> },
+      ]
+    });
+  }
+  
+  if (customCircuits.length > 0) {
+    displayCategories.unshift({
+      name: 'Custom Components',
+      items: customCircuits.map(sc => ({
+        type: `SUBCIRCUIT:${sc.id}` as NodeType,
+        icon: <Cpu size={18} />
+      }))
+    });
+  }
 
   const [search, setSearch] = useState('');
   const [recentNodes, setRecentNodes] = useState<NodeType[]>(() => {
@@ -143,10 +166,16 @@ export const Toolbox: React.FC = () => {
       });
       return res;
     };
-    const paths = getAllPaths(CATEGORIES);
+    const paths = getAllPaths(displayCategories);
     const newState: Record<string, boolean> = {};
     paths.forEach(p => newState[p] = expanded);
     setExpandedCats(newState);
+  };
+
+  
+  const clearRecent = () => {
+    setRecentNodes([]);
+    localStorage.removeItem('logica-recent-nodes');
   };
 
   const handleAddNode = (type: NodeType) => {
@@ -237,57 +266,8 @@ export const Toolbox: React.FC = () => {
     return null;
   }
 
-  if (appMode === 'board') {
-    const unplacedNodes = nodes.filter(
-      n => n.type !== 'JUNCTION' && (n.boardX === undefined || n.boardY === undefined)
-    );
-    
-    return (
-      <div className="w-64 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 flex flex-col shadow-lg z-10 relative">
-        <div className="p-4 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/50">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-700 dark:text-slate-300">
-            Unplaced Components
-          </h2>
-        </div>
-        <div className="p-4 flex-1 overflow-y-auto">
-          {unplacedNodes.length === 0 ? (
-            <div className="text-sm text-gray-500 dark:text-slate-400 text-center mt-4">
-              <p>No components to place.</p>
-              <p className="mt-2 text-xs">Switch to Schematic mode to add more.</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {unplacedNodes.map(node => {
-                const def = getNodeDefinition(node.type);
-                const label = node.properties?.label || def?.label || node.type;
-                return (
-                  <button
-                    key={node.id}
-                    onClick={() => {
-                      const startPlacingBoardNode = useSimulatorStore.getState().startPlacingBoardNode;
-                      startPlacingBoardNode(node.id);
-                    }}
-                    className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded shadow-sm hover:border-blue-500 hover:shadow-md transition-all text-left group"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold text-gray-800 dark:text-slate-100 truncate">
-                        {label}
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-slate-400">
-                        {def?.label || node.type}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
 
-  const renderedContent = CATEGORIES.map(cat => renderCategory(cat)).filter(Boolean);
+  const renderedContent = displayCategories.map(cat => renderCategory(cat)).filter(Boolean);
 
   return (
     <div className="w-64 bg-gray-100 dark:bg-slate-800 border-r border-gray-300 dark:border-slate-700 h-full flex flex-col shadow-sm z-10 relative transition-colors overflow-hidden">
@@ -323,9 +303,18 @@ export const Toolbox: React.FC = () => {
       <div className="flex flex-col p-4 gap-4 overflow-y-auto flex-1">
         {!search && recentNodes.length > 0 && (
           <div className="flex flex-col gap-1 mb-2">
-            <h3 className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-1 ml-1">
-              Recently Used
-            </h3>
+            <div className="flex justify-between items-center mb-1 ml-1">
+              <h3 className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                Recently Used
+              </h3>
+              <button 
+                onClick={clearRecent}
+                className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded hover:bg-gray-200 dark:hover:bg-slate-700"
+                title="Clear Recent"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
             <div className="flex flex-col gap-2">
               {renderItems(recentNodes.map(type => {
                 let icon: React.ReactNode = <Cpu size={16} />;
@@ -338,7 +327,7 @@ export const Toolbox: React.FC = () => {
                     if (cat.subcategories) findIcon(cat.subcategories);
                   }
                 };
-                findIcon(CATEGORIES);
+                findIcon(displayCategories);
                 return { type, icon };
               }))}
             </div>

@@ -23,10 +23,13 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
   
   const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
   const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
-
+  const simState = useSimulatorStore(state => state.simState);
+  
   // Use the unique bidir pin which appears in both inputs and outputs
   const pin = node.inputs[0] || node.outputs[0];
-  const name = String(node.properties?.label || 'NET');
+  const val = pin ? simState.pinStates[pin.id] : undefined;
+  const isInputSide = node.type === 'SUB_OUT' || (node.type === 'SUB_IO' && node.properties?.flipX);
+  const name = String(node.properties?.label || (node.type === 'SUB_IN' ? 'IN' : node.type === 'SUB_OUT' ? 'OUT' : node.type === 'SUB_IO' ? 'I/O' : 'NET'));
 
   // We want to render a tag shape. Flat left, pointed right.
   // The pin will be exactly at (width, height/2) so the point touches the pin.
@@ -45,13 +48,26 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
       opacity={isPlacing ? 0.6 : 1}
       draggable={!isPlacing}
       onClick={(e) => {
-        e.cancelBubble = true;
         const store = useSimulatorStore.getState();
         if (store.placingNodeId === node.id) {
+          e.cancelBubble = true;
           store.finishPlacingNode();
           return;
         }
         select({ type: 'node', id: node.id }, e.evt.shiftKey);
+        
+        if (node.type === 'SUB_IN') {
+          e.cancelBubble = true;
+          const currentValue = node.properties?.value === 1 ? 1 : 0;
+          store.updateNodeProperties(node.id, { value: currentValue === 1 ? 0 : 1 });
+        } else if (node.type === 'SUB_IO') {
+          e.cancelBubble = true;
+          let nextValue: any = undefined;
+          if (node.properties?.value === undefined) nextValue = 0;
+          else if (node.properties?.value === 0) nextValue = 1;
+          else if (node.properties?.value === 1) nextValue = undefined;
+          store.updateNodeProperties(node.id, { value: nextValue });
+        }
       }}
       onDragStart={() => useSimulatorStore.getState().saveHistory()}
       onDragMove={(e) => {
@@ -76,8 +92,24 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
       }}
     >
       <Rect x={0} y={0} width={width} height={height} fill="transparent" />
-      <Line points={[width - 10, height / 2, width, height / 2]} stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder} strokeWidth={2} />
-      <Group x={(width - 12) / 2} y={height / 2} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+      <Line points={isInputSide ? [0, height / 2, 10, height / 2] : [width - 10, height / 2, width, height / 2]} stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder} strokeWidth={2} />
+      
+      {/* Box to make it look like a port */}
+      {(node.type === 'SUB_IN' || node.type === 'SUB_OUT' || node.type === 'SUB_IO') && (
+        <Rect
+          x={isInputSide ? 10 : 0}
+          y={height / 4}
+          width={width - 10}
+          height={height / 2}
+          fill={val === 1 ? '#3b82f6' : val === 'X' ? '#ef4444' : canvasTheme.nodeBg}
+          stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
+          strokeWidth={node.type === 'SUB_IO' && node.properties?.value === undefined ? 1 : 2}
+          strokeDasharray={node.type === 'SUB_IO' && node.properties?.value === undefined ? [4, 4] : undefined}
+          cornerRadius={2}
+        />
+      )}
+      
+      <Group x={isInputSide ? (width + 12) / 2 : (width - 12) / 2} y={height / 2} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
         <Text 
           x={0}
           y={0}
@@ -88,9 +120,10 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
           height={height}
           text={name} 
           verticalAlign="middle"
-          align={(node.properties?.rotation || 0) === 180 ? 'left' : ((node.properties?.rotation || 0) === 90 || (node.properties?.rotation || 0) === 270) ? 'center' : 'right'}
-          fontSize={12} 
-          fontFamily="monospace"
+          align={isInputSide ? 'left' : 'right'}
+          fontSize={10}
+          fontFamily="sans-serif"
+          fontStyle={node.type.startsWith('SUB_') ? 'bold' : 'normal'}
           fill={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.textColor}
         />
       </Group>
@@ -99,7 +132,7 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
         <Pin
           id={pin.id}
           nodeId={node.id}
-          x={width}
+          x={isInputSide ? 0 : width}
           y={height / 2}
           type={pin.type}
         />

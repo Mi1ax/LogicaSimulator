@@ -7,6 +7,8 @@ import { PropertiesPanel } from './ui/components/PropertiesPanel';
 import { useSimulatorStore } from './store/useSimulatorStore';
 import { ErrorBoundary } from './ui/components/ErrorBoundary';
 
+import { CircuitTabs } from './ui/components/CircuitTabs';
+
 function App() {
   const theme = useSimulatorStore(state => state.theme);
   const simRunning = useSimulatorStore(state => state.simRunning);
@@ -67,9 +69,12 @@ function App() {
       <Topbar />
       <div className="flex flex-1 overflow-hidden relative">
         <Toolbox />
-        <ErrorBoundary>
-          <CanvasArea />
-        </ErrorBoundary>
+        <div className="flex-1 flex flex-col relative overflow-hidden">
+          <CircuitTabs />
+          <ErrorBoundary>
+            <CanvasArea />
+          </ErrorBoundary>
+        </div>
         <PropertiesPanel />
       </div>
       <Bottombar />

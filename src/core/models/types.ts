@@ -10,6 +10,7 @@ export interface Pin {
   index: number;
   name?: string;
   pinNumber?: number;
+  internalNodeId?: string;
 }
 
 export interface Wire {
@@ -19,14 +20,8 @@ export interface Wire {
   targetNodeId: string;
   targetPinId: string;
   waypoints?: { x: number; y: number }[];
-  wireType?: 'solder' | 'jumper'; // board mode routing type
 }
 
-export interface BoardTrace {
-  id: string;
-  type: 'solder' | 'jumper';
-  points: { x: number; y: number }[];
-}
 
 export interface DraftWire {
   sourceNodeId: string;
@@ -42,8 +37,6 @@ export interface LogicNode {
   type: NodeType;
   x: number;
   y: number;
-  boardX?: number;
-  boardY?: number;
   inputs: Pin[];
   outputs: Pin[];
   properties?: Record<string, any>;

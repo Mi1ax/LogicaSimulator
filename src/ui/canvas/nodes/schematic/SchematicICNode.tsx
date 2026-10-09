@@ -108,7 +108,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
       {/* IC Label */}
       <Group x={width / 2} y={height / 2} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
         <Text
-          text={def?.type || 'IC'}
+          text={def?.type?.startsWith('SUBCIRCUIT:') ? def.label : (def?.type || 'IC')}
           x={0}
           y={0}
           width={height}

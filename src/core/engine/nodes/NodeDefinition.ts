@@ -6,6 +6,7 @@ export interface PinDefinition {
   pinNumber?: number; // Standard IC pin numbering (1..N)
   schematicSide?: 'left' | 'right' | 'top' | 'bottom';
   schematicRow?: number; // Logical index for schematic layout (1-indexed)
+  internalNodeId?: string; // For SUBCIRCUIT pins to map to internal nodes
 }
 
 export interface NodeDefinition {

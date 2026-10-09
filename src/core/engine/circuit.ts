@@ -35,6 +35,7 @@ export const addNode = (state: CircuitState, type: NodeType, x: number, y: numbe
         index: inputs.length + outputs.length, // Unique index
         name: cp.name,
         pinNumber: cp.pinNumber,
+        internalNodeId: cp.internalNodeId,
       };
       if (cp.type === 'input') inputs.push(pin);
       else if (cp.type === 'output') outputs.push(pin);
@@ -100,6 +101,7 @@ export const updateNodeProperties = (state: CircuitState, id: string, props: Rec
             index: inputs.length + outputs.length,
             name: cp.name,
             pinNumber: cp.pinNumber,
+        internalNodeId: cp.internalNodeId,
           };
           
           if (cp.type === 'input') inputs.push(pin);
@@ -118,18 +120,15 @@ export const updateNodeProperties = (state: CircuitState, id: string, props: Rec
   };
 };
 
-export const moveNode = (state: CircuitState, id: string, x: number, y: number, isBoardCoords: boolean = false): CircuitState => {
+export const moveNode = (state: CircuitState, id: string, x: number, y: number): CircuitState => {
   return {
     ...state,
     nodes: state.nodes.map((node) => {
       if (node.id === id) {
-        // Junctions need 10px snapping to align with perfectly horizontal/vertical wires smoothly
         const snap = node.type === 'JUNCTION' ? 10 : GRID_SIZE;
         const snappedX = Math.round(x / snap) * snap;
         const snappedY = Math.round(y / snap) * snap;
-        return isBoardCoords
-          ? { ...node, boardX: snappedX, boardY: snappedY }
-          : { ...node, x: snappedX, y: snappedY };
+        return { ...node, x: snappedX, y: snappedY };
       }
       return node;
     })
@@ -137,7 +136,7 @@ export const moveNode = (state: CircuitState, id: string, x: number, y: number, 
 };
 
 
-export const moveNodes = (state: CircuitState, ids: string[], primaryId: string, x: number, y: number, isBoardCoords: boolean = false): CircuitState => {
+export const moveNodes = (state: CircuitState, ids: string[], primaryId: string, x: number, y: number): CircuitState => {
   const primaryNode = state.nodes.find(n => n.id === primaryId);
   if (!primaryNode) return state;
 
@@ -145,8 +144,8 @@ export const moveNodes = (state: CircuitState, ids: string[], primaryId: string,
   const snappedX = Math.round(x / snap) * snap;
   const snappedY = Math.round(y / snap) * snap;
 
-  const oldX = isBoardCoords ? (primaryNode.boardX ?? primaryNode.x) : primaryNode.x;
-  const oldY = isBoardCoords ? (primaryNode.boardY ?? primaryNode.y) : primaryNode.y;
+  const oldX = primaryNode.x;
+  const oldY = primaryNode.y;
 
   const dx = snappedX - oldX;
   const dy = snappedY - oldY;
@@ -157,11 +156,7 @@ export const moveNodes = (state: CircuitState, ids: string[], primaryId: string,
     ...state,
     nodes: state.nodes.map(node => {
       if (ids.includes(node.id)) {
-        const nx = isBoardCoords ? (node.boardX ?? node.x) : node.x;
-        const ny = isBoardCoords ? (node.boardY ?? node.y) : node.y;
-        return isBoardCoords
-          ? { ...node, boardX: nx + dx, boardY: ny + dy }
-          : { ...node, x: nx + dx, y: ny + dy };
+        return { ...node, x: node.x + dx, y: node.y + dy };
       }
       return node;
     })
@@ -180,16 +175,14 @@ export const addWire = (
   sourceNodeId: string, 
   sourcePinId: string, 
   targetNodeId: string, 
-  targetPinId: string,
-  wireType?: 'solder' | 'jumper'
+  targetPinId: string
 ): CircuitState => {
   const newWire: Wire = {
     id: generateId('wire'),
     sourceNodeId,
     sourcePinId,
     targetNodeId,
-    targetPinId,
-    wireType
+    targetPinId
   };
 
   return { ...state, wires: [...state.wires, newWire] };
@@ -275,4 +268,83 @@ export const setNodeOutputCount = (state: CircuitState, nodeId: string, count: n
   const wires = state.wires.filter(w => !wiresToDelete.has(w.id));
 
   return { ...state, nodes, wires };
+};
+
+export const syncSubcircuitInstances = (nodes: LogicNode[], wires: Wire[]): { nodes: LogicNode[], wires: Wire[] } => {
+  let changed = false;
+  const newNodes = nodes.map(node => {
+    if (node.type.startsWith('SUBCIRCUIT:')) {
+      const def = getNodeDefinition(node.type);
+      if (def && def.customPins) {
+        let nodeChanged = false;
+        
+        const newInputs: Pin[] = [];
+        const newOutputs: Pin[] = [];
+
+        def.customPins.forEach((cp, i) => {
+          let existing = node.inputs.find(p => p.internalNodeId === cp.internalNodeId || p.name === cp.name)
+                      || node.outputs.find(p => p.internalNodeId === cp.internalNodeId || p.name === cp.name);
+          
+          let pin: Pin;
+          if (existing) {
+            if (existing.name !== cp.name || existing.pinNumber !== cp.pinNumber) {
+              nodeChanged = true;
+              pin = { ...existing, name: cp.name, pinNumber: cp.pinNumber, type: cp.type as any };
+            } else {
+              pin = { ...existing }; // Create shallow copy so we can tweak index if needed
+            }
+          } else {
+            nodeChanged = true;
+            pin = {
+              id: `pin-${node.id}-${cp.type}-${cp.name}-${Date.now()}-${i}`,
+              nodeId: node.id,
+              type: cp.type as any,
+              index: 0,
+              name: cp.name,
+              pinNumber: cp.pinNumber,
+              internalNodeId: cp.internalNodeId
+            };
+          }
+
+          if (cp.type === 'input') newInputs.push(pin);
+          else if (cp.type === 'output') newOutputs.push(pin);
+          else if (cp.type === 'bidir') {
+            newInputs.push(pin);
+            newOutputs.push(pin);
+          }
+        });
+
+        newInputs.forEach((p, idx) => {
+          if (p.index !== idx) {
+            p.index = idx;
+            nodeChanged = true;
+          }
+        });
+        
+        newOutputs.forEach((p, idx) => {
+          const expectedIdx = newInputs.length + idx;
+          if (p.index !== expectedIdx && p.type !== 'bidir') { // bidir gets its index from newInputs
+            p.index = expectedIdx;
+            nodeChanged = true;
+          }
+        });
+
+        if (nodeChanged || node.inputs.length !== newInputs.length || node.outputs.length !== newOutputs.length) {
+          changed = true;
+          return { ...node, inputs: newInputs, outputs: newOutputs };
+        }
+      }
+    }
+    return node;
+
+  });
+
+  // Remove any wires that connect to pins that no longer exist
+  let newWires = wires;
+  if (changed) {
+    const validPinIds = new Set(newNodes.flatMap(n => [...n.inputs, ...n.outputs].map(p => p.id)));
+    newWires = wires.filter(w => validPinIds.has(w.sourcePinId) && validPinIds.has(w.targetPinId));
+  }
+
+  return { nodes: newNodes, wires: newWires };
 };

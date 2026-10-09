@@ -30,7 +30,7 @@ const ConnectedNode = React.memo(({ id }: { id: string }) => {
   if (def?.renderAs === 'BUS') return <SchematicBusNode node={node} />;
   if (['INPUT', 'OUTPUT', 'CLOCK', 'VCC', 'GND'].includes(node.type)) return <SchematicIONode node={node} />;
   if (node.type === 'JUNCTION') return <SchematicJunctionNode node={node} />;
-  if (node.type === 'NET_LABEL') return <SchematicNetLabelNode node={node} />;
+  if (['NET_LABEL', 'SUB_IN', 'SUB_OUT', 'SUB_IO'].includes(node.type)) return <SchematicNetLabelNode node={node} />;
   return <SchematicGateNode node={node} />;
 });
 

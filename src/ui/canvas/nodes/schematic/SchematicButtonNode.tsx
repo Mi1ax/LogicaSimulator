@@ -101,19 +101,21 @@ export const SchematicButtonNode: React.FC<Props> = React.memo(({ node }) => {
           }
         }}
         onMouseDown={(e) => {
-          e.cancelBubble = true;
           if (!isPlacing) {
+            e.cancelBubble = true;
             updateNodeProperties(node.id, { pressed: true });
           }
         }}
         onMouseUp={(e) => {
-          e.cancelBubble = true;
           if (!isPlacing) {
+            e.cancelBubble = true;
             updateNodeProperties(node.id, { pressed: false });
           }
         }}
         onClick={(e) => {
-          e.cancelBubble = true;
+          if (!isPlacing) {
+            e.cancelBubble = true;
+          }
         }}
       />
       

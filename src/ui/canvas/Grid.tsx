@@ -14,8 +14,6 @@ interface GridProps {
 export const Grid: React.FC<GridProps> = ({ width, height, scale, x, y }) => {
   const theme = useSimulatorStore((state) => state.theme);
   const appMode = useSimulatorStore((state) => state.appMode);
-  const boardWidthMm = useSimulatorStore((state) => state.settings.boardWidthMm);
-  const boardHeightMm = useSimulatorStore((state) => state.settings.boardHeightMm);
   const canvasTheme = getCanvasTheme(theme === 'dark');
 
   const patternCanvas = useMemo(() => {
@@ -29,26 +27,10 @@ export const Grid: React.FC<GridProps> = ({ width, height, scale, x, y }) => {
       [[0, 0], [GRID_SIZE, 0], [0, GRID_SIZE], [GRID_SIZE, GRID_SIZE]].forEach(([cx, cy]) => drawFn(cx, cy));
     };
 
-    if (appMode === 'board') {
-      ctx.fillStyle = theme === 'dark' ? 'rgba(217, 119, 67, 0.4)' : 'rgba(184, 98, 48, 0.5)';
-      drawCorners((cx, cy) => {
-        ctx.beginPath();
-        ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      ctx.fillStyle = theme === 'dark' ? '#1e293b' : '#f8fafc';
-      drawCorners((cx, cy) => {
-        ctx.beginPath();
-        ctx.arc(cx, cy, 1, 0, Math.PI * 2);
-        ctx.fill();
-      });
-    } else {
       ctx.fillStyle = canvasTheme.gridColor;
       drawCorners((cx, cy) => {
         ctx.fillRect(cx - 0.5, cy - 0.5, 1.5, 1.5);
       });
-    }
     return canvas;
   }, [appMode, theme, canvasTheme.gridColor]);
 
@@ -70,18 +52,6 @@ export const Grid: React.FC<GridProps> = ({ width, height, scale, x, y }) => {
           const endY = startY + Math.ceil(height / scale / step) * step + step + padY * 2;
 
           // Draw board boundary in Board Mode
-          if (appMode === 'board') {
-            const bw = (boardWidthMm / 2.54) * 20;
-            const bh = (boardHeightMm / 2.54) * 20;
-            
-            context.beginPath();
-            context.rect(-10, -10, bw + 20, bh + 20); // 10px padding around holes
-            context.fillStyle = theme === 'dark' ? 'rgba(30, 41, 59, 0.8)' : 'rgba(230, 235, 240, 0.8)';
-            context.fill();
-            context.lineWidth = 2;
-            context.strokeStyle = theme === 'dark' ? 'rgba(217, 119, 67, 0.8)' : 'rgba(184, 98, 48, 0.8)';
-            context.stroke();
-          }
 
           if (patternCanvas) {
             // Note: Konva's context wrapper doesn't type createPattern strictly correctly for all canvases

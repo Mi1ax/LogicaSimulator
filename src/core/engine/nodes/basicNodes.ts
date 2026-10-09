@@ -91,23 +91,34 @@ export const BufferNode: NodeDefinition = {
   }
 };
 
-export const InputNode: NodeDefinition = {
-  type: 'INPUT',
-  label: 'Input Switch',
+export const SubInNode: NodeDefinition = {
+  type: 'SUB_IN',
+  label: 'Subcircuit Input',
   numInputs: 0,
   numOutputs: 1,
   defaultProperties: { value: 0 },
   evaluate: (_, props) => {
-    return [props?.value === 1 ? 1 : 0];
+    return [props?._isFlattened ? undefined : (props?.value === 1 ? 1 : 0)];
   }
 };
 
-export const OutputNode: NodeDefinition = {
-  type: 'OUTPUT',
-  label: 'Output LED',
+export const SubOutNode: NodeDefinition = {
+  type: 'SUB_OUT',
+  label: 'Subcircuit Output',
   numInputs: 1,
   numOutputs: 0,
-  evaluate: () => [] // Passive receiver
+  evaluate: (_, props) => [props?._isFlattened ? undefined : (props?.value === 1 ? 1 : 0)]
+};
+
+export const SubIoNode: NodeDefinition = {
+  type: 'SUB_IO',
+  label: 'Subcircuit I/O',
+  numInputs: 0,
+  numOutputs: 0,
+  customPins: [
+    { name: 'IO', type: 'bidir', schematicSide: 'right' }
+  ],
+  evaluate: (_, props) => [props?._isFlattened ? undefined : props?.value]
 };
 
 export const ClockNode: NodeDefinition = {
@@ -166,7 +177,7 @@ export const JunctionNode: NodeDefinition = {
   label: 'Junction',
   numInputs: 1,
   numOutputs: 1,
-  evaluate: (inputs) => [inputs[0]] // Transparently passes signal
+  evaluate: () => [undefined] // Evaluated purely via net union, should not drive on its own!
 };
 
 export const DipSwitchNode: NodeDefinition = {
@@ -197,7 +208,7 @@ export const SevenSegNode: NodeDefinition = {
     { type: 'input', name: 'G', pinNumber: 7 },
     { type: 'input', name: 'DP', pinNumber: 8 }
   ],
-  evaluate: () => [] // Passive receiver
+  evaluate: () => []
 };
 
 export const NetLabelNode: NodeDefinition = {
@@ -208,7 +219,7 @@ export const NetLabelNode: NodeDefinition = {
   customPins: [
     { name: 'NET', type: 'bidir', pinNumber: 1, schematicSide: 'right', schematicRow: 1 }
   ],
-  evaluate: (inputs) => [inputs[0]],
+  evaluate: () => [undefined],
 };
 
 export const BusBreakoutNode: NodeDefinition = {
@@ -239,7 +250,7 @@ export const BusBreakoutNode: NodeDefinition = {
     pins.push({ name: 'BUS', type: 'bidir', schematicSide: 'right', schematicRow: Math.max(1, Math.round((bits + 1) / 2)) });
     return pins;
   },
-  evaluate: (inputs) => inputs
+  evaluate: (inputs) => inputs.map(() => undefined)
 };
 
 
