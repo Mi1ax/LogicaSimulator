@@ -92,6 +92,7 @@ export interface SimulationState {
   wireStates: Record<string, Signal>;
   /** Internal state of sequential nodes (e.g. counters, flip-flops), keyed by node id. */
   nodeStates?: Record<string, Record<string, any>>;
+  connectedPins?: Set<string>;
 }
 
 export const computeNextState = (
@@ -300,11 +301,11 @@ export const computeNextState = (
     currentPinStates = nextIterPinStates;
     if (!changed) break;
   }
-
   return {
     tickCount: prevState.tickCount + 1,
     pinStates: currentPinStates,
     wireStates: finalWireStates,
-    nodeStates: finalNodeStates
+    nodeStates: finalNodeStates,
+    connectedPins
   };
 };

@@ -94,7 +94,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
         <>
           <Line points={[width/2, 10, width/2, height]} stroke={borderStroke} strokeWidth={2} />
           <Line points={[10, 10, width-10, 10]} stroke={borderStroke} strokeWidth={2} />
-          <Group x={width / 2} y={-4} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+          <Group x={width / 2} y={-4} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
             <Text text="VCC" x={-width / 2} y={-6} width={width} align="center" fontSize={12} fontFamily="monospace" fill={canvasTheme.textColor} />
           </Group>
           <Rect x={0} y={0} width={width} height={height} fill="transparent" />
@@ -106,7 +106,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
           <Line points={[10, height - 10, width - 10, height - 10]} stroke={borderStroke} strokeWidth={2} />
           <Line points={[14, height - 5, width - 14, height - 5]} stroke={borderStroke} strokeWidth={2} />
           <Line points={[18, height, width - 18, height]} stroke={borderStroke} strokeWidth={2} />
-          <Group x={width / 2} y={height + 11} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+          <Group x={width / 2} y={height + 11} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
             <Text text="GND" x={-width / 2} y={-6} width={width} align="center" fontSize={12} fontFamily="monospace" fill={canvasTheme.textColor} />
           </Group>
           <Rect x={0} y={0} width={width} height={height} fill="transparent" />
@@ -201,7 +201,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
             </Group>
           )}
           {isClock && (
-            <Group x={width / 2} y={height / 2}>
+            <Group x={width / 2} y={height / 2} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
               <Text
                 text="CLK"
                 x={-width / 2}
@@ -221,7 +221,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
       )}
 
       {node.properties?.label && !isVcc && !isGnd && (
-        <Group x={width / 2} y={-14} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+        <Group x={width / 2} y={-14} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
           <Text
             text={node.properties.label}
             x={-width / 2}

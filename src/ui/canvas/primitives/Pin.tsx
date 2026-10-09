@@ -15,14 +15,17 @@ interface PinProps {
 export const Pin: React.FC<PinProps> = ({ x, y, type, id, nodeId, opacity }) => {
   const startWire = useSimulatorStore(state => state.startWire);
   const completeWire = useSimulatorStore(state => state.completeWire);
-  const theme = useSimulatorStore(state => state.theme);
-  
-  const canvasTheme = getCanvasTheme(theme === 'dark');
   const pinState = useSimulatorStore(state => state.simState.pinStates[id]);
+  const theme = useSimulatorStore(state => state.theme);
+  const canvasTheme = getCanvasTheme(theme === 'dark');
+  const isConnected = useSimulatorStore(state => 
+    state.wires.some(w => w.sourcePinId === id || w.targetPinId === id)
+  );
 
   let fill = type === 'input' ? canvasTheme.pinInputFill : canvasTheme.pinOutputFill;
   let stroke = type === 'input' ? canvasTheme.pinInputStroke : canvasTheme.pinOutputStroke;
   let radius = 5;
+  let strokeWidth = 1;
 
   if (pinState === 1) {
     fill = canvasTheme.signalHigh;
@@ -35,6 +38,12 @@ export const Pin: React.FC<PinProps> = ({ x, y, type, id, nodeId, opacity }) => 
     stroke = '#ef4444';
   }
 
+  // If not connected, make it hollow (transparent) so it's obvious!
+  if (!isConnected) {
+    fill = 'transparent';
+    strokeWidth = 2; // Make border a bit thicker so it's still easy to see and click
+  }
+
   return (
     <Circle
       id={id}
@@ -45,7 +54,7 @@ export const Pin: React.FC<PinProps> = ({ x, y, type, id, nodeId, opacity }) => 
       radius={radius}
       fill={fill}
       stroke={stroke}
-      strokeWidth={1}
+      strokeWidth={strokeWidth}
       hitStrokeWidth={15}
       onMouseEnter={(e) => {
         const container = e.target.getStage()?.container();

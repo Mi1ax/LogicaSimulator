@@ -111,6 +111,64 @@ const pushHistory = (state: SimulatorState) => ({
   future: []
 });
 
+
+const applyAutoConnect = (state: SimulatorState, movedNodeIds: string[]) => {
+  const movedNodes = state.nodes.filter(n => movedNodeIds.includes(n.id));
+  const otherNodes = state.nodes.filter(n => !movedNodeIds.includes(n.id));
+  
+  const movedPins = movedNodes.flatMap(n => 
+    [...n.inputs, ...n.outputs].map(p => ({
+      nodeId: n.id,
+      pinId: p.id,
+      type: p.type,
+      pos: getSchematicPinPosition(n, p.id)
+    }))
+  );
+  
+  const otherPins = otherNodes.flatMap(n => 
+    [...n.inputs, ...n.outputs].map(p => ({
+      nodeId: n.id,
+      pinId: p.id,
+      type: p.type,
+      pos: getSchematicPinPosition(n, p.id)
+    }))
+  );
+  
+  let newWires = [...state.wires];
+  let changed = false;
+  
+  movedPins.forEach(mp => {
+    otherPins.forEach(op => {
+      const dx = mp.pos.x - op.pos.x;
+      const dy = mp.pos.y - op.pos.y;
+      if (dx * dx + dy * dy < 25) { // within 5 pixels
+        const alreadyConnected = newWires.some(w => 
+          (w.sourcePinId === mp.pinId && w.targetPinId === op.pinId) ||
+          (w.sourcePinId === op.pinId && w.targetPinId === mp.pinId)
+        );
+        if (!alreadyConnected) {
+          let source = mp;
+          let target = op;
+          if (op.type === 'output' && mp.type !== 'output') {
+            source = op;
+            target = mp;
+          }
+          newWires.push({
+            id: generateId('wire'),
+            sourceNodeId: source.nodeId,
+            sourcePinId: source.pinId,
+            targetNodeId: target.nodeId,
+            targetPinId: target.pinId
+          });
+          changed = true;
+        }
+      }
+    });
+  });
+  
+  return changed ? { ...state, wires: newWires } : state;
+};
+
 export const useSimulatorStore = create<SimulatorState>()(
   persist(
     (set) => ({
@@ -160,8 +218,7 @@ export const useSimulatorStore = create<SimulatorState>()(
       selection: null,
       multiSelection: [],
       placingNodeId: null,
-      draftWire: null,
-      draftBoardTrace: null
+      draftWire: null
     };
   }),
 
@@ -319,7 +376,8 @@ export const useSimulatorStore = create<SimulatorState>()(
 
   finishPlacingNode: () => set((state) => {
     if (!state.placingNodeId) return state;
-    return { placingNodeId: null, ...pushHistory(state) };
+    const nextState = applyAutoConnect(state, [state.placingNodeId]);
+    return { ...nextState, placingNodeId: null, ...pushHistory(nextState) };
   }),
 
   cancelPlacingNode: () => set((state) => {
@@ -334,62 +392,7 @@ export const useSimulatorStore = create<SimulatorState>()(
     let nextState = { ...state, ...circuit.moveNodes(state, ids, id, x, y) };
     
     if (finalize) {
-      const movedNodes = nextState.nodes.filter(n => ids.includes(n.id));
-      const otherNodes = nextState.nodes.filter(n => !ids.includes(n.id));
-      
-      const movedPins = movedNodes.flatMap(n => 
-        [...n.inputs, ...n.outputs].map(p => ({
-          nodeId: n.id,
-          pinId: p.id,
-          type: p.type,
-          pos: getSchematicPinPosition(n, p.id)
-        }))
-      );
-      
-      const otherPins = otherNodes.flatMap(n => 
-        [...n.inputs, ...n.outputs].map(p => ({
-          nodeId: n.id,
-          pinId: p.id,
-          type: p.type,
-          pos: getSchematicPinPosition(n, p.id)
-        }))
-      );
-      
-      let newWires = [...nextState.wires];
-      let changed = false;
-      
-      movedPins.forEach(mp => {
-        otherPins.forEach(op => {
-          const dx = mp.pos.x - op.pos.x;
-          const dy = mp.pos.y - op.pos.y;
-          if (dx * dx + dy * dy < 25) { // within 5 pixels
-            const alreadyConnected = newWires.some(w => 
-              (w.sourcePinId === mp.pinId && w.targetPinId === op.pinId) ||
-              (w.sourcePinId === op.pinId && w.targetPinId === mp.pinId)
-            );
-            if (!alreadyConnected) {
-              let source = mp;
-              let target = op;
-              if (op.type === 'output' && mp.type !== 'output') {
-                source = op;
-                target = mp;
-              }
-              newWires.push({
-                id: generateId('wire'),
-                sourceNodeId: source.nodeId,
-                sourcePinId: source.pinId,
-                targetNodeId: target.nodeId,
-                targetPinId: target.pinId
-              });
-              changed = true;
-            }
-          }
-        });
-      });
-      
-      if (changed) {
-        nextState = { ...nextState, wires: newWires };
-      }
+      nextState = applyAutoConnect(nextState, ids);
     }
     
     return nextState;
@@ -676,7 +679,10 @@ export const useSimulatorStore = create<SimulatorState>()(
         theme: state.theme,
         appMode: state.appMode,
         savedCircuits: state.savedCircuits,
-        activeSubcircuitId: state.activeSubcircuitId
+        activeSubcircuitId: state.activeSubcircuitId,
+        schematicPos: state.schematicPos,
+        schematicScale: state.schematicScale,
+        canvasOffset: state.canvasOffset
       })
     }
   )

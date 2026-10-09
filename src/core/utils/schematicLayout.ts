@@ -307,6 +307,8 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
       rawX = 20; rawY = 0; rawNx = 0; rawNy = -1;
     } else if (node.type === 'INPUT' || node.type === 'CLOCK') {
       rawX = width; rawY = height / 2; rawNx = 1; rawNy = 0;
+    } else if (node.type === 'BUTTON') {
+      rawX = width + 20; rawY = height / 2; rawNx = 1; rawNy = 0;
     } else {
       const ys = getGridAlignedPinYs(node.outputs.length, height);
       rawX = width; rawY = ys[outIndex]; rawNx = 1; rawNy = 0;

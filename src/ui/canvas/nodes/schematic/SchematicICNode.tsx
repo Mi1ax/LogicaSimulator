@@ -91,7 +91,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
 
       {/* Custom Name Label */}
       {node.properties?.label && (
-        <Group x={width / 2} y={-20} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+        <Group x={width / 2} y={-20} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
           <Text
             text={node.properties.label}
             x={-width / 2}
@@ -106,7 +106,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
       )}
 
       {/* IC Label */}
-      <Group x={width / 2} y={height / 2} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+      <Group x={width / 2} y={height / 2} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
         <Text
           text={def?.type?.startsWith('SUBCIRCUIT:') ? def.label : (def?.type || 'IC')}
           x={0}
@@ -151,7 +151,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
                 const safePin = getSafePinNumber(node.type, pin);
                 if (safePin === undefined) return null;
                 return (
-                  <Group x={pinX + 16} y={(isVcc ? pinY + 6 : height + 6) + 4.5} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+                  <Group x={pinX + 16} y={(isVcc ? pinY + 6 : height + 6) + 4.5} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
                     <Text
                       text={String(safePin)}
                       x={-10}
@@ -167,7 +167,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
                 );
               })()}
               {/* Logical Pin Name Label (e.g. VCC, GND) */}
-              <Group x={pinX} y={(isVcc ? 4 : height - 16) + 5} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+              <Group x={pinX} y={(isVcc ? 4 : height - 16) + 5} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
                 <Text
                   text={pin.name}
                   x={-30}
@@ -252,7 +252,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
               const safePin = getSafePinNumber(node.type, pin);
               if (safePin === undefined) return null;
               return (
-                <Group x={numX + 10} y={numY + 4.5} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+                <Group x={numX + 10} y={numY + 4.5} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
                   <Text
                     text={String(safePin)}
                     x={-10}
@@ -269,7 +269,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
             })()}
             {/* Logical Pin Name Label */}
             {pin.name && (
-              <Group x={labelX + 30} y={labelY + 5} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+              <Group x={labelX + 30} y={labelY + 5} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
                 <Text
                   text={pin.name}
                   x={-30}

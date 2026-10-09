@@ -1,5 +1,5 @@
 import React from 'react';
-import { Group, Rect, Circle, Path } from 'react-konva';
+import { Group, Rect, Circle, Line } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
 import { getSchematicDimensions, getSchematicAnchor } from '../../../../core/utils/schematicLayout';
@@ -121,8 +121,8 @@ export const SchematicButtonNode: React.FC<Props> = React.memo(({ node }) => {
       
       {node.outputs.map((pin) => (
         <Group key={pin.id}>
-          <Path
-            data={`M ${width} ${height/2} L ${width + 20} ${height/2}`}
+          <Line
+            points={[width, height / 2, width + 20, height / 2]}
             stroke={canvasTheme.nodeBorder}
             strokeWidth={2}
           />
