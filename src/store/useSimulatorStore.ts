@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { LogicNode, NodeType, Wire, DraftWire } from '../core/models/types';
 import * as circuit from '../core/engine/circuit';
 import { computeNextState } from '../core/engine/simulation';
+import { getSchematicPinPosition } from '../core/utils/schematicLayout';
 import { generateId } from '../core/utils/id';
 
 export type Selection = { type: 'node' | 'wire' | 'boardTrace', id: string } | null;
@@ -89,7 +90,7 @@ interface SimulatorState {
   setBoardScale: (scale: number) => void;
 
   addNode: (type: NodeType, x: number, y: number) => void;
-  updateNodePosition: (id: string, x: number, y: number) => void;
+  updateNodePosition: (id: string, x: number, y: number, finalize?: boolean) => void;
   updateNodeProperties: (id: string, props: Record<string, any>) => void;
   clearNodes: () => void;
 
@@ -302,10 +303,71 @@ export const useSimulatorStore = create<SimulatorState>()(
   }),
 
   addNode: (type, x, y) => set((state) => ({ ...circuit.addNode(state, type, x, y), ...pushHistory(state) })),
-  updateNodePosition: (id, x, y) => set((state) => {
+  updateNodePosition: (id, x, y, finalize) => set((state) => {
     const isMulti = state.multiSelection.includes(id);
     const ids = isMulti ? state.multiSelection : [id];
-    return circuit.moveNodes(state, ids, id, x, y, state.appMode === 'board');
+    let nextState = { ...state, ...circuit.moveNodes(state, ids, id, x, y, state.appMode === 'board') };
+    
+    if (finalize && state.appMode !== 'board') {
+      const movedNodes = nextState.nodes.filter(n => ids.includes(n.id));
+      const otherNodes = nextState.nodes.filter(n => !ids.includes(n.id));
+      
+      const movedPins = movedNodes.flatMap(n => 
+        [...n.inputs, ...n.outputs].map(p => ({
+          nodeId: n.id,
+          pinId: p.id,
+          type: p.type,
+          pos: getSchematicPinPosition(n, p.id)
+        }))
+      );
+      
+      const otherPins = otherNodes.flatMap(n => 
+        [...n.inputs, ...n.outputs].map(p => ({
+          nodeId: n.id,
+          pinId: p.id,
+          type: p.type,
+          pos: getSchematicPinPosition(n, p.id)
+        }))
+      );
+      
+      let newWires = [...nextState.wires];
+      let changed = false;
+      
+      movedPins.forEach(mp => {
+        otherPins.forEach(op => {
+          const dx = mp.pos.x - op.pos.x;
+          const dy = mp.pos.y - op.pos.y;
+          if (dx * dx + dy * dy < 25) { // within 5 pixels
+            const alreadyConnected = newWires.some(w => 
+              (w.sourcePinId === mp.pinId && w.targetPinId === op.pinId) ||
+              (w.sourcePinId === op.pinId && w.targetPinId === mp.pinId)
+            );
+            if (!alreadyConnected) {
+              let source = mp;
+              let target = op;
+              if (op.type === 'output' && mp.type !== 'output') {
+                source = op;
+                target = mp;
+              }
+              newWires.push({
+                id: generateId('wire'),
+                sourceNodeId: source.nodeId,
+                sourcePinId: source.pinId,
+                targetNodeId: target.nodeId,
+                targetPinId: target.pinId
+              });
+              changed = true;
+            }
+          }
+        });
+      });
+      
+      if (changed) {
+        nextState = { ...nextState, wires: newWires };
+      }
+    }
+    
+    return nextState;
   }), // History saved on drag start
   updateNodeProperties: (id, props) => set((state) => {
     if (state.placingNodeId === id) {

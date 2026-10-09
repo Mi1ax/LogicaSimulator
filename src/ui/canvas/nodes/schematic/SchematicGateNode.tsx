@@ -107,7 +107,7 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
         const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
         const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
         e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY);
+        updateNodePosition(node.id, localX, localY, true);
       }}
       onMouseEnter={(e) => {
         const container = e.target.getStage()?.container();

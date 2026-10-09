@@ -77,7 +77,7 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
         const localX = Math.round(e.target.x() / 20) * 20;
         const localY = Math.round(e.target.y() / 20) * 20;
         e.target.position({ x: localX, y: localY });
-        updateNodePosition(node.id, localX, localY);
+        updateNodePosition(node.id, localX, localY, true);
       }}
       onMouseEnter={(e) => {
         const container = e.target.getStage()?.container();

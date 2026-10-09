@@ -64,7 +64,7 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
         const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
         const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
         e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY);
+        updateNodePosition(node.id, localX, localY, true);
       }}
       onMouseEnter={(e) => {
         const container = e.target.getStage()?.container();
@@ -77,21 +77,23 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
     >
       <Rect x={0} y={0} width={width} height={height} fill="transparent" />
       <Line points={[width - 10, height / 2, width, height / 2]} stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder} strokeWidth={2} />
-      <Text 
-        x={(width - 12) / 2}
-        y={height / 2}
-        offsetX={(width - 12) / 2}
-        offsetY={height / 2}
-        rotation={-(node.properties?.rotation || 0)}
-        width={width - 12} 
-        height={height}
-        text={name} 
-        verticalAlign="middle"
-        align={(node.properties?.rotation || 0) === 180 ? 'left' : ((node.properties?.rotation || 0) === 90 || (node.properties?.rotation || 0) === 270) ? 'center' : 'right'}
-        fontSize={12} 
-        fontFamily="monospace"
-        fill={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.textColor}
-      />
+      <Group x={(width - 12) / 2} y={height / 2} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+        <Text 
+          x={0}
+          y={0}
+          rotation={-(node.properties?.rotation || 0)}
+          offsetX={(width - 12) / 2}
+          offsetY={height / 2}
+          width={width - 12} 
+          height={height}
+          text={name} 
+          verticalAlign="middle"
+          align={(node.properties?.rotation || 0) === 180 ? 'left' : ((node.properties?.rotation || 0) === 90 || (node.properties?.rotation || 0) === 270) ? 'center' : 'right'}
+          fontSize={12} 
+          fontFamily="monospace"
+          fill={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.textColor}
+        />
+      </Group>
       {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={1} dash={[2,2]} />}
       {pin && (
         <Pin

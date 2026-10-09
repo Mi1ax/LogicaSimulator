@@ -83,7 +83,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
         const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
         const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
         e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY);
+        updateNodePosition(node.id, localX, localY, true);
       }}
       onMouseEnter={(e) => {
         const container = e.target.getStage()?.container();
@@ -98,7 +98,9 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
         <>
           <Line points={[width/2, 10, width/2, height]} stroke={borderStroke} strokeWidth={2} />
           <Line points={[10, 10, width-10, 10]} stroke={borderStroke} strokeWidth={2} />
-          <Text text="VCC" x={0} y={-10} width={width} align="center" fontSize={12} fontFamily="monospace" fill={canvasTheme.textColor} />
+          <Group x={width / 2} y={-4} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+            <Text text="VCC" x={-width / 2} y={-6} width={width} align="center" fontSize={12} fontFamily="monospace" fill={canvasTheme.textColor} />
+          </Group>
           <Rect x={0} y={0} width={width} height={height} fill="transparent" />
           {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} />}
         </>
@@ -108,7 +110,9 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
           <Line points={[10, height - 10, width - 10, height - 10]} stroke={borderStroke} strokeWidth={2} />
           <Line points={[14, height - 5, width - 14, height - 5]} stroke={borderStroke} strokeWidth={2} />
           <Line points={[18, height, width - 18, height]} stroke={borderStroke} strokeWidth={2} />
-          <Text text="GND" x={0} y={height + 5} width={width} align="center" fontSize={12} fontFamily="monospace" fill={canvasTheme.textColor} />
+          <Group x={width / 2} y={height + 11} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+            <Text text="GND" x={-width / 2} y={-6} width={width} align="center" fontSize={12} fontFamily="monospace" fill={canvasTheme.textColor} />
+          </Group>
           <Rect x={0} y={0} width={width} height={height} fill="transparent" />
           {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} />}
         </>
@@ -176,31 +180,36 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
               strokeWidth={1}
             />
           )}
-          <Text
-            text={isClock ? 'CLK' : (val === 1 ? '1' : '0')}
-            x={0}
-            y={0}
-            width={width}
-            height={height}
-            align="center"
-            verticalAlign="middle"
-            fontSize={isClock ? 14 : 20}
-            fontFamily="monospace"
-            fontStyle="bold"
-            fill={canvasTheme.textColor}
-          />
+          <Group x={width / 2} y={height / 2} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+            <Text
+              text={isClock ? 'CLK' : (val === 1 ? '1' : '0')}
+              x={-width / 2}
+              y={-height / 2}
+              width={width}
+              height={height}
+              align="center"
+              verticalAlign="middle"
+              fontSize={isClock ? 14 : 20}
+              fontFamily="monospace"
+              fontStyle="bold"
+              fill={canvasTheme.textColor}
+            />
+          </Group>
         </>
       )}
 
       {node.properties?.label && !isVcc && !isGnd && (
-        <Text
-          text={node.properties.label}
-          y={-20}
-          width={width}
-          align="center"
-          fontSize={12}
-          fill={canvasTheme.textColor}
-        />
+        <Group x={width / 2} y={-14} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+          <Text
+            text={node.properties.label}
+            x={-width / 2}
+            y={-6}
+            width={width}
+            align="center"
+            fontSize={12}
+            fill={canvasTheme.textColor}
+          />
+        </Group>
       )}
 
       {/* Pins */}

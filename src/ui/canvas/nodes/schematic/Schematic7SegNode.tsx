@@ -85,7 +85,7 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
         const localX = Math.round((evt.target.x() - anchorX) / 20) * 20;
         const localY = Math.round((evt.target.y() - anchorY) / 20) * 20;
         evt.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY);
+        updateNodePosition(node.id, localX, localY, true);
       }}
       onMouseEnter={(evt) => {
         const container = evt.target.getStage()?.container();
@@ -166,15 +166,17 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
               y={yOffset}
               type={pin.type}
             />
-            <Text
-              text={pin.name}
-              x={xOffset - 10}
-              y={isTop ? 12 : height - 20}
-              width={20}
-              align="center"
-              fontSize={8}
-              fill={canvasTheme.textColor}
-            />
+            <Group x={xOffset} y={isTop ? 16 : height - 16} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+              <Text
+                text={pin.name}
+                x={-10}
+                y={-4}
+                width={20}
+                align="center"
+                fontSize={8}
+                fill={canvasTheme.textColor}
+              />
+            </Group>
           </Group>
         );
       })}
