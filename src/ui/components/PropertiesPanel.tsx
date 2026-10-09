@@ -28,7 +28,7 @@ export const PropertiesPanel: React.FC = () => {
   const def = getNodeDefinition(node.type);
   if (!def) return null;
 
-  const isVariableInputGate = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR'].includes(node.type);
+  const isVariableInputGate = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR', 'LED_BAR'].includes(node.type);
   const isVariableOutputGate = ['DIP_SWITCH'].includes(node.type);
   const isClock = node.type === 'CLOCK';
 
@@ -141,11 +141,11 @@ export const PropertiesPanel: React.FC = () => {
         {isVariableInputGate && (
           <div>
             <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
-              Number of Inputs
+              {node.type === 'LED_BAR' ? 'Number of LEDs' : 'Number of Inputs'}
             </label>
             <NumberInput
-              min={2}
-              max={8}
+              min={node.type === 'LED_BAR' ? 1 : 2}
+              max={node.type === 'LED_BAR' ? 32 : 8}
               className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
               value={node.inputs.length}
               onChangeValue={(val) => setNodeInputCount(node.id, val)}

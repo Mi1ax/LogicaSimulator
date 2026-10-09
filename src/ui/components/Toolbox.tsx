@@ -22,9 +22,11 @@ const CATEGORIES: ToolCategory[] = [
       { type: 'VCC', icon: <Zap size={18} /> },
       { type: 'GND', icon: <Zap size={18} /> },
       { type: 'INPUT', icon: <ToggleLeft size={18} /> },
+      { type: 'BUTTON', icon: <ToggleLeft size={18} /> },
       { type: 'DIP_SWITCH', icon: <SlidersHorizontal size={18} /> },
       { type: 'OUTPUT', icon: <Lightbulb size={18} /> },
       { type: '7_SEG_DISPLAY', icon: <Lightbulb size={18} /> },
+      { type: 'LED_BAR', icon: <Lightbulb size={18} /> },
       { type: 'CLOCK', icon: <Timer size={18} /> },
       { type: 'NET_LABEL', icon: <Tag size={18} /> },
       { type: 'BUS_BREAKOUT', icon: <Tag size={18} /> },
@@ -49,7 +51,12 @@ const CATEGORIES: ToolCategory[] = [
       {
         name: 'Logic Gates',
         items: [
+          { type: '74LS00', icon: <Cpu size={18} /> },
+          { type: '74LS02', icon: <Cpu size={18} /> },
+          { type: '74LS04', icon: <Cpu size={18} /> },
           { type: '74LS08', icon: <Cpu size={18} /> },
+          { type: '74LS32', icon: <Cpu size={18} /> },
+          { type: '74LS86', icon: <Cpu size={18} /> },
         ]
       },
       {
@@ -71,11 +78,13 @@ const CATEGORIES: ToolCategory[] = [
         name: 'Arithmetic & ALU',
         items: [
           { type: '74LS283', icon: <Cpu size={18} /> },
+          { type: '74LS181', icon: <Cpu size={18} /> },
         ]
       },
       {
         name: 'Registers & Buffers',
         items: [
+          { type: '74LS173', icon: <Cpu size={18} /> },
           { type: '74LS241', icon: <Cpu size={18} /> },
           { type: '74LS244', icon: <Cpu size={18} /> },
           { type: '74LS245', icon: <Cpu size={18} /> },

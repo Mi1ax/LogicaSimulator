@@ -241,3 +241,21 @@ export const BusBreakoutNode: NodeDefinition = {
   },
   evaluate: (inputs) => inputs
 };
+
+
+export const PushButtonNode: NodeDefinition = {
+  type: 'BUTTON',
+  label: 'Push Button',
+  numInputs: 0,
+  numOutputs: 1,
+  defaultProperties: { pressed: false },
+  evaluate: (_, props) => [props?.pressed ? 1 : 0]
+};
+
+export const LedBarNode: NodeDefinition = {
+  type: 'LED_BAR',
+  label: 'LED Bar (8-bit)',
+  numInputs: 8,
+  numOutputs: 0,
+  evaluate: () => []
+};

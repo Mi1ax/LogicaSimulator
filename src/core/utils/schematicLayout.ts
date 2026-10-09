@@ -13,14 +13,25 @@ export const getSchematicDimensions = (node: LogicNode) => {
     return { width: 100, height: 120 };
   }
 
+  if (node.type === 'BUTTON') {
+    return { width: 40, height: 40 };
+  }
+
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
     const visiblePins = [...node.inputs, ...node.outputs].filter(p => p.name !== 'VCC' && p.name !== 'GND');
     let maxRow = 0;
+    let maxTopBottomRow = 0;
     
     visiblePins.forEach(pin => {
       const pinDef = def?.customPins?.find(cp => cp.name === pin.name);
-      if (pinDef?.schematicRow !== undefined) {
-        maxRow = Math.max(maxRow, pinDef.schematicRow);
+      if (pinDef?.schematicSide === 'top' || pinDef?.schematicSide === 'bottom') {
+        if (pinDef?.schematicRow !== undefined) {
+          maxTopBottomRow = Math.max(maxTopBottomRow, pinDef.schematicRow);
+        }
+      } else {
+        if (pinDef?.schematicRow !== undefined) {
+          maxRow = Math.max(maxRow, pinDef.schematicRow);
+        }
       }
     });
 
@@ -30,8 +41,17 @@ export const getSchematicDimensions = (node: LogicNode) => {
       maxRow = Math.max(visibleInputs.length, visibleOutputs.length);
     }
     
+    let width = 120;
+    if (maxTopBottomRow > 0) {
+      // Ensure VCC/GND at width/2 don't collide with the furthest top/bottom pin
+      // The furthest pin is at x = maxTopBottomRow * 20.
+      // So width/2 should be at least (maxTopBottomRow + 1) * 20.
+      // Thus width >= (maxTopBottomRow + 1) * 40
+      width = Math.max(120, (maxTopBottomRow + 1) * 40);
+    }
+    
     // Standard chip dimensions with 2 grid dots padding top and bottom
-    return { width: 120, height: (maxRow + 3) * 20 };
+    return { width, height: (maxRow + 3) * 20 };
   }
 
   if (node.properties?.renderAs === 'BUS' || def?.renderAs === 'BUS') {
