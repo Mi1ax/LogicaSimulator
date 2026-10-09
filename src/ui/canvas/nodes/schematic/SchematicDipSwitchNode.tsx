@@ -64,7 +64,7 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
         const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
         const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
         e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY);
+        updateNodePosition(node.id, localX, localY, true);
       }}
       onMouseEnter={(e) => {
         const container = e.target.getStage()?.container();
@@ -88,17 +88,19 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
       />
 
       {/* Label */}
-      <Text
-        text="ON"
-        x={0}
-        y={4}
-        width={width}
-        align="center"
-        fontSize={10}
-        fontFamily="monospace"
-        fontStyle="bold"
-        fill="#ffffff"
-      />
+      <Group x={width / 2} y={9} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+        <Text
+          text="ON"
+          x={-width / 2}
+          y={-5}
+          width={width}
+          align="center"
+          fontSize={10}
+          fontFamily="monospace"
+          fontStyle="bold"
+          fill="#ffffff"
+        />
+      </Group>
 
       {/* Render Switches */}
       {node.outputs.map((pin, i) => {
@@ -140,13 +142,15 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
               }}
             />
             {/* Number Label */}
-            <Text
-              text={String(i + 1)}
-              x={5}
-              y={yOffset - 5}
-              fontSize={10}
-              fill="#ffffff"
-            />
+            <Group x={10} y={yOffset} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+              <Text
+                text={String(i + 1)}
+                x={-5}
+                y={-5}
+                fontSize={10}
+                fill="#ffffff"
+              />
+            </Group>
             
             {/* Pin Extension Leg */}
             <Path

@@ -66,7 +66,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
         const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
         const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
         e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY);
+        updateNodePosition(node.id, localX, localY, true);
       }}
       onMouseEnter={(e) => {
         const container = e.target.getStage()?.container();
@@ -151,40 +151,36 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
                 const safePin = getSafePinNumber(node.type, pin);
                 if (safePin === undefined) return null;
                 return (
-                  <Text
-                    text={String(safePin)}
-                    x={pinX + 6 + 10}
-                    y={(isVcc ? pinY + 6 : height + 6) + 4.5}
-                    offsetX={10}
-                    offsetY={4.5}
-                    width={20}
-                    align="left"
-                    fontSize={9}
-                    fontFamily="sans-serif"
-                    fill={canvasTheme.nodeBorder}
-                    opacity={1}
-                    scaleX={node.properties?.flipX ? -1 : 1}
-                    scaleY={node.properties?.flipY ? -1 : 1}
-                  />
+                  <Group x={pinX + 16} y={(isVcc ? pinY + 6 : height + 6) + 4.5} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+                    <Text
+                      text={String(safePin)}
+                      x={-10}
+                      y={-4.5}
+                      width={20}
+                      align="center"
+                      fontSize={9}
+                      fontFamily="sans-serif"
+                      fill={canvasTheme.nodeBorder}
+                      opacity={1}
+                    />
+                  </Group>
                 );
               })()}
               {/* Logical Pin Name Label (e.g. VCC, GND) */}
-              <Text
-                text={pin.name}
-                x={pinX}
-                y={(isVcc ? 4 : height - 16) + 5}
-                offsetX={30}
-                offsetY={5}
-                width={60}
-                align="center"
-                fontSize={10}
-                fontFamily="sans-serif"
-                fontStyle="normal"
-                fill={canvasTheme.textColor}
-                opacity={1}
-                scaleX={node.properties?.flipX ? -1 : 1}
-                scaleY={node.properties?.flipY ? -1 : 1}
-              />
+              <Group x={pinX} y={(isVcc ? 4 : height - 16) + 5} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+                <Text
+                  text={pin.name}
+                  x={-30}
+                  y={-5}
+                  width={60}
+                  align="center"
+                  fontSize={10}
+                  fontFamily="sans-serif"
+                  fontStyle="normal"
+                  fill={canvasTheme.textColor}
+                  opacity={1}
+                />
+              </Group>
             </Group>
           );
         }
@@ -256,42 +252,42 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
               const safePin = getSafePinNumber(node.type, pin);
               if (safePin === undefined) return null;
               return (
-                <Text
-                  text={String(safePin)}
-                  x={numX + 10}
-                  y={numY + 4.5}
-                  offsetX={10}
-                  offsetY={4.5}
-                  width={20}
-                  align={side === 'top' || side === 'bottom' ? 'left' : 'center'}
-                  fontSize={9}
-                  fontFamily="sans-serif"
-                  fill={canvasTheme.nodeBorder}
-                  opacity={1}
-                  scaleX={node.properties?.flipX ? -1 : 1}
-                  scaleY={node.properties?.flipY ? -1 : 1}
-                />
+                <Group x={numX + 10} y={numY + 4.5} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+                  <Text
+                    text={String(safePin)}
+                    x={-10}
+                    y={-4.5}
+                    width={20}
+                    align="center"
+                    fontSize={9}
+                    fontFamily="sans-serif"
+                    fill={canvasTheme.nodeBorder}
+                    opacity={1}
+                  />
+                </Group>
               );
             })()}
             {/* Logical Pin Name Label */}
             {pin.name && (
-              <Text
-                text={pin.name}
-                x={labelX + 30}
-                y={labelY + 5}
-                offsetX={30}
-                offsetY={5}
-                width={60}
-                wrap="none"
-                align={labelAlign}
-                fontSize={10}
-                fontFamily="sans-serif"
-                fontStyle="normal"
-                fill={canvasTheme.textColor}
-                opacity={1}
-                scaleX={node.properties?.flipX ? -1 : 1}
-                scaleY={node.properties?.flipY ? -1 : 1}
-              />
+              <Group x={labelX + 30} y={labelY + 5} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+                <Text
+                  text={pin.name}
+                  x={-30}
+                  y={-5}
+                  width={60}
+                  wrap="none"
+                  align={
+                    node.properties?.flipX
+                      ? (labelAlign === 'left' ? 'right' : labelAlign === 'right' ? 'left' : 'center')
+                      : labelAlign
+                  }
+                  fontSize={10}
+                  fontFamily="sans-serif"
+                  fontStyle="normal"
+                  fill={canvasTheme.textColor}
+                  opacity={1}
+                />
+              </Group>
             )}
           </Group>
         );

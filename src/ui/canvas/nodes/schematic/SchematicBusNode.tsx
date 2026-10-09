@@ -64,7 +64,7 @@ export const SchematicBusNode: React.FC<BusProps> = React.memo(({ node }) => {
         const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
         const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
         e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY);
+        updateNodePosition(node.id, localX, localY, true);
       }}
       onMouseEnter={(e) => {
         const container = e.target.getStage()?.container();
@@ -81,17 +81,20 @@ export const SchematicBusNode: React.FC<BusProps> = React.memo(({ node }) => {
       <Line points={[width, 20, width, height - 20]} stroke={canvasTheme.nodeBorder} strokeWidth={4} />
       
       {/* Label for the bus */}
-      <Text 
-        x={width / 2}
-        y={-10}
-        text={label} 
-        align="center"
-        verticalAlign="bottom"
-        fontSize={14} 
-        fontFamily="sans-serif"
-        fontStyle="bold"
-        fill={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.textColor}
-      />
+      <Group x={width / 2} y={-10} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+        <Text 
+          x={-100}
+          y={-14}
+          width={200}
+          text={label} 
+          align="center"
+          verticalAlign="bottom"
+          fontSize={14} 
+          fontFamily="sans-serif"
+          fontStyle="bold"
+          fill={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.textColor}
+        />
+      </Group>
 
       {isSelected && <Rect x={-5} y={0} width={width + 10} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={1} dash={[2,2]} />}
       
@@ -117,14 +120,16 @@ export const SchematicBusNode: React.FC<BusProps> = React.memo(({ node }) => {
               strokeWidth={side === 'right' ? 4 : 2} 
             />
             {side === 'left' && (
-              <Text 
-                x={pinX + 4}
-                y={pinY - 14}
-                text={pin.name} 
-                fontSize={10} 
-                fontFamily="sans-serif"
-                fill={canvasTheme.textColor}
-              />
+              <Group x={pinX + 10} y={pinY - 9} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+                <Text 
+                  x={-6}
+                  y={-5}
+                  text={pin.name} 
+                  fontSize={10} 
+                  fontFamily="sans-serif"
+                  fill={canvasTheme.textColor}
+                />
+              </Group>
             )}
             <Pin
               id={pin.id}
