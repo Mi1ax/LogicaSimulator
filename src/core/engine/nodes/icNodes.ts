@@ -329,11 +329,11 @@ export const ROM_27C256: NodeDefinition = {
     // 0..14: A0..A14
     // 15: /CE, 16: /OE, 17: VPP, 18: GND, 19: VCC
 
-    const CE_L = inputs[15];
-    const OE_L = inputs[16];
+    const safeCE_L = inputs[15] ?? 0;
+    const safeOE_L = inputs[16] ?? 0;
 
     // High-Z if not enabled
-    if (CE_L !== 0 || OE_L !== 0) {
+    if (safeCE_L !== 0 || safeOE_L !== 0) {
       return [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined];
     }
 
@@ -342,8 +342,9 @@ export const ROM_27C256: NodeDefinition = {
     
     for (let i = 0; i < 15; i++) {
       const val = inputs[i];
-      if (val === undefined || val === 'X') return [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined]; // Unstable address
+      if (val === 'X') return [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined]; // Unstable address
       if (val === 1) address |= (1 << i);
+      // undefined is treated as 0 for user friendliness
     }
 
     // Read data from properties
@@ -418,9 +419,9 @@ export const SRAM_62256: NodeDefinition = {
     // 23: /CE, 24: /OE, 25: /WE
     // 26: GND, 27: VCC
 
-    const CE_L = inputs[23];
-    const OE_L = inputs[24];
-    const WE_L = inputs[25];
+    const safeCE_L = inputs[23] ?? 0;
+    const safeOE_L = inputs[24] ?? 0;
+    const safeWE_L = inputs[25] ?? 1; // Default to not writing if disconnected
 
     if (!internal) return [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined];
     if (!internal.data) {
@@ -435,20 +436,21 @@ export const SRAM_62256: NodeDefinition = {
     let address = 0;
     for (let i = 0; i < 15; i++) {
       if (inputs[i] === 1) address |= (1 << i);
-      else if (inputs[i] !== 0) {
-        // floating or 'X' address -> undefined output if reading, no write if writing
+      else if (inputs[i] === 'X') {
+        // 'X' address -> undefined output if reading, no write if writing
         address = -1;
         break;
       }
+      // undefined is treated as 0 for user friendliness
     }
 
     // Write cycle
-    if (CE_L === 0 && WE_L === 0 && address >= 0) {
+    if (safeCE_L === 0 && safeWE_L === 0 && address >= 0) {
       let dataIn = 0;
       let valid = true;
       for (let i = 0; i < 8; i++) {
         if (inputs[15 + i] === 1) dataIn |= (1 << i);
-        else if (inputs[15 + i] !== 0) valid = false;
+        else if (inputs[15 + i] !== 0) valid = false; // undefined or X data invalidates write
       }
       if (valid) {
         internal.data[address] = dataIn;
@@ -456,7 +458,7 @@ export const SRAM_62256: NodeDefinition = {
     }
 
     // Read cycle
-    if (CE_L === 0 && OE_L === 0 && WE_L !== 0) {
+    if (safeCE_L === 0 && safeOE_L === 0 && safeWE_L !== 0) {
       if (address < 0) return [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined];
       const dataOut = internal.data[address];
       return [
