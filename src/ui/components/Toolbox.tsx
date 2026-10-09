@@ -224,6 +224,10 @@ export const Toolbox: React.FC = () => {
     );
   };
 
+  if (appMode === 'hex' || appMode === 'code') {
+    return null;
+  }
+
   if (appMode === 'board') {
     const unplacedNodes = nodes.filter(
       n => n.type !== 'JUNCTION' && (n.boardX === undefined || n.boardY === undefined)

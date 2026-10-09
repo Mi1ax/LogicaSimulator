@@ -18,8 +18,8 @@ export interface PointerSettings {
 }
 
 interface SimulatorState {
-  appMode: 'schematic' | 'board';
-  setAppMode: (mode: 'schematic' | 'board') => void;
+  appMode: 'schematic' | 'board' | 'hex' | 'code';
+  setAppMode: (mode: 'schematic' | 'board' | 'hex' | 'code') => void;
 
   theme: 'light' | 'dark';
   toggleTheme: () => void;
@@ -49,8 +49,8 @@ interface SimulatorState {
   deleteSelection: () => void;
   multiSelection: string[];
   setMultiSelection: (ids: string[]) => void;
-  openRomEditors: string[];
-  toggleRomEditor: (nodeId: string, force?: boolean) => void;
+  selectedMemoryNodeId: string | null;
+  setSelectedMemoryNodeId: (nodeId: string | null) => void;
   schematicPos: { x: number, y: number };
   setSchematicPos: (pos: { x: number, y: number }) => void;
   schematicScale: number;
@@ -154,17 +154,8 @@ export const useSimulatorStore = create<SimulatorState>()(
   selection: null,
   multiSelection: [],
   setMultiSelection: (ids) => set({ multiSelection: ids, selection: ids.length > 0 ? { type: 'node', id: ids[0] } : null }),
-  openRomEditors: [],
-  toggleRomEditor: (id, force) => set((state) => {
-    const isOpen = (state.openRomEditors || []).includes(id);
-    const shouldOpen = force !== undefined ? force : !isOpen;
-    if (shouldOpen && !isOpen) {
-      return { openRomEditors: [...(state.openRomEditors || []), id] };
-    } else if (!shouldOpen && isOpen) {
-      return { openRomEditors: (state.openRomEditors || []).filter(i => i !== id) };
-    }
-    return state;
-  }),
+  selectedMemoryNodeId: null,
+  setSelectedMemoryNodeId: (id) => set({ selectedMemoryNodeId: id }),
   schematicPos: { x: 0, y: 0 },
   setSchematicPos: (pos) => set({ schematicPos: pos }),
   schematicScale: 1,
@@ -251,18 +242,20 @@ export const useSimulatorStore = create<SimulatorState>()(
       return { ...state, boardTraces: nextBoardTraces, nodes: nextNodes, ...pushHistory(state), selection: null, multiSelection: [] };
     } else {
       let nextState = { ...state };
-      let nextOpenRomEditors = [...(state.openRomEditors || [])];
+      let nextSelectedMemoryNodeId = state.selectedMemoryNodeId;
       
       idsToDelete.forEach(id => {
         if (nextState.wires.some(w => w.id === id)) {
           Object.assign(nextState, circuit.deleteWire(nextState, id));
         } else if (nextState.nodes.some(n => n.id === id)) {
           Object.assign(nextState, circuit.deleteNode(nextState, id));
-          nextOpenRomEditors = nextOpenRomEditors.filter(romId => romId !== id);
+          if (nextSelectedMemoryNodeId === id) {
+            nextSelectedMemoryNodeId = null;
+          }
         }
       });
       
-      return { ...nextState, ...pushHistory(state), selection: null, multiSelection: [], openRomEditors: nextOpenRomEditors };
+      return { ...nextState, ...pushHistory(state), selection: null, multiSelection: [], selectedMemoryNodeId: nextSelectedMemoryNodeId };
     }
   }),
 

@@ -126,6 +126,18 @@ export const Topbar: React.FC = () => {
           >
             Board
           </button>
+          <button
+            onClick={() => setAppMode('hex')}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${appMode === 'hex' ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
+          >
+            Hex Editor
+          </button>
+          <button
+            onClick={() => setAppMode('code')}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${appMode === 'code' ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
+          >
+            Code Editor
+          </button>
         </div>
         
         {appMode === 'board' && (
