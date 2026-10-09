@@ -98,6 +98,30 @@ export const PropertiesPanel: React.FC = () => {
           </select>
         </div>
 
+        {/* Flip Controls (Schematic Only) */}
+        {appMode === 'schematic' && (
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-slate-400 cursor-pointer">
+              <input
+                type="checkbox"
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                checked={!!node.properties?.flipX}
+                onChange={(e) => updateNodeProperties(node.id, { flipX: e.target.checked })}
+              />
+              Flip X
+            </label>
+            <label className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-slate-400 cursor-pointer">
+              <input
+                type="checkbox"
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                checked={!!node.properties?.flipY}
+                onChange={(e) => updateNodeProperties(node.id, { flipY: e.target.checked })}
+              />
+              Flip Y
+            </label>
+          </div>
+        )}
+
         {/* 7-Segment Type */}
         {node.type === '7_SEG_DISPLAY' && (
           <div>

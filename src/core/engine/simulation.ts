@@ -16,28 +16,45 @@ export const computeNextState = (
 ): SimulationState => {
   // Generate virtual wires for Net Labels
   const virtualWires: Wire[] = [];
-  const netGroups: Record<string, LogicNode[]> = {};
+  const netPinGroups: Record<string, { nodeId: string; pinId: string }[]> = {};
   
   nodes.forEach(n => {
     if (n.type === 'NET_LABEL' && n.properties?.label) {
       const name = String(n.properties.label).trim();
       if (name) {
-        if (!netGroups[name]) netGroups[name] = [];
-        netGroups[name].push(n);
+        if (!netPinGroups[name]) netPinGroups[name] = [];
+        // Since NET_LABEL has bidir pins, its inputs[0].id === outputs[0].id
+        netPinGroups[name].push({ nodeId: n.id, pinId: n.inputs[0]?.id });
+      }
+    } else if (n.type === 'BUS_BREAKOUT' && n.properties?.label) {
+      const prefix = String(n.properties.label).trim();
+      if (prefix) {
+        // Parse prefix, if it's "DB[7..0]", just use "DB"
+        let baseName = prefix;
+        const match = prefix.match(/^([^\[]+)\[/);
+        if (match) baseName = match[1];
+
+        n.inputs.forEach(pin => {
+          if (pin.name && /^\d+$/.test(pin.name)) {
+            const netName = `${baseName}[${pin.name}]`;
+            if (!netPinGroups[netName]) netPinGroups[netName] = [];
+            netPinGroups[netName].push({ nodeId: n.id, pinId: pin.id });
+          }
+        });
       }
     }
   });
 
-  Object.values(netGroups).forEach(group => {
+  Object.values(netPinGroups).forEach(group => {
     for (let i = 0; i < group.length; i++) {
       for (let j = 0; j < group.length; j++) {
-        if (i !== j) {
+        if (i !== j && group[i].pinId && group[j].pinId) {
           virtualWires.push({
-            id: `vw_${group[i].id}_${group[j].id}`,
-            sourceNodeId: group[i].id,
-            sourcePinId: group[i].outputs[0]?.id,
-            targetNodeId: group[j].id,
-            targetPinId: group[j].inputs[0]?.id,
+            id: `vw_${group[i].nodeId}_${group[j].nodeId}_${group[i].pinId}_${group[j].pinId}`,
+            sourceNodeId: group[i].nodeId,
+            sourcePinId: group[i].pinId,
+            targetNodeId: group[j].nodeId,
+            targetPinId: group[j].pinId,
           });
         }
       }

@@ -60,6 +60,8 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
       offsetX={anchorX}
       offsetY={anchorY}
       rotation={node.properties?.rotation || 0}
+      scaleX={node.properties?.flipX ? -1 : 1}
+      scaleY={node.properties?.flipY ? -1 : 1}
       opacity={isPlacing ? 0.6 : 1}
       draggable={!isPlacing}
       onClick={(evt) => {

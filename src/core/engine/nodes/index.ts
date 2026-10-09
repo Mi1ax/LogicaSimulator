@@ -4,7 +4,7 @@ import {
   NorNode, NandNode, XnorNode, BufferNode,
   InputNode, OutputNode, ClockNode,
   VccNode, GndNode, JunctionNode,
-  DipSwitchNode, SevenSegNode, NetLabelNode
+  DipSwitchNode, SevenSegNode, NetLabelNode, BusBreakoutNode
 } from './basicNodes';
 import { IC74LS08, IC74LS47, IC74LS138, IC74LS154, IC74LS241, IC74LS244, IC74LS161, IC74LS191, IC74LS273, ROM_27C256, SRAM_62256, IC_74LS283, IC_74LS245 } from './icNodes';
 
@@ -27,6 +27,7 @@ export const NodeRegistry: Record<string, NodeDefinition> = {
   [DipSwitchNode.type]: DipSwitchNode,
   [SevenSegNode.type]: SevenSegNode,
   [NetLabelNode.type]: NetLabelNode,
+  [BusBreakoutNode.type]: BusBreakoutNode,
   [IC74LS08.type]: IC74LS08,
   [IC74LS47.type]: IC74LS47,
   [IC74LS138.type]: IC74LS138,

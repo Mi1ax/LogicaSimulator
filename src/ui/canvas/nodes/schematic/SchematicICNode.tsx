@@ -41,6 +41,8 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
       offsetX={anchorX}
       offsetY={anchorY}
       rotation={node.properties?.rotation || 0}
+      scaleX={node.properties?.flipX ? -1 : 1}
+      scaleY={node.properties?.flipY ? -1 : 1}
       opacity={isPlacing ? 0.6 : 1}
       draggable={!isPlacing}
       onClick={(e) => {
@@ -89,33 +91,38 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
 
       {/* Custom Name Label */}
       {node.properties?.label && (
-        <Text
-          text={node.properties.label}
-          y={-20}
-          width={width}
-          align="center"
-          fontSize={11}
-          fontFamily="sans-serif"
-          fill={canvasTheme.textColor}
-        />
+        <Group x={width / 2} y={-20} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+          <Text
+            text={node.properties.label}
+            x={-width / 2}
+            y={0}
+            width={width}
+            align="center"
+            fontSize={11}
+            fontFamily="sans-serif"
+            fill={canvasTheme.textColor}
+          />
+        </Group>
       )}
 
       {/* IC Label */}
-      <Text
-        text={def?.type || 'IC'}
-        x={width / 2}
-        y={height / 2}
-        width={height}
-        align="center"
-        fontSize={14}
-        fontFamily="sans-serif"
-        fontStyle="normal"
-        fill={canvasTheme.nodeBorder}
-        opacity={0.4}
-        rotation={-90}
-        offsetX={height / 2}
-        offsetY={8}
-      />
+      <Group x={width / 2} y={height / 2} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+        <Text
+          text={def?.type || 'IC'}
+          x={0}
+          y={0}
+          width={height}
+          align="center"
+          fontSize={14}
+          fontFamily="sans-serif"
+          fontStyle="normal"
+          fill={canvasTheme.nodeBorder}
+          opacity={0.4}
+          rotation={-90}
+          offsetX={height / 2}
+          offsetY={8}
+        />
+      </Group>
 
       {/* Render Pins and Labels */}
       {allPins.map((pin) => {
@@ -146,22 +153,28 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
                 return (
                   <Text
                     text={String(safePin)}
-                    x={pinX + 6}
-                    y={isVcc ? pinY + 6 : height + 6}
+                    x={pinX + 6 + 10}
+                    y={(isVcc ? pinY + 6 : height + 6) + 4.5}
+                    offsetX={10}
+                    offsetY={4.5}
                     width={20}
                     align="left"
                     fontSize={9}
                     fontFamily="sans-serif"
                     fill={canvasTheme.nodeBorder}
                     opacity={1}
+                    scaleX={node.properties?.flipX ? -1 : 1}
+                    scaleY={node.properties?.flipY ? -1 : 1}
                   />
                 );
               })()}
               {/* Logical Pin Name Label (e.g. VCC, GND) */}
               <Text
                 text={pin.name}
-                x={pinX - 30}
-                y={isVcc ? 4 : height - 16}
+                x={pinX}
+                y={(isVcc ? 4 : height - 16) + 5}
+                offsetX={30}
+                offsetY={5}
                 width={60}
                 align="center"
                 fontSize={10}
@@ -169,6 +182,8 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
                 fontStyle="normal"
                 fill={canvasTheme.textColor}
                 opacity={1}
+                scaleX={node.properties?.flipX ? -1 : 1}
+                scaleY={node.properties?.flipY ? -1 : 1}
               />
             </Group>
           );
@@ -243,14 +258,18 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
               return (
                 <Text
                   text={String(safePin)}
-                  x={numX}
-                  y={numY}
+                  x={numX + 10}
+                  y={numY + 4.5}
+                  offsetX={10}
+                  offsetY={4.5}
                   width={20}
                   align={side === 'top' || side === 'bottom' ? 'left' : 'center'}
                   fontSize={9}
                   fontFamily="sans-serif"
                   fill={canvasTheme.nodeBorder}
                   opacity={1}
+                  scaleX={node.properties?.flipX ? -1 : 1}
+                  scaleY={node.properties?.flipY ? -1 : 1}
                 />
               );
             })()}
@@ -258,8 +277,10 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
             {pin.name && (
               <Text
                 text={pin.name}
-                x={labelX}
-                y={labelY}
+                x={labelX + 30}
+                y={labelY + 5}
+                offsetX={30}
+                offsetY={5}
                 width={60}
                 wrap="none"
                 align={labelAlign}
@@ -268,6 +289,8 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
                 fontStyle="normal"
                 fill={canvasTheme.textColor}
                 opacity={1}
+                scaleX={node.properties?.flipX ? -1 : 1}
+                scaleY={node.properties?.flipY ? -1 : 1}
               />
             )}
           </Group>

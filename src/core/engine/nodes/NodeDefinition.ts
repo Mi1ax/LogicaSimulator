@@ -15,8 +15,9 @@ export interface NodeDefinition {
   numOutputs: number; // Ignored if customPins is provided
   defaultProperties?: Record<string, any>;
   tags?: string[];
-  renderAs?: 'GATE' | 'DIP';
+  renderAs?: 'GATE' | 'DIP' | 'BUS';
   customPins?: PinDefinition[];
+  generatePins?: (properties: Record<string, any>) => PinDefinition[];
   /**
    * Evaluates the node logic.
    * @param inputs Array of signals corresponding to the input pins (ordered by index)

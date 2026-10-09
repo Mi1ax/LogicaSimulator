@@ -26,6 +26,12 @@ const SingleWire = React.memo(({ wire, pathData, points, isSelected, canvasTheme
 
   if (isSelected) strokeColor = canvasTheme.selectedWireColor;
 
+  const sourceNode = useSimulatorStore.getState().nodes.find(n => n.id === wire.sourceNodeId);
+  const sourcePin = sourceNode?.outputs.find(p => p.id === wire.sourcePinId) || sourceNode?.inputs.find(p => p.id === wire.sourcePinId);
+  const isBusWire = sourcePin?.name === 'BUS';
+
+  if (isBusWire && !isSelected) strokeColor = '#3b82f6';
+
   const clickTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   return (
@@ -33,7 +39,7 @@ const SingleWire = React.memo(({ wire, pathData, points, isSelected, canvasTheme
       <Path
         data={pathData}
         stroke="transparent"
-        strokeWidth={15}
+        strokeWidth={isBusWire ? 20 : 15}
         onMouseEnter={(e) => {
           const container = e.target.getStage()?.container();
           if (container) container.style.cursor = 'pointer';
@@ -78,7 +84,7 @@ const SingleWire = React.memo(({ wire, pathData, points, isSelected, canvasTheme
       <Path
         data={pathData}
         stroke={strokeColor}
-        strokeWidth={2}
+        strokeWidth={isBusWire ? 4 : 2}
         hitStrokeWidth={0}
         shadowColor={signal === 1 ? canvasTheme.signalHigh : 'transparent'}
         shadowBlur={signal === 1 ? 4 : 0}

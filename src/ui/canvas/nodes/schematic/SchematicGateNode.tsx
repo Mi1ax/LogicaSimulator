@@ -83,6 +83,8 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
       offsetX={anchorX}
       offsetY={anchorY}
       rotation={node.properties?.rotation || 0}
+      scaleX={node.properties?.flipX ? -1 : 1}
+      scaleY={node.properties?.flipY ? -1 : 1}
       opacity={isPlacing ? 0.6 : 1}
       draggable={!isPlacing}
       onClick={(e) => {
@@ -185,19 +187,21 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
             strokeWidth={isSelected ? 3 : 2}
             cornerRadius={0}
           />
-          <Text
-            text={node.type}
-            x={0}
-            y={0}
-            width={width}
-            height={height}
-            align="center"
-            verticalAlign="middle"
-            fontSize={20}
-            fontFamily="monospace"
-            fontStyle="bold"
-            fill={canvasTheme.textColor}
-          />
+          <Group x={width / 2} y={height / 2} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+            <Text
+              text={node.type}
+              x={-width / 2}
+              y={-height / 2}
+              width={width}
+              height={height}
+              align="center"
+              verticalAlign="middle"
+              fontSize={20}
+              fontFamily="monospace"
+              fontStyle="bold"
+              fill={canvasTheme.textColor}
+            />
+          </Group>
         </>
       )}
 
