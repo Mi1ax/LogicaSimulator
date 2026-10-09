@@ -14,6 +14,8 @@ import { getSchematicDimensions, getSchematicAnchor } from '../../core/utils/sch
 import { computeAllWirePaths } from '../../core/engine/routing';
 import { Schematic7SegNode } from './nodes/schematic/Schematic7SegNode';
 import { SchematicBusNode } from './nodes/schematic/SchematicBusNode';
+import { SchematicButtonNode } from './nodes/schematic/SchematicButtonNode';
+import { SchematicLEDBarNode } from './nodes/schematic/SchematicLEDBarNode';
 import { useShallow } from 'zustand/react/shallow';
 
 const ConnectedNode = React.memo(({ id }: { id: string }) => {
@@ -22,6 +24,8 @@ const ConnectedNode = React.memo(({ id }: { id: string }) => {
   const def = getNodeDefinition(node.type);
   if (node.type === '7_SEG_DISPLAY') return <Schematic7SegNode node={node} />;
   if (node.type === 'DIP_SWITCH') return <SchematicDipSwitchNode node={node} />;
+  if (node.type === 'BUTTON') return <SchematicButtonNode node={node} />;
+  if (node.type === 'LED_BAR') return <SchematicLEDBarNode node={node} />;
   if (def?.renderAs === 'DIP') return <SchematicICNode node={node} />;
   if (def?.renderAs === 'BUS') return <SchematicBusNode node={node} />;
   if (['INPUT', 'OUTPUT', 'CLOCK', 'VCC', 'GND'].includes(node.type)) return <SchematicIONode node={node} />;
