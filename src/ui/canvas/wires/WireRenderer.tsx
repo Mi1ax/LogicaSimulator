@@ -14,7 +14,7 @@ function distToSegmentSquared(p: {x:number, y:number}, v: {x:number, y:number}, 
   return (p.x - (v.x + t * (w.x - v.x))) ** 2 + (p.y - (v.y + t * (w.y - v.y))) ** 2;
 }
 
-const SingleWire = React.memo(({ wire, pathData, points, isSelected, canvasTheme }: { wire: Wire, pathData: string, points: {x:number, y:number}[], isSelected: boolean, canvasTheme: any }) => {
+const SingleWire = React.memo(({ wire, pathData, points, isSelected, canvasTheme, selection, multiSelection }: { wire: Wire, pathData: string, points: {x:number, y:number}[], isSelected: boolean, canvasTheme: any, selection: any, multiSelection: string[] }) => {
   const signal = useSimulatorStore(state => state.simState.wireStates[wire.id]);
   const select = useSimulatorStore(state => state.select);
   const updateWireWaypoints = useSimulatorStore(state => state.updateWireWaypoints);
@@ -50,7 +50,7 @@ const SingleWire = React.memo(({ wire, pathData, points, isSelected, canvasTheme
         }}
         onClick={(e) => {
           e.cancelBubble = true;
-          select({ type: 'wire', id: wire.id });
+          select({ type: 'wire', id: wire.id }, e.evt.shiftKey);
         }}
         onDblClick={(e) => {
           e.cancelBubble = true;
@@ -92,68 +92,74 @@ const SingleWire = React.memo(({ wire, pathData, points, isSelected, canvasTheme
         listening={false}
       />
 
-      {wire.waypoints?.map((wp, index) => (
-        <Circle
-          key={index}
-          x={wp.x}
-          y={wp.y}
-          radius={5}
-          fill={isSelected ? canvasTheme.selectedWireColor : strokeColor}
-          shadowColor={signal === 1 ? canvasTheme.signalHigh : 'transparent'}
-          shadowBlur={signal === 1 ? 4 : 0}
-          shadowOpacity={0.8}
-          draggable
-          onDragStart={() => useSimulatorStore.getState().saveHistory()}
-          onDragMove={(e) => {
-            const snappedX = Math.round(e.target.x() / 20) * 20;
-            const snappedY = Math.round(e.target.y() / 20) * 20;
-            
-            e.target.x(snappedX);
-            e.target.y(snappedY);
-
-            const newWaypoints = [...(wire.waypoints || [])];
-            newWaypoints[index] = {
-              x: snappedX,
-              y: snappedY
-            };
-            updateWireWaypoints(wire.id, newWaypoints);
-          }}
-          onClick={(e) => {
-            e.cancelBubble = true;
-            const store = useSimulatorStore.getState();
-            if (store.draftWire) {
-              const splitWp1 = wire.waypoints?.slice(0, index);
-              const splitWp2 = wire.waypoints?.slice(index + 1);
-              store.completeWireOnWire(wire.id, wp.x, wp.y, splitWp1, splitWp2);
-            } else {
-              if (!isSelected) {
-                select({ type: 'wire', id: wire.id });
+      {wire.waypoints?.map((wp, index) => {
+        const wpId = `wp:${wire.id}:${index}`;
+        const isWpSelected = isSelected || selection?.id === wpId || multiSelection.includes(wpId);
+        
+        return (
+          <Circle
+            key={index}
+            x={wp.x}
+            y={wp.y}
+            radius={5}
+            fill={isWpSelected ? canvasTheme.selectedWireColor : strokeColor}
+            shadowColor={signal === 1 ? canvasTheme.signalHigh : 'transparent'}
+            shadowBlur={signal === 1 ? 4 : 0}
+            shadowOpacity={0.8}
+            draggable
+            onDragStart={() => useSimulatorStore.getState().saveHistory()}
+            onDragMove={(e) => {
+              const snappedX = Math.round(e.target.x() / 20) * 20;
+              const snappedY = Math.round(e.target.y() / 20) * 20;
+              
+              e.target.position({ x: snappedX, y: snappedY });
+              useSimulatorStore.getState().updateNodePosition(wpId, snappedX, snappedY);
+            }}
+            onDragEnd={(e) => {
+              const snappedX = Math.round(e.target.x() / 20) * 20;
+              const snappedY = Math.round(e.target.y() / 20) * 20;
+              e.target.position({ x: snappedX, y: snappedY });
+              useSimulatorStore.getState().updateNodePosition(wpId, snappedX, snappedY, true);
+            }}
+            onClick={(e) => {
+              e.cancelBubble = true;
+              const store = useSimulatorStore.getState();
+              if (store.draftWire) {
+                const splitWp1 = wire.waypoints?.slice(0, index);
+                const splitWp2 = wire.waypoints?.slice(index + 1);
+                store.completeWireOnWire(wire.id, wp.x, wp.y, splitWp1, splitWp2);
               } else {
-                if (clickTimeout.current) clearTimeout(clickTimeout.current);
-                clickTimeout.current = setTimeout(() => {
-                  useSimulatorStore.getState().startWireFromWaypoint(wire.id, index);
-                }, 250);
+                if (!isWpSelected && !e.evt.shiftKey) {
+                  select({ type: 'waypoint', id: wpId }, false);
+                } else if (e.evt.shiftKey) {
+                  select({ type: 'waypoint', id: wpId }, true);
+                } else {
+                  if (clickTimeout.current) clearTimeout(clickTimeout.current);
+                  clickTimeout.current = setTimeout(() => {
+                    useSimulatorStore.getState().startWireFromWaypoint(wire.id, index);
+                  }, 250);
+                }
               }
-            }
-          }}
-          onDblClick={(e) => {
-            e.cancelBubble = true;
-            if (clickTimeout.current) clearTimeout(clickTimeout.current);
-            const newWaypoints = [...(wire.waypoints || [])];
-            newWaypoints.splice(index, 1);
-            useSimulatorStore.getState().saveHistory();
-            updateWireWaypoints(wire.id, newWaypoints);
-          }}
-          onMouseEnter={(e) => {
-            const container = e.target.getStage()?.container();
-            if (container) container.style.cursor = 'crosshair';
-          }}
-          onMouseLeave={(e) => {
-            const container = e.target.getStage()?.container();
-            if (container) container.style.cursor = 'default';
-          }}
-        />
-      ))}
+            }}
+            onDblClick={(e) => {
+              e.cancelBubble = true;
+              if (clickTimeout.current) clearTimeout(clickTimeout.current);
+              const newWaypoints = [...(wire.waypoints || [])];
+              newWaypoints.splice(index, 1);
+              useSimulatorStore.getState().saveHistory();
+              updateWireWaypoints(wire.id, newWaypoints);
+            }}
+            onMouseEnter={(e) => {
+              const container = e.target.getStage()?.container();
+              if (container) container.style.cursor = 'crosshair';
+            }}
+            onMouseLeave={(e) => {
+              const container = e.target.getStage()?.container();
+              if (container) container.style.cursor = 'default';
+            }}
+          />
+        );
+      })}
     </Group>
   );
 });
@@ -164,6 +170,7 @@ export const WireRenderer: React.FC = React.memo(() => {
   const nodes = useSimulatorStore(state => state.nodes);
   const theme = useSimulatorStore(state => state.theme);
   const selection = useSimulatorStore(state => state.selection);
+  const multiSelection = useSimulatorStore(state => state.multiSelection);
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
 
@@ -189,7 +196,7 @@ export const WireRenderer: React.FC = React.memo(() => {
         const wireInfo = wirePaths.get(wire.id);
         if (!wireInfo) return null;
         
-        const isSelected = selection?.type === 'wire' && selection.id === wire.id;
+        const isSelected = (selection?.type === 'wire' && selection.id === wire.id) || multiSelection.includes(wire.id);
         
         return (
           <SingleWire 
@@ -198,7 +205,9 @@ export const WireRenderer: React.FC = React.memo(() => {
             pathData={wireInfo.path} 
             points={wireInfo.points}
             isSelected={isSelected} 
-            canvasTheme={canvasTheme} 
+            canvasTheme={canvasTheme}
+            selection={selection}
+            multiSelection={multiSelection}
           />
         );
       })}
@@ -216,3 +225,4 @@ export const WireRenderer: React.FC = React.memo(() => {
     </>
   );
 });
+

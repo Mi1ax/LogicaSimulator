@@ -136,16 +136,25 @@ export const moveNode = (state: CircuitState, id: string, x: number, y: number):
 };
 
 
-export const moveNodes = (state: CircuitState, ids: string[], primaryId: string, x: number, y: number): CircuitState => {
-  const primaryNode = state.nodes.find(n => n.id === primaryId);
-  if (!primaryNode) return state;
+export const moveSelection = (state: CircuitState, ids: string[], primaryId: string, x: number, y: number): CircuitState => {
+  let oldX = 0, oldY = 0, snap = 20; // GRID_SIZE
+  
+  if (primaryId.startsWith('wp:')) {
+    const [, wireId, idxStr] = primaryId.split(':');
+    const wp = state.wires.find(w => w.id === wireId)?.waypoints?.[parseInt(idxStr, 10)];
+    if (!wp) return state;
+    oldX = wp.x;
+    oldY = wp.y;
+  } else {
+    const primaryNode = state.nodes.find(n => n.id === primaryId);
+    if (!primaryNode) return state;
+    oldX = primaryNode.x;
+    oldY = primaryNode.y;
+    snap = primaryNode.type === 'JUNCTION' ? 10 : 20;
+  }
 
-  const snap = primaryNode.type === 'JUNCTION' ? 10 : GRID_SIZE;
   const snappedX = Math.round(x / snap) * snap;
   const snappedY = Math.round(y / snap) * snap;
-
-  const oldX = primaryNode.x;
-  const oldY = primaryNode.y;
 
   const dx = snappedX - oldX;
   const dy = snappedY - oldY;
@@ -159,6 +168,20 @@ export const moveNodes = (state: CircuitState, ids: string[], primaryId: string,
         return { ...node, x: node.x + dx, y: node.y + dy };
       }
       return node;
+    }),
+    wires: state.wires.map(wire => {
+      if (ids.includes(wire.id) || wire.waypoints?.some((_, idx) => ids.includes(`wp:${wire.id}:${idx}`))) {
+        return {
+          ...wire,
+          waypoints: wire.waypoints?.map((wp, idx) => {
+            if (ids.includes(wire.id) || ids.includes(`wp:${wire.id}:${idx}`)) {
+              return { x: wp.x + dx, y: wp.y + dy };
+            }
+            return wp;
+          })
+        };
+      }
+      return wire;
     })
   };
 };

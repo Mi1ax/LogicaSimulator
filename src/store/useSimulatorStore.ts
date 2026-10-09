@@ -8,7 +8,7 @@ import { computeNextState } from '../core/engine/simulation';
 import { getSchematicPinPosition } from '../core/utils/schematicLayout';
 import { generateId } from '../core/utils/id';
 
-export type Selection = { type: 'node' | 'wire', id: string } | null;
+export type Selection = { type: 'node' | 'wire' | 'waypoint', id: string } | null;
 
 export interface PointerSettings {
   mouseWheelBehavior: 'zoom' | 'pan'; // 'zoom' = CAD style, 'pan' = Figma style
@@ -347,8 +347,14 @@ export const useSimulatorStore = create<SimulatorState>()(
       let nextState = { ...state };
       let nextSelectedMemoryNodeId = state.selectedMemoryNodeId;
       
+      const waypointsToRemove: Record<string, number[]> = {};
+      
       idsToDelete.forEach(id => {
-        if (nextState.wires.some(w => w.id === id)) {
+        if (id.startsWith('wp:')) {
+          const [, wireId, idxStr] = id.split(':');
+          if (!waypointsToRemove[wireId]) waypointsToRemove[wireId] = [];
+          waypointsToRemove[wireId].push(parseInt(idxStr, 10));
+        } else if (nextState.wires.some(w => w.id === id)) {
           Object.assign(nextState, circuit.deleteWire(nextState, id));
         } else if (nextState.nodes.some(n => n.id === id)) {
           Object.assign(nextState, circuit.deleteNode(nextState, id));
@@ -356,6 +362,17 @@ export const useSimulatorStore = create<SimulatorState>()(
             nextSelectedMemoryNodeId = null;
           }
         }
+      });
+
+      Object.entries(waypointsToRemove).forEach(([wireId, indices]) => {
+        nextState.wires = nextState.wires.map(w => {
+          if (w.id === wireId && w.waypoints) {
+            const newWaypoints = [...w.waypoints];
+            indices.sort((a, b) => b - a).forEach(idx => newWaypoints.splice(idx, 1));
+            return { ...w, waypoints: newWaypoints };
+          }
+          return w;
+        });
       });
       
       return { ...nextState, ...pushHistory(state), selection: null, multiSelection: [], selectedMemoryNodeId: nextSelectedMemoryNodeId };
@@ -389,7 +406,7 @@ export const useSimulatorStore = create<SimulatorState>()(
   updateNodePosition: (id, x, y, finalize) => set((state) => {
     const isMulti = state.multiSelection.includes(id);
     const ids = isMulti ? state.multiSelection : [id];
-    let nextState = { ...state, ...circuit.moveNodes(state, ids, id, x, y) };
+    let nextState = { ...state, ...circuit.moveSelection(state, ids, id, x, y) };
     
     if (finalize) {
       nextState = applyAutoConnect(nextState, ids);
@@ -473,7 +490,7 @@ export const useSimulatorStore = create<SimulatorState>()(
 
     const { sourceNodeId, sourcePinId, sourceType } = state.draftWire;
 
-    if (sourceNodeId === nodeId) {
+    if (sourcePinId === pinId) {
       return { draftWire: null };
     }
 

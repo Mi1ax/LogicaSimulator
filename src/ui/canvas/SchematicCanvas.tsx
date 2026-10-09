@@ -319,6 +319,11 @@ export const SchematicCanvas: React.FC = () => {
             store.wires.forEach(wire => {
               const pathData = wirePaths.get(wire.id);
               if (pathData) {
+                wire.waypoints?.forEach((wp, index) => {
+                  if (wp.x >= x1 && wp.x <= x2 && wp.y >= y1 && wp.y <= y2) {
+                    selectedIds.push(`wp:${wire.id}:${index}`);
+                  }
+                });
                 const inside = pathData.points.some(p => p.x >= x1 && p.x <= x2 && p.y >= y1 && p.y <= y2);
                 if (inside) selectedIds.push(wire.id);
               }
