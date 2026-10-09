@@ -16,9 +16,12 @@ export const HexEditorView: React.FC = () => {
 
   // Local copy of memory for editing
   const [memory, setMemory] = useState<Uint8Array>(new Uint8Array(MEM_SIZE));
+  const [editingAddr, setEditingAddr] = useState<number | null>(null);
+  const [editingVal, setEditingVal] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(0);
   const [jumpAddressInput, setJumpAddressInput] = useState('');
   const [highlightedRow, setHighlightedRow] = useState<number | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
 
   const handleJump = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -61,20 +64,40 @@ export const HexEditorView: React.FC = () => {
       }
       setMemory(newMem);
       setCurrentPage(0);
+      setIsDirty(false);
     }
   }, [selectedNode?.id]); // Intentionally not depending on data so we don't overwrite user edits unexpectedly if we haven't saved
 
+  
+  const focusCell = (targetAddr: number) => {
+    if (targetAddr < 0 || targetAddr >= MEM_SIZE) return;
+    const targetPage = Math.floor(targetAddr / PAGE_SIZE);
+    if (targetPage !== currentPage) {
+      setCurrentPage(targetPage);
+      setTimeout(() => {
+        const el = document.getElementById(`hex-cell-${targetAddr}`);
+        if (el) (el as HTMLInputElement).focus();
+      }, 50);
+    } else {
+      const el = document.getElementById(`hex-cell-${targetAddr}`);
+      if (el) (el as HTMLInputElement).focus();
+    }
+  };
+
   const handleByteChange = (addr: number, valStr: string) => {
-    // Basic validation for hex
-    if (!/^[0-9A-Fa-f]{0,2}$/.test(valStr)) return;
+    let val = valStr.toUpperCase();
+    if (!/^[0-9A-F]{0,2}$/.test(val)) return;
+    setEditingVal(val);
+    
     
     const newMem = new Uint8Array(memory);
-    if (valStr === '') {
-      newMem[addr] = 0;
-    } else {
-      newMem[addr] = parseInt(valStr, 16);
-    }
+    newMem[addr] = parseInt(val || '0', 16);
     setMemory(newMem);
+    setIsDirty(true);
+
+    if (val.length === 2) {
+      focusCell(addr + 1);
+    }
   };
 
   const handleSave = () => {
@@ -82,6 +105,7 @@ export const HexEditorView: React.FC = () => {
       // Convert typed array back to normal array for store (since we serialize to JSON)
       const dataArray = Array.from(memory);
       updateNodeProperties(selectedNode.id, { data: dataArray });
+      setIsDirty(false);
     }
   };
 
@@ -98,6 +122,7 @@ export const HexEditorView: React.FC = () => {
         const newMem = new Uint8Array(MEM_SIZE);
         newMem.set(importedMem.slice(0, MEM_SIZE));
         setMemory(newMem);
+        setIsDirty(true);
       } catch (err: any) {
         if (err.name !== 'AbortError') console.error(err);
       }
@@ -130,6 +155,18 @@ export const HexEditorView: React.FC = () => {
   };
 
   // Render logic
+  
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [memory, selectedNode]);
+
   const numPages = Math.ceil(MEM_SIZE / PAGE_SIZE);
   const startAddr = currentPage * PAGE_SIZE;
   const endAddr = Math.min(startAddr + PAGE_SIZE, MEM_SIZE);
@@ -185,7 +222,7 @@ export const HexEditorView: React.FC = () => {
             {/* Editor Toolbar */}
             <div className="h-10 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-[#252526] flex items-center px-4 justify-between shrink-0">
               <div className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-4">
-                <span>{selectedNode.properties?.label || selectedNode.type}</span>
+                <span>{selectedNode.properties?.label || selectedNode.type}{isDirty ? <span className="text-blue-500 ml-1">*</span> : ''}</span>
                 <div className="flex items-center gap-2">
                   <button 
                     disabled={currentPage === 0}
@@ -227,8 +264,16 @@ export const HexEditorView: React.FC = () => {
                 <button onClick={handleExport} className="text-xs px-3 py-1 bg-gray-200 hover:bg-gray-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded text-gray-700 dark:text-slate-200 transition-colors">
                   Export .bin
                 </button>
-                <button onClick={handleSave} className="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors">
-                  Save Changes
+                <button 
+                  onClick={handleSave} 
+                  disabled={!isDirty}
+                  className={`text-xs px-3 py-1 rounded transition-colors ${
+                    isDirty 
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                      : 'bg-gray-200 dark:bg-slate-700 text-gray-400 dark:text-slate-500 cursor-not-allowed'
+                  }`}
+                >
+                  {isDirty ? 'Save Changes *' : 'Saved'}
                 </button>
               </div>
             </div>
@@ -276,10 +321,21 @@ export const HexEditorView: React.FC = () => {
                             key={colIndex}
                             id={`hex-cell-${addr}`}
                             className={`w-[1.2rem] bg-transparent text-center focus:bg-blue-100 dark:focus:bg-blue-900/50 outline-none rounded ${colIndex === 8 ? 'ml-2' : ''}`}
-                            value={hexStr}
+                            value={editingAddr === addr ? editingVal : hexStr}
                             maxLength={2}
                             onChange={(e) => handleByteChange(addr, e.target.value)}
-                            onFocus={(e) => e.target.select()}
+                            onFocus={(e) => {
+                              setEditingAddr(addr);
+                              setEditingVal(hexStr);
+                              e.target.select();
+                            }}
+                            onBlur={() => setEditingAddr(null)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'ArrowRight') { e.preventDefault(); focusCell(addr + 1); }
+                              else if (e.key === 'ArrowLeft') { e.preventDefault(); focusCell(addr - 1); }
+                              else if (e.key === 'ArrowUp') { e.preventDefault(); focusCell(addr - 16); }
+                              else if (e.key === 'ArrowDown') { e.preventDefault(); focusCell(addr + 16); }
+                            }}
                           />
                         );
                       })}
