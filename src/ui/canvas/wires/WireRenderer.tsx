@@ -98,7 +98,10 @@ const SingleWire = React.memo(({ wire, pathData, points, isSelected, canvasTheme
           x={wp.x}
           y={wp.y}
           radius={5}
-          fill={isSelected ? canvasTheme.selectedWireColor : canvasTheme.wireColor}
+          fill={isSelected ? canvasTheme.selectedWireColor : strokeColor}
+          shadowColor={signal === 1 ? canvasTheme.signalHigh : 'transparent'}
+          shadowBlur={signal === 1 ? 4 : 0}
+          shadowOpacity={0.8}
           draggable
           onDragStart={() => useSimulatorStore.getState().saveHistory()}
           onDragMove={(e) => {
