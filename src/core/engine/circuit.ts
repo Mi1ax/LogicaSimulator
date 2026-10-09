@@ -24,8 +24,10 @@ export const addNode = (state: CircuitState, type: NodeType, x: number, y: numbe
   let inputs: Pin[] = [];
   let outputs: Pin[] = [];
 
-  if (def.customPins) {
-    def.customPins.forEach((cp) => {
+  const pinsToGenerate = def.generatePins ? def.generatePins(properties) : def.customPins;
+
+  if (pinsToGenerate) {
+    pinsToGenerate.forEach((cp) => {
       const pin: Pin = {
         id: `pin-${id}-${cp.type}-${cp.name}`,
         nodeId: id,
@@ -74,7 +76,45 @@ export const addNode = (state: CircuitState, type: NodeType, x: number, y: numbe
 export const updateNodeProperties = (state: CircuitState, id: string, props: Record<string, any>): CircuitState => {
   return {
     ...state,
-    nodes: state.nodes.map(n => n.id === id ? { ...n, properties: { ...n.properties, ...props } } : n)
+    nodes: state.nodes.map(n => {
+      if (n.id !== id) return n;
+      const newProps = { ...n.properties, ...props };
+      const def = getNodeDefinition(n.type);
+      
+      let newInputs = n.inputs;
+      let newOutputs = n.outputs;
+
+      if (def?.generatePins) {
+        const pinsToGenerate = def.generatePins(newProps);
+        const inputs: Pin[] = [];
+        const outputs: Pin[] = [];
+        pinsToGenerate.forEach((cp) => {
+          // preserve ID if pin with same name/type already existed, otherwise create new
+          const existing = n.inputs.find(p => p.name === cp.name && p.type === cp.type) || 
+                           n.outputs.find(p => p.name === cp.name && p.type === cp.type);
+          
+          const pin: Pin = {
+            id: existing ? existing.id : `pin-${id}-${cp.type}-${cp.name}`,
+            nodeId: id,
+            type: cp.type,
+            index: inputs.length + outputs.length,
+            name: cp.name,
+            pinNumber: cp.pinNumber,
+          };
+          
+          if (cp.type === 'input') inputs.push(pin);
+          else if (cp.type === 'output') outputs.push(pin);
+          else if (cp.type === 'bidir') {
+            inputs.push(pin);
+            outputs.push(pin);
+          }
+        });
+        newInputs = inputs;
+        newOutputs = outputs;
+      }
+      
+      return { ...n, properties: newProps, inputs: newInputs, outputs: newOutputs };
+    })
   };
 };
 

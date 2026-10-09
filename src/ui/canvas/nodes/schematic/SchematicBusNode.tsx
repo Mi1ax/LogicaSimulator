@@ -5,12 +5,13 @@ import { useSimulatorStore } from '../../../../store/useSimulatorStore';
 import { Pin } from '../../primitives/Pin';
 import { getSchematicDimensions, getSchematicAnchor } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
+import { getNodeDefinition } from '../../../../core/engine/nodes';
 
-interface NetLabelProps {
+interface BusProps {
   node: LogicNode;
 }
 
-export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node }) => {
+export const SchematicBusNode: React.FC<BusProps> = React.memo(({ node }) => {
   const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
   const theme = useSimulatorStore(state => state.theme);
   const selection = useSimulatorStore(state => state.selection);
@@ -24,14 +25,13 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
   const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
   const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
 
-  // Use the unique bidir pin which appears in both inputs and outputs
-  const pin = node.inputs[0] || node.outputs[0];
-  const name = String(node.properties?.label || 'NET');
+  const def = getNodeDefinition(node.type);
+  const generatedPins = def?.generatePins ? def.generatePins(node.properties || {}) : [];
+  
+  // Use unique bidir pins
+  const pins = Array.from(new Map([...node.inputs, ...node.outputs].map(p => [p.id, p])).values());
 
-  // We want to render a tag shape. Flat left, pointed right.
-  // The pin will be exactly at (width, height/2) so the point touches the pin.
-  // Wait, actually, let's make the tag shape:
-  // (0,0) -> (width-10, 0) -> (width, height/2) -> (width-10, height) -> (0, height) -> Z
+  const label = node.properties?.label || 'DB[7..0]';
 
   return (
     <Group
@@ -76,32 +76,66 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
       }}
     >
       <Rect x={0} y={0} width={width} height={height} fill="transparent" />
-      <Line points={[width - 10, height / 2, width, height / 2]} stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder} strokeWidth={2} />
+      
+      {/* Bus backbone line */}
+      <Line points={[width, 20, width, height - 20]} stroke={canvasTheme.nodeBorder} strokeWidth={4} />
+      
+      {/* Label for the bus */}
       <Text 
-        x={(width - 12) / 2}
-        y={height / 2}
-        offsetX={(width - 12) / 2}
-        offsetY={height / 2}
-        rotation={-(node.properties?.rotation || 0)}
-        width={width - 12} 
-        height={height}
-        text={name} 
-        verticalAlign="middle"
-        align={(node.properties?.rotation || 0) === 180 ? 'left' : ((node.properties?.rotation || 0) === 90 || (node.properties?.rotation || 0) === 270) ? 'center' : 'right'}
-        fontSize={12} 
-        fontFamily="monospace"
+        x={width / 2}
+        y={-10}
+        text={label} 
+        align="center"
+        verticalAlign="bottom"
+        fontSize={14} 
+        fontFamily="sans-serif"
+        fontStyle="bold"
         fill={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.textColor}
       />
-      {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={1} dash={[2,2]} />}
-      {pin && (
-        <Pin
-          id={pin.id}
-          nodeId={node.id}
-          x={width}
-          y={height / 2}
-          type={pin.type}
-        />
-      )}
+
+      {isSelected && <Rect x={-5} y={0} width={width + 10} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={1} dash={[2,2]} />}
+      
+      {pins.map(pin => {
+        const pinDef = generatedPins.find(cp => cp.name === pin.name);
+        const row = pinDef?.schematicRow || 1;
+        const side = pinDef?.schematicSide || 'left';
+        
+        let pinX = 0;
+        let pinY = row * 20;
+        
+        if (side === 'left') {
+          pinX = -20;
+        } else if (side === 'right') {
+          pinX = width + 20;
+        }
+
+        return (
+          <React.Fragment key={pin.id}>
+            <Line 
+              points={[side === 'left' ? pinX : width, pinY, side === 'left' ? width : pinX, pinY]} 
+              stroke={canvasTheme.nodeBorder} 
+              strokeWidth={side === 'right' ? 4 : 2} 
+            />
+            {side === 'left' && (
+              <Text 
+                x={pinX + 4}
+                y={pinY - 14}
+                text={pin.name} 
+                fontSize={10} 
+                fontFamily="sans-serif"
+                fill={canvasTheme.textColor}
+              />
+            )}
+            <Pin
+              id={pin.id}
+              nodeId={node.id}
+              x={pinX}
+              y={pinY}
+              type={pin.type}
+            />
+          </React.Fragment>
+        );
+      })}
     </Group>
   );
 });

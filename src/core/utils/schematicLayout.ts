@@ -34,6 +34,18 @@ export const getSchematicDimensions = (node: LogicNode) => {
     return { width: 120, height: (maxRow + 3) * 20 };
   }
 
+  if (node.properties?.renderAs === 'BUS' || def?.renderAs === 'BUS') {
+    let maxRow = 0;
+    if (def?.generatePins) {
+      const generated = def.generatePins(node.properties || {});
+      generated.forEach(cp => {
+        if (cp.schematicRow !== undefined) maxRow = Math.max(maxRow, cp.schematicRow);
+      });
+    }
+    if (maxRow === 0) maxRow = Math.max(node.inputs.length, node.outputs.length);
+    return { width: 40, height: (maxRow + 1) * 20 };
+  }
+
   if (node.type === "VCC" || node.type === "GND") return { width: 40, height: 40 };
 
   if (node.type === 'INPUT' || node.type === 'OUTPUT' || node.type === 'CLOCK' || node.type === 'NET_LABEL') {
@@ -72,6 +84,9 @@ export const getSchematicAnchor = (node: LogicNode): { x: number; y: number } =>
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
     return { x: width / 2, y: height / 2 };
   }
+  if (node.properties?.renderAs === 'BUS' || def?.renderAs === 'BUS') {
+    return { x: width / 2, y: height / 2 };
+  }
   if (['INPUT', 'OUTPUT', 'VCC', 'GND', 'NET_LABEL'].includes(node.type)) {
     // IO nodes have always pivoted around (20,20); keep it so saved layouts don't shift.
     return { x: 20, y: 20 };
@@ -80,13 +95,22 @@ export const getSchematicAnchor = (node: LogicNode): { x: number; y: number } =>
   return { x: width / 2, y: height / 2 };
 };
 
-const applyRotation = (x: number, y: number, nx: number, ny: number, anchorX: number, anchorY: number, rotation: number) => {
+const applyTransform = (x: number, y: number, nx: number, ny: number, anchorX: number, anchorY: number, rotation: number, flipX: boolean, flipY: boolean) => {
+  let dx = x - anchorX;
+  let dy = y - anchorY;
+
+  if (flipX) {
+    dx = -dx;
+    nx = -nx;
+  }
+  if (flipY) {
+    dy = -dy;
+    ny = -ny;
+  }
+
   const rad = (rotation * Math.PI) / 180;
   const cos = Math.round(Math.cos(rad));
   const sin = Math.round(Math.sin(rad));
-
-  const dx = x - anchorX;
-  const dy = y - anchorY;
 
   const rx = dx * cos - dy * sin;
   const ry = dx * sin + dy * cos;
@@ -125,7 +149,9 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
       const spacing = 20;
       const rawX = width + 20;
       const rawY = spacing + outIndex * spacing;
-      const rotated = applyRotation(rawX, rawY, 1, 0, anchorX, anchorY, rotation);
+      const flipX = !!node.properties?.flipX;
+      const flipY = !!node.properties?.flipY;
+      const rotated = applyTransform(rawX, rawY, 1, 0, anchorX, anchorY, rotation, flipX, flipY);
       return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
     }
   }
@@ -139,7 +165,9 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
       const rawY = isTop ? 0 : height;
       const rawNx = 0;
       const rawNy = isTop ? -1 : 1;
-      const rotated = applyRotation(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation);
+      const flipX = !!node.properties?.flipX;
+      const flipY = !!node.properties?.flipY;
+      const rotated = applyTransform(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation, flipX, flipY);
       return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
     }
   }
@@ -191,7 +219,40 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
           rawNx = 0; rawNy = 1;
         }
       }
-      const rotated = applyRotation(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation);
+      const flipX = !!node.properties?.flipX;
+      const flipY = !!node.properties?.flipY;
+      const rotated = applyTransform(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation, flipX, flipY);
+      return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
+    }
+  }
+
+  if (node.properties?.renderAs === 'BUS' || def?.renderAs === 'BUS') {
+    const allPins = Array.from(new Map([...node.inputs, ...node.outputs].map(p => [p.id, p])).values());
+    const pin = allPins.find(p => p.id === pinId);
+    if (pin) {
+      const generated = def?.generatePins ? def.generatePins(node.properties || {}) : [];
+      const pinDef = generated.find(cp => cp.name === pin.name);
+
+      let side = pinDef?.schematicSide || 'left';
+      let row = pinDef?.schematicRow || 1;
+
+      const spacing = 20;
+      const legLength = 20;
+
+      let rawX = 0, rawY = 0, rawNx = 0, rawNy = 0;
+      if (side === 'left') {
+        rawX = -legLength;
+        rawY = row * spacing;
+        rawNx = -1; rawNy = 0;
+      } else if (side === 'right') {
+        rawX = width + legLength;
+        rawY = row * spacing;
+        rawNx = 1; rawNy = 0;
+      }
+
+      const flipX = !!node.properties?.flipX;
+      const flipY = !!node.properties?.flipY;
+      const rotated = applyTransform(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation, flipX, flipY);
       return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
     }
   }
@@ -211,7 +272,9 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
       const ys = getGridAlignedPinYs(node.inputs.length, height);
       rawX = 0; rawY = ys[inIndex]; rawNx = -1; rawNy = 0;
     }
-    const rotated = applyRotation(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation);
+    const flipX = !!node.properties?.flipX;
+      const flipY = !!node.properties?.flipY;
+      const rotated = applyTransform(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation, flipX, flipY);
     return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
   }
   
@@ -228,7 +291,9 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
       const ys = getGridAlignedPinYs(node.outputs.length, height);
       rawX = width; rawY = ys[outIndex]; rawNx = 1; rawNy = 0;
     }
-    const rotated = applyRotation(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation);
+    const flipX = !!node.properties?.flipX;
+      const flipY = !!node.properties?.flipY;
+      const rotated = applyTransform(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation, flipX, flipY);
     return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
   }
   

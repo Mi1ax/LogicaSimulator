@@ -210,3 +210,34 @@ export const NetLabelNode: NodeDefinition = {
   ],
   evaluate: (inputs) => [inputs[0]],
 };
+
+export const BusBreakoutNode: NodeDefinition = {
+  type: 'BUS_BREAKOUT',
+  label: 'Bus Breakout',
+  numInputs: 0,
+  numOutputs: 0,
+  renderAs: 'BUS',
+  defaultProperties: { label: 'DB[7..0]', bits: 8 },
+  generatePins: (props) => {
+    let bits = props?.bits;
+    if (typeof bits !== 'number' || bits < 1) bits = 8;
+    
+    // Check if label contains [7..0] or similar to extract bits dynamically if we want,
+    // but the user wants to be able to change bits. We can let them change `bits` property.
+    // Or we parse it from label. "DB[3..0]" -> bits = 4.
+    const match = String(props?.label || '').match(/\[(\d+)\.\.(\d+)\]/);
+    if (match) {
+      const high = parseInt(match[1], 10);
+      const low = parseInt(match[2], 10);
+      bits = Math.abs(high - low) + 1;
+    }
+
+    const pins: any[] = [];
+    for (let i = 0; i < bits; i++) {
+      pins.push({ name: String(i), type: 'bidir', schematicSide: 'left', schematicRow: i + 1 });
+    }
+    pins.push({ name: 'BUS', type: 'bidir', schematicSide: 'right', schematicRow: Math.max(1, Math.round((bits + 1) / 2)) });
+    return pins;
+  },
+  evaluate: (inputs) => inputs
+};

@@ -27,6 +27,7 @@ const CATEGORIES: ToolCategory[] = [
       { type: '7_SEG_DISPLAY', icon: <Lightbulb size={18} /> },
       { type: 'CLOCK', icon: <Timer size={18} /> },
       { type: 'NET_LABEL', icon: <Tag size={18} /> },
+      { type: 'BUS_BREAKOUT', icon: <Tag size={18} /> },
     ]
   },
   {

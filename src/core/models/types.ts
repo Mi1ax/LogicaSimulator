@@ -1,4 +1,4 @@
-export type BuiltinNodeType = 'AND' | 'OR' | 'NOR' | 'NOT' | 'XOR' | 'INPUT' | 'OUTPUT' | 'CLOCK' | 'VCC' | 'GND' | 'NET_LABEL';
+export type BuiltinNodeType = 'AND' | 'OR' | 'NOR' | 'NOT' | 'XOR' | 'INPUT' | 'OUTPUT' | 'CLOCK' | 'VCC' | 'GND' | 'NET_LABEL' | 'BUS_BREAKOUT';
 // Allows IDE autocomplete for built-ins, but accepts ANY string for custom ICs
 export type NodeType = BuiltinNodeType | (string & {});
 export type Signal = 0 | 1 | undefined | 'X';
