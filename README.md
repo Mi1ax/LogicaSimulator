@@ -1,17 +1,17 @@
 # Logica Simulator
 
-Logica is a modern, high-performance digital logic and 74LS chip simulator built on a highly optimized React-Konva canvas. It features a pure discrete-event simulation engine fully decoupled from the visual layer, allowing for incredibly fast execution, zero-lag zooming, and an extensible architecture.
+Logica is a modern, high-performance digital logic and IC simulator built on a highly optimized React-Konva canvas. It features a pure discrete-event simulation engine fully decoupled from the visual layer, allowing for incredibly fast execution, zero-lag zooming, and an extensible architecture.
 
 > [!NOTE]
 > This project is written with the help of AI Gemini.
 
 ## Features
-- **Dual Modes**: Seamlessly switch between abstract IEEE Schematic Mode and physical Breadboard/PCB trace routing mode.
 - **Strict Separation of Concerns**: Core engine logic and simulation state are completely decoupled from UI components.
-- **Extensible Node Registry**: Easily add new logic gates or custom ICs without touching the core simulation loop.
-- **High-Performance Canvas**: Utilizes targeted Zustand selectors, heavy SVG geometry memoization, and adaptive rendering to easily handle thousands of components at 60fps.
+- **Advanced IC Simulation**: Accurate timing and hold-state emulation for clocked chips (e.g., 74LS series, 273 Octal D Flip-Flop) and Memory ICs (e.g., 6116 SRAM).
+- **Live Hex Editor**: Monitor and manipulate memory contents (RAM/ROM) in real-time while the simulation is running.
+- **High-Performance Canvas**: Utilizes targeted Zustand selectors, heavy SVG geometry memoization, and O(1) routing map optimizations to easily handle complex circuits at 60fps.
 - **Manhattan Routing**: Wires automatically map orthogonal segments and generate visual U-bridge jumpers when crossing without intersecting.
-- **Live Simulation Playback**: Real-time tick engine with adjustable execution speeds (1Hz to 50Hz) and step-by-step debugging.
+- **Live Simulation Playback**: Real-time tick engine with adjustable execution speeds (1Hz to 50Hz), step-by-step debugging, and interactive components.
 
 ## Documentation
 - [Architecture Overview](./docs/architecture.md): Deep dive into the UI vs Engine separation of concerns.
@@ -34,6 +34,7 @@ Start the local Vite development server:
 ```bash
 npm run dev
 ```
+*Tip: You can load the built-in Micro-Quantum Computer (MQC) example project via the file menu using `public/examples/mqc.logica`.*
 
 ### Building for Production
 ```bash
