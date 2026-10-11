@@ -2,7 +2,7 @@ import { SubcircuitRegistry } from '../subcircuitRegistry';
 import { NodeDefinition } from './NodeDefinition';
 import {
   AndNode, OrNode, NotNode, XorNode,
-  NorNode, NandNode, XnorNode, BufferNode,
+  NorNode, NandNode, XnorNode, BufferNode, NcNode,
   SubInNode, SubOutNode, SubIoNode, ClockNode,
   VccNode, GndNode, JunctionNode,
   DipSwitchNode, SevenSegNode, NetLabelNode, BusBreakoutNode, PushButtonNode, LedBarNode
@@ -11,6 +11,7 @@ import { IC74LS00, IC74LS02, IC74LS04, IC74LS30, IC74LS32, IC74LS86, IC74LS173, 
 
 // The central registry for all available nodes in the simulator
 export const NodeRegistry: Record<string, NodeDefinition> = {
+  [NcNode.type]: NcNode,
   [IC74LS30.type]: IC74LS30,
   [IC74LS373.type]: IC74LS373,
   [IC74LS175.type]: IC74LS175,

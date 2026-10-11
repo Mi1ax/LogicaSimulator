@@ -16,6 +16,7 @@ import { Schematic7SegNode } from './nodes/schematic/Schematic7SegNode';
 import { SchematicBusNode } from './nodes/schematic/SchematicBusNode';
 import { SchematicButtonNode } from './nodes/schematic/SchematicButtonNode';
 import { SchematicLEDBarNode } from './nodes/schematic/SchematicLEDBarNode';
+import { SchematicNCNode } from './nodes/schematic/SchematicNCNode';
 import { useShallow } from 'zustand/react/shallow';
 
 
@@ -38,6 +39,7 @@ const ConnectedNode = React.memo(({ id }: { id: string }) => {
 
   if (!node) return null;
   const def = getNodeDefinition(node.type);
+  if (node.type === 'NC') return <SchematicNCNode node={node} />;
   if (node.type === '7_SEG_DISPLAY') return <Schematic7SegNode node={node} />;
   if (node.type === 'DIP_SWITCH') return <SchematicDipSwitchNode node={node} />;
   if (node.type === 'BUTTON') return <SchematicButtonNode node={node} />;

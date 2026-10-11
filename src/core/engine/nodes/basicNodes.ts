@@ -91,6 +91,14 @@ export const BufferNode: NodeDefinition = {
   }
 };
 
+export const NcNode: NodeDefinition = {
+  type: 'NC',
+  label: 'No Connect (X)',
+  numInputs: 1,
+  numOutputs: 0,
+  evaluate: () => []
+};
+
 export const SubInNode: NodeDefinition = {
   type: 'SUB_IN',
   label: 'Subcircuit Input',

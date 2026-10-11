@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { NodeType } from '../../core/models/types';
-import { BoxSelect, Cpu, ToggleLeft, Lightbulb, Zap, SlidersHorizontal, Tag, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp , Trash2 } from 'lucide-react';
+import { BoxSelect, Cpu, ToggleLeft, Lightbulb, Zap, SlidersHorizontal, Tag, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp , Trash2, X } from 'lucide-react';
 import { getNodeDefinition } from '../../core/engine/nodes';
 
 interface ToolItem {
@@ -27,6 +27,7 @@ const CATEGORIES: ToolCategory[] = [
       { type: '7_SEG_DISPLAY', icon: <Lightbulb size={18} /> },
       { type: 'NET_LABEL', icon: <Tag size={18} /> },
       { type: 'BUS_BREAKOUT', icon: <Tag size={18} /> },
+      { type: 'NC', icon: <X size={18} /> },
     ]
   },
   {
