@@ -1445,6 +1445,111 @@ export const IC74LS541: NodeDefinition = {
 };
 
 
+
+export const IC6116: NodeDefinition = {
+  type: '6116',
+  label: '6116 (2K x 8 SRAM)',
+  tags: ["ram", "memory", "sram", "3-state"],
+  renderAs: 'DIP',
+  numInputs: 24,
+  numOutputs: 8,
+  customPins: [
+    { name: 'A7', type: 'input', pinNumber: 1, schematicSide: 'left', schematicRow: 1 },
+    { name: 'A6', type: 'input', pinNumber: 2, schematicSide: 'left', schematicRow: 2 },
+    { name: 'A5', type: 'input', pinNumber: 3, schematicSide: 'left', schematicRow: 3 },
+    { name: 'A4', type: 'input', pinNumber: 4, schematicSide: 'left', schematicRow: 4 },
+    { name: 'A3', type: 'input', pinNumber: 5, schematicSide: 'left', schematicRow: 5 },
+    { name: 'A2', type: 'input', pinNumber: 6, schematicSide: 'left', schematicRow: 6 },
+    { name: 'A1', type: 'input', pinNumber: 7, schematicSide: 'left', schematicRow: 7 },
+    { name: 'A0', type: 'input', pinNumber: 8, schematicSide: 'left', schematicRow: 8 },
+    { name: 'DQ0', type: 'bidir', pinNumber: 9, schematicSide: 'right', schematicRow: 1 },
+    { name: 'DQ1', type: 'bidir', pinNumber: 10, schematicSide: 'right', schematicRow: 2 },
+    { name: 'DQ2', type: 'bidir', pinNumber: 11, schematicSide: 'right', schematicRow: 3 },
+    { name: 'GND', type: 'input', pinNumber: 12 },
+    { name: 'DQ3', type: 'bidir', pinNumber: 13, schematicSide: 'right', schematicRow: 4 },
+    { name: 'DQ4', type: 'bidir', pinNumber: 14, schematicSide: 'right', schematicRow: 5 },
+    { name: 'DQ5', type: 'bidir', pinNumber: 15, schematicSide: 'right', schematicRow: 6 },
+    { name: 'DQ6', type: 'bidir', pinNumber: 16, schematicSide: 'right', schematicRow: 7 },
+    { name: 'DQ7', type: 'bidir', pinNumber: 17, schematicSide: 'right', schematicRow: 8 },
+    { name: '~CE', type: 'input', pinNumber: 18, schematicSide: 'bottom', schematicRow: 1 },
+    { name: 'A10', type: 'input', pinNumber: 19, schematicSide: 'left', schematicRow: 11 },
+    { name: '~OE', type: 'input', pinNumber: 20, schematicSide: 'bottom', schematicRow: 2 },
+    { name: '~WE', type: 'input', pinNumber: 21, schematicSide: 'bottom', schematicRow: 3 },
+    { name: 'A9', type: 'input', pinNumber: 22, schematicSide: 'left', schematicRow: 10 },
+    { name: 'A8', type: 'input', pinNumber: 23, schematicSide: 'left', schematicRow: 9 },
+    { name: 'VCC', type: 'input', pinNumber: 24 },
+  ],
+  evaluate: (inputs, properties, _tickCount, internal) => {
+    if (!internal) return Array(8).fill(undefined);
+    if (!internal.memory) {
+      internal.memory = new Uint8Array(2048);
+      if (properties && properties.data) {
+        for (let i = 0; i < 2048; i++) {
+          internal.memory[i] = properties.data[i] || 0;
+        }
+      }
+    }
+    
+    const a0 = inputs[7] ?? 0;
+    const a1 = inputs[6] ?? 0;
+    const a2 = inputs[5] ?? 0;
+    const a3 = inputs[4] ?? 0;
+    const a4 = inputs[3] ?? 0;
+    const a5 = inputs[2] ?? 0;
+    const a6 = inputs[1] ?? 0;
+    const a7 = inputs[0] ?? 0;
+    const a8 = inputs[22] ?? 0;
+    const a9 = inputs[21] ?? 0;
+    const a10 = inputs[18] ?? 0;
+    
+    let addr = 0;
+    if (a0 === 1) addr |= 1;
+    if (a1 === 1) addr |= 2;
+    if (a2 === 1) addr |= 4;
+    if (a3 === 1) addr |= 8;
+    if (a4 === 1) addr |= 16;
+    if (a5 === 1) addr |= 32;
+    if (a6 === 1) addr |= 64;
+    if (a7 === 1) addr |= 128;
+    if (a8 === 1) addr |= 256;
+    if (a9 === 1) addr |= 512;
+    if (a10 === 1) addr |= 1024;
+    
+    const ce_n = inputs[17] ?? 1;
+    const oe_n = inputs[19] ?? 1;
+    const we_n = inputs[20] ?? 1;
+    
+    const outs = Array(8).fill(undefined);
+    
+    if (ce_n === 0) {
+      if (we_n === 0) {
+        let data = 0;
+        if (inputs[8] === 1) data |= 1;
+        if (inputs[9] === 1) data |= 2;
+        if (inputs[10] === 1) data |= 4;
+        if (inputs[12] === 1) data |= 8;
+        if (inputs[13] === 1) data |= 16;
+        if (inputs[14] === 1) data |= 32;
+        if (inputs[15] === 1) data |= 64;
+        if (inputs[16] === 1) data |= 128;
+        
+        internal.memory[addr] = data;
+      } else if (oe_n === 0) {
+        const data = internal.memory[addr];
+        outs[0] = (data & 1) ? 1 : 0;
+        outs[1] = (data & 2) ? 1 : 0;
+        outs[2] = (data & 4) ? 1 : 0;
+        outs[3] = (data & 8) ? 1 : 0;
+        outs[4] = (data & 16) ? 1 : 0;
+        outs[5] = (data & 32) ? 1 : 0;
+        outs[6] = (data & 64) ? 1 : 0;
+        outs[7] = (data & 128) ? 1 : 0;
+      }
+    }
+    
+    return outs;
+  }
+};
 export const IC_GAL22V10: NodeDefinition = {
   type: 'GAL22V10',
   label: 'GAL22V10 (Programmable Logic Device)',

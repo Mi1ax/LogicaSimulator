@@ -7,7 +7,7 @@ const PAGE_SIZE = 1024; // Bytes per page (64 rows of 16)
 export const HexEditorView: React.FC = () => {
   const nodes = useSimulatorStore(state => state.nodes);
   const updateNodeProperties = useSimulatorStore(state => state.updateNodeProperties);
-  const memoryNodes = nodes.filter(n => ['27C256', '62256'].includes(n.type));
+  const memoryNodes = nodes.filter(n => ['27C256', '62256', '6116'].includes(n.type));
   
   const selectedNodeId = useSimulatorStore(state => state.selectedMemoryNodeId);
   const setSelectedNodeId = useSimulatorStore(state => state.setSelectedMemoryNodeId);

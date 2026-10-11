@@ -7,7 +7,7 @@ import {
   VccNode, GndNode, JunctionNode,
   DipSwitchNode, SevenSegNode, NetLabelNode, BusBreakoutNode, PushButtonNode, LedBarNode
 } from './basicNodes';
-import { IC74LS00, IC74LS02, IC74LS04, IC74LS30, IC74LS32, IC74LS86, IC74LS173, IC74LS175, IC74LS373, IC74LS181, IC74LS08, IC74LS47, IC74LS138, IC74LS154, IC74LS241, IC74LS244, IC74LS161, IC74LS191, IC74LS273, ROM_27C256, SRAM_62256, IC_74LS283, IC_74LS245, IC74LS541, IC_GAL22V10 } from './icNodes';
+import { IC74LS00, IC74LS02, IC74LS04, IC74LS30, IC74LS32, IC74LS86, IC74LS173, IC74LS175, IC74LS373, IC74LS181, IC74LS08, IC74LS47, IC74LS138, IC74LS154, IC74LS241, IC74LS244, IC74LS161, IC74LS191, IC74LS273, ROM_27C256, SRAM_62256, IC_74LS283, IC_74LS245, IC74LS541, IC_GAL22V10, IC6116 } from './icNodes';
 
 // The central registry for all available nodes in the simulator
 export const NodeRegistry: Record<string, NodeDefinition> = {
@@ -57,6 +57,7 @@ export const NodeRegistry: Record<string, NodeDefinition> = {
   [IC_74LS245.type]: IC_74LS245,
   [IC74LS541.type]: IC74LS541,
   [IC_GAL22V10.type]: IC_GAL22V10,
+  [IC6116.type]: IC6116,
 };
 
 export const getNodeDefinition = (type: string): NodeDefinition | undefined => {

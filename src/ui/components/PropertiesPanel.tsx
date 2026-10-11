@@ -179,7 +179,7 @@ export const PropertiesPanel: React.FC = () => {
         )}
 
         {/* Memory Editor Button */}
-        {['27C256', '62256'].includes(node.type) && (
+        {['27C256', '62256', '6116'].includes(node.type) && (
           <div className="mt-4">
             <button
               onClick={() => {

@@ -96,6 +96,7 @@ const CATEGORIES: ToolCategory[] = [
         name: 'Memory',
         items: [
           { type: '27C256', icon: <Cpu size={18} /> },
+          { type: '6116', icon: <Cpu size={18} /> },
           { type: '62256', icon: <Cpu size={18} /> },
         ]
       },
