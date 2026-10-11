@@ -34,7 +34,7 @@ jobs:
         run: npm ci
         
       - name: Build
-        run: npx vite build --base=/logica/
+        run: npx vite build --base=/LogicaSimulator/
         
       - name: Setup Pages
         uses: actions/configure-pages@v5
