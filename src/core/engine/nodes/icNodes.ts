@@ -1470,14 +1470,14 @@ export const IC6116: NodeDefinition = {
   numInputs: 24,
   numOutputs: 8,
   customPins: [
-    { name: 'A7', type: 'input', pinNumber: 1, schematicSide: 'left', schematicRow: 1 },
-    { name: 'A6', type: 'input', pinNumber: 2, schematicSide: 'left', schematicRow: 2 },
-    { name: 'A5', type: 'input', pinNumber: 3, schematicSide: 'left', schematicRow: 3 },
-    { name: 'A4', type: 'input', pinNumber: 4, schematicSide: 'left', schematicRow: 4 },
-    { name: 'A3', type: 'input', pinNumber: 5, schematicSide: 'left', schematicRow: 5 },
-    { name: 'A2', type: 'input', pinNumber: 6, schematicSide: 'left', schematicRow: 6 },
-    { name: 'A1', type: 'input', pinNumber: 7, schematicSide: 'left', schematicRow: 7 },
-    { name: 'A0', type: 'input', pinNumber: 8, schematicSide: 'left', schematicRow: 8 },
+    { name: 'A7', type: 'input', pinNumber: 1, schematicSide: 'left', schematicRow: 8 },
+    { name: 'A6', type: 'input', pinNumber: 2, schematicSide: 'left', schematicRow: 7 },
+    { name: 'A5', type: 'input', pinNumber: 3, schematicSide: 'left', schematicRow: 6 },
+    { name: 'A4', type: 'input', pinNumber: 4, schematicSide: 'left', schematicRow: 5 },
+    { name: 'A3', type: 'input', pinNumber: 5, schematicSide: 'left', schematicRow: 4 },
+    { name: 'A2', type: 'input', pinNumber: 6, schematicSide: 'left', schematicRow: 3 },
+    { name: 'A1', type: 'input', pinNumber: 7, schematicSide: 'left', schematicRow: 2 },
+    { name: 'A0', type: 'input', pinNumber: 8, schematicSide: 'left', schematicRow: 1 },
     { name: 'DQ0', type: 'bidir', pinNumber: 9, schematicSide: 'right', schematicRow: 1 },
     { name: 'DQ1', type: 'bidir', pinNumber: 10, schematicSide: 'right', schematicRow: 2 },
     { name: 'DQ2', type: 'bidir', pinNumber: 11, schematicSide: 'right', schematicRow: 3 },
@@ -1495,7 +1495,7 @@ export const IC6116: NodeDefinition = {
     { name: 'A8', type: 'input', pinNumber: 23, schematicSide: 'left', schematicRow: 9 },
     { name: 'VCC', type: 'input', pinNumber: 24 },
   ],
-  evaluate: (inputs, properties, _tickCount, internal) => {
+  evaluate: (inputs, properties, _tickCount, internal, prevInputs) => {
     if (!internal) return Array(8).fill(undefined);
     if (!internal.memory) {
       internal.memory = new Uint8Array(2048);
@@ -1531,6 +1531,38 @@ export const IC6116: NodeDefinition = {
     if (a9 === 1) addr |= 512;
     if (a10 === 1) addr |= 1024;
     
+    const pInputs = prevInputs || inputs;
+    const p_ce_n = pInputs[17] ?? 1;
+    const p_we_n = pInputs[20] ?? 1;
+
+    // Perform deferred stable write using previous tick's inputs to avoid race conditions
+    if (p_ce_n === 0 && p_we_n === 0) {
+      let p_addr = 0;
+      if (pInputs[7] === 1) p_addr |= 1;
+      if (pInputs[6] === 1) p_addr |= 2;
+      if (pInputs[5] === 1) p_addr |= 4;
+      if (pInputs[4] === 1) p_addr |= 8;
+      if (pInputs[3] === 1) p_addr |= 16;
+      if (pInputs[2] === 1) p_addr |= 32;
+      if (pInputs[1] === 1) p_addr |= 64;
+      if (pInputs[0] === 1) p_addr |= 128;
+      if (pInputs[22] === 1) p_addr |= 256;
+      if (pInputs[21] === 1) p_addr |= 512;
+      if (pInputs[18] === 1) p_addr |= 1024;
+
+      let p_data = 0;
+      if (pInputs[8] === 1) p_data |= 1;
+      if (pInputs[9] === 1) p_data |= 2;
+      if (pInputs[10] === 1) p_data |= 4;
+      if (pInputs[12] === 1) p_data |= 8;
+      if (pInputs[13] === 1) p_data |= 16;
+      if (pInputs[14] === 1) p_data |= 32;
+      if (pInputs[15] === 1) p_data |= 64;
+      if (pInputs[16] === 1) p_data |= 128;
+
+      internal.memory[p_addr] = p_data;
+    }
+    
     const ce_n = inputs[17] ?? 1;
     const oe_n = inputs[19] ?? 1;
     const we_n = inputs[20] ?? 1;
@@ -1538,19 +1570,7 @@ export const IC6116: NodeDefinition = {
     const outs = Array(8).fill(undefined);
     
     if (ce_n === 0) {
-      if (we_n === 0) {
-        let data = 0;
-        if (inputs[8] === 1) data |= 1;
-        if (inputs[9] === 1) data |= 2;
-        if (inputs[10] === 1) data |= 4;
-        if (inputs[12] === 1) data |= 8;
-        if (inputs[13] === 1) data |= 16;
-        if (inputs[14] === 1) data |= 32;
-        if (inputs[15] === 1) data |= 64;
-        if (inputs[16] === 1) data |= 128;
-        
-        internal.memory[addr] = data;
-      } else if (oe_n === 0) {
+      if (we_n === 1 && oe_n === 0) {
         const data = internal.memory[addr];
         outs[0] = (data & 1) ? 1 : 0;
         outs[1] = (data & 2) ? 1 : 0;

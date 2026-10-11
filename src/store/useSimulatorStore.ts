@@ -304,12 +304,22 @@ export const useSimulatorStore = create<SimulatorState>()(
     if (state.history.length === 0) return state;
     const previous = state.history[state.history.length - 1];
     return {
-      nodes: structuredClone(previous.nodes),
-      wires: structuredClone(previous.wires),
-      
-      selection: null,
+      ...state,
+      ...previous,
       history: state.history.slice(0, -1),
-      future: [{ nodes: state.nodes, wires: state.wires }, ...state.future],
+      future: [
+        {
+          nodes: state.nodes,
+          wires: state.wires
+        },
+        ...state.future
+      ],
+      placingNodeId: null,
+      pastingNodeIds: null,
+      pastingBasePoint: null,
+      draftWire: null,
+      selection: null,
+      multiSelection: []
     };
   }),
 
@@ -317,12 +327,16 @@ export const useSimulatorStore = create<SimulatorState>()(
     if (state.future.length === 0) return state;
     const next = state.future[0];
     return {
-      nodes: structuredClone(next.nodes),
-      wires: structuredClone(next.wires),
-      
-      selection: null,
+      ...state,
+      ...next,
       history: [...state.history, { nodes: state.nodes, wires: state.wires }],
       future: state.future.slice(1),
+      placingNodeId: null,
+      pastingNodeIds: null,
+      pastingBasePoint: null,
+      draftWire: null,
+      selection: null,
+      multiSelection: []
     };
   }),
 
@@ -476,7 +490,7 @@ export const useSimulatorStore = create<SimulatorState>()(
           targetNodeId: targetId,
           sourcePinId: w.sourcePinId.replace(w.sourceNodeId, sourceId),
           targetPinId: w.targetPinId ? w.targetPinId.replace(w.targetNodeId, targetId) : undefined,
-          waypoints: (w.waypoints || []).map((wp: any) => ({ x: x + (wp.x - minX), y: y + (wp.y - minY) }))
+          waypoints: w.waypoints?.map((wp: any) => ({ x: x + (wp.x - minX), y: y + (wp.y - minY) })) || []
         });
       }
     });
@@ -510,7 +524,7 @@ export const useSimulatorStore = create<SimulatorState>()(
       if (pastingSet.has(w.sourceNodeId) && w.targetNodeId && pastingSet.has(w.targetNodeId)) {
         return {
           ...w,
-          waypoints: (w.waypoints || []).map(wp => ({ x: wp.x + dx, y: wp.y + dy }))
+          waypoints: w.waypoints?.map(wp => ({ x: wp.x + dx, y: wp.y + dy })) || []
         };
       }
       return w;

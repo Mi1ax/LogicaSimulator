@@ -3,6 +3,9 @@ import { getSchematicPinPosition } from '../utils/schematicLayout';
 
 export interface Point { x: number; y: number; nx?: number; ny?: number }
 
+
+const wireCache = new Map<string, { path: string; points: { x: number; y: number }[]; hash: string }>();
+
 export const computeAllWirePaths = (
   wires: Wire[],
   nodes: LogicNode[],
@@ -11,10 +14,27 @@ export const computeAllWirePaths = (
   const wirePaths = new Map<string, { path: string; points: { x: number; y: number }[] }>();
   const nodeMap = new Map(nodes.map(n => [n.id, n]));
 
+  // Clean up cache for deleted wires
+  const wireIds = new Set(wires.map(w => w.id));
+  for (const id of wireCache.keys()) {
+    if (!wireIds.has(id)) {
+      wireCache.delete(id);
+    }
+  }
+
   wires.forEach(wire => {
     const sourceNode = nodeMap.get(wire.sourceNodeId);
     const targetNode = nodeMap.get(wire.targetNodeId);
     if (!sourceNode || !targetNode) return;
+
+    const hash = `${sourceNode.x}:${sourceNode.y}:${targetNode.x}:${targetNode.y}:${JSON.stringify(wire.waypoints || [])}`;
+    const cached = wireCache.get(wire.id);
+    
+    if (cached && cached.hash === hash) {
+      wirePaths.set(wire.id, { path: cached.path, points: cached.points });
+      return;
+    }
+
 
     const start = getSchematicPinPosition(sourceNode, wire.sourcePinId);
     const end = getSchematicPinPosition(targetNode, wire.targetPinId);
@@ -31,6 +51,7 @@ export const computeAllWirePaths = (
     path += ` L ${end.x} ${end.y}`;
     points.push({ x: end.x, y: end.y });
 
+    wireCache.set(wire.id, { path, points, hash });
     wirePaths.set(wire.id, { path, points });
   });
 

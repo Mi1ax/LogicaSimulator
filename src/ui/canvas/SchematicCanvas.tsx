@@ -18,8 +18,24 @@ import { SchematicButtonNode } from './nodes/schematic/SchematicButtonNode';
 import { SchematicLEDBarNode } from './nodes/schematic/SchematicLEDBarNode';
 import { useShallow } from 'zustand/react/shallow';
 
+
+let lastNodesArray: any[] = [];
+let nodeMapCache = new Map<string, any>();
+
+function getNodeById(state: any, id: string) {
+  if (state.nodes !== lastNodesArray) {
+    nodeMapCache.clear();
+    for (let i = 0; i < state.nodes.length; i++) {
+      nodeMapCache.set(state.nodes[i].id, state.nodes[i]);
+    }
+    lastNodesArray = state.nodes;
+  }
+  return nodeMapCache.get(id);
+}
+
 const ConnectedNode = React.memo(({ id }: { id: string }) => {
-  const node = useSimulatorStore(state => state.nodes.find(n => n.id === id));
+  const node = useSimulatorStore(state => getNodeById(state, id));
+
   if (!node) return null;
   const def = getNodeDefinition(node.type);
   if (node.type === '7_SEG_DISPLAY') return <Schematic7SegNode node={node} />;
