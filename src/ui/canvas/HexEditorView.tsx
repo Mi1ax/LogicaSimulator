@@ -16,6 +16,8 @@ export const HexEditorView: React.FC = () => {
 
   // Local copy of memory for editing
   const [memory, setMemory] = useState<Uint8Array>(new Uint8Array(MEM_SIZE));
+  const liveMemory = useSimulatorStore(state => state.simState.nodeStates?.[selectedNode?.id || '']?.memory);
+  const displayMemory = liveMemory || memory;
   const [editingAddr, setEditingAddr] = useState<number | null>(null);
   const [editingVal, setEditingVal] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(0);
@@ -90,9 +92,13 @@ export const HexEditorView: React.FC = () => {
     setEditingVal(val);
     
     
+    const parsed = parseInt(val || '0', 16);
     const newMem = new Uint8Array(memory);
-    newMem[addr] = parseInt(val || '0', 16);
+    newMem[addr] = parsed;
     setMemory(newMem);
+    if (liveMemory) {
+      liveMemory[addr] = parsed;
+    }
     setIsDirty(true);
 
     if (val.length === 2) {
@@ -145,7 +151,7 @@ export const HexEditorView: React.FC = () => {
   };
 
   const handleExport = () => {
-    const blob = new Blob([memory as any], { type: 'application/octet-stream' });
+    const blob = new Blob([displayMemory as any], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -170,7 +176,7 @@ export const HexEditorView: React.FC = () => {
   const numPages = Math.ceil(MEM_SIZE / PAGE_SIZE);
   const startAddr = currentPage * PAGE_SIZE;
   const endAddr = Math.min(startAddr + PAGE_SIZE, MEM_SIZE);
-  const pageBytes = memory.slice(startAddr, endAddr);
+  const pageBytes = displayMemory.slice(startAddr, endAddr);
   const rows = Math.ceil(pageBytes.length / 16);
 
   return (
@@ -313,7 +319,7 @@ export const HexEditorView: React.FC = () => {
                         const addr = rowStartAddr + colIndex;
                         if (addr >= MEM_SIZE) return <span key={colIndex} className="w-4" />;
                         
-                        const byteVal = memory[addr];
+                        const byteVal = displayMemory[addr];
                         const hexStr = byteVal.toString(16).padStart(2, '0').toUpperCase();
                         
                         return (
@@ -344,7 +350,7 @@ export const HexEditorView: React.FC = () => {
                       {[...Array(16)].map((_, colIndex) => {
                         const addr = rowStartAddr + colIndex;
                         if (addr >= MEM_SIZE) return ' ';
-                        const byteVal = memory[addr];
+                        const byteVal = displayMemory[addr];
                         return (byteVal >= 32 && byteVal <= 126) ? String.fromCharCode(byteVal) : '.';
                       }).join('')}
                     </div>
