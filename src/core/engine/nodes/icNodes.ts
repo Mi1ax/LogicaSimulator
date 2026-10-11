@@ -80,7 +80,7 @@ export const IC74LS161: NodeDefinition = {
 
     const st = internal;
     if (st.counter === undefined) st.counter = 0;
-    if (st.lastClk === undefined) st.lastClk = 0;
+    if (st.lastClk === undefined) st.lastClk = clk === 1 ? 1 : 0;
 
     // Apply User-Friendly Simulator Defaults for floating pins
     const safeClrN = clrN ?? 1;   // Default 1: Don't clear
@@ -245,7 +245,7 @@ export const IC74LS273: NodeDefinition = {
 
     const st = internal;
     if (st.state === undefined) st.state = 0;
-    if (st.lastClk === undefined) st.lastClk = 0;
+    if (st.lastClk === undefined) st.lastClk = cp === 1 ? 1 : 0;
 
     const safeMrN = mrN ?? 1; // Default 1: Don't reset
 
@@ -1141,16 +1141,17 @@ export const IC74LS175: NodeDefinition = {
   evaluate: (inputs, _, __, internal) => {
     if (!internal) return [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined];
     if (internal.data === undefined) internal.data = [0, 0, 0, 0];
-    if (internal.lastClk === undefined) internal.lastClk = 0;
+    // lastClk init moved below clk extraction
 
     const clr = inputs[0]; // Active LOW
-    const clk = inputs[8];
-    const d1 = inputs[3];
-    const d2 = inputs[4];
-    const d3 = inputs[11];
-    const d4 = inputs[12];
+    const clk = inputs[4];
+    const d1 = inputs[1];
+    const d2 = inputs[2];
+    const d3 = inputs[5];
+    const d4 = inputs[6];
 
     const clkVal = clk === 1 ? 1 : 0;
+    if (internal.lastClk === undefined) internal.lastClk = clkVal;
     const clrVal = clr ?? 1;
 
     if (clrVal === 0) {
@@ -1204,12 +1205,13 @@ export const IC74LS173: NodeDefinition = {
   evaluate: (inputs: any[], _, __, internal) => {
     if (!internal) return [undefined, undefined, undefined, undefined];
     if (internal!.data === undefined) internal!.data = [0, 0, 0, 0];
-    if (internal!.lastClk === undefined) internal!.lastClk = 0;
+    // init moved below clk
 
     const M1 = inputs[0] ?? 0;
     const M2 = inputs[1] ?? 0;
     const D = [inputs[2], inputs[3], inputs[4], inputs[5]];
     const clk = inputs[6] ?? 0;
+    if (internal!.lastClk === undefined) internal!.lastClk = clk === 1 ? 1 : 0;
     const G1 = inputs[8] ?? 0;
     const G2 = inputs[9] ?? 0;
     const clr = inputs[10] ?? 0;
@@ -1471,10 +1473,10 @@ export const IC6116: NodeDefinition = {
     { name: 'DQ5', type: 'bidir', pinNumber: 15, schematicSide: 'right', schematicRow: 6 },
     { name: 'DQ6', type: 'bidir', pinNumber: 16, schematicSide: 'right', schematicRow: 7 },
     { name: 'DQ7', type: 'bidir', pinNumber: 17, schematicSide: 'right', schematicRow: 8 },
-    { name: '~CE', type: 'input', pinNumber: 18, schematicSide: 'bottom', schematicRow: 1 },
+    { name: '~CE', type: 'input', pinNumber: 18, schematicSide: 'bottom', schematicRow: 2 },
     { name: 'A10', type: 'input', pinNumber: 19, schematicSide: 'left', schematicRow: 11 },
-    { name: '~OE', type: 'input', pinNumber: 20, schematicSide: 'bottom', schematicRow: 2 },
-    { name: '~WE', type: 'input', pinNumber: 21, schematicSide: 'bottom', schematicRow: 3 },
+    { name: '~OE', type: 'input', pinNumber: 20, schematicSide: 'bottom', schematicRow: 4 },
+    { name: '~WE', type: 'input', pinNumber: 21, schematicSide: 'bottom', schematicRow: 6 },
     { name: 'A9', type: 'input', pinNumber: 22, schematicSide: 'left', schematicRow: 10 },
     { name: 'A8', type: 'input', pinNumber: 23, schematicSide: 'left', schematicRow: 9 },
     { name: 'VCC', type: 'input', pinNumber: 24 },
@@ -1586,9 +1588,8 @@ export const IC_GAL22V10: NodeDefinition = {
   ],
 evaluate: (inputs, properties, _, internal) => {
     if (!internal!.registers) internal!.registers = Array(10).fill(0);
-    if (internal!.lastClk === undefined) internal!.lastClk = 0;
-
     const clk = inputs[0] === 1 ? 1 : 0;
+    if (internal!.lastClk === undefined) internal!.lastClk = clk;
     const isRisingEdge = clk === 1 && internal!.lastClk === 0;
     internal!.lastClk = clk;
     

@@ -172,7 +172,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
           legX = row * spacing; legY = height;
           toX = legX; toY = height + 20;
           pinX = legX; pinY = height + 20;
-          numX = legX + 6; numY = height + 4;
+          numX = legX + 6; numY = height + 10;
           labelX = legX - 30; labelY = height - 16;
           labelAlign = 'center';
         }

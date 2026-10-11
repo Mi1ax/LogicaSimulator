@@ -114,6 +114,21 @@ export const PropertiesPanel: React.FC = () => {
           </div>
         )}
 
+        {/* Button Active Low */}
+        {node.type === 'BUTTON' && (
+          <div>
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200 cursor-pointer">
+              <input
+                type="checkbox"
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                checked={!!node.properties?.activeLow}
+                onChange={(e) => updateNodeProperties(node.id, { activeLow: e.target.checked })}
+              />
+              Active Low
+            </label>
+          </div>
+        )}
+
         {/* Variable Inputs */}
         {isVariableInputGate && (
           <div>

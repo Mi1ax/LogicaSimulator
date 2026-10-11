@@ -259,8 +259,12 @@ export const PushButtonNode: NodeDefinition = {
   label: 'Push Button',
   numInputs: 0,
   numOutputs: 1,
-  defaultProperties: { pressed: false },
-  evaluate: (_, props) => [props?.pressed ? 1 : 0]
+  defaultProperties: { pressed: false, activeLow: false },
+  evaluate: (_, props) => {
+    const isPressed = props?.pressed;
+    const isActiveLow = props?.activeLow;
+    return [isActiveLow ? (isPressed ? 0 : 1) : (isPressed ? 1 : 0)];
+  }
 };
 
 export const LedBarNode: NodeDefinition = {

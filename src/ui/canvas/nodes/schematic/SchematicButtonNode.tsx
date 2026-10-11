@@ -127,6 +127,16 @@ export const SchematicButtonNode: React.FC<Props> = React.memo(({ node }) => {
             stroke={canvasTheme.nodeBorder}
             strokeWidth={2}
           />
+          {node.properties?.activeLow && (
+            <Circle
+              x={width + 5}
+              y={height / 2}
+              radius={4}
+              fill={canvasTheme.nodeBg}
+              stroke={canvasTheme.nodeBorder}
+              strokeWidth={2}
+            />
+          )}
           <Pin
             id={pin.id}
             nodeId={node.id}
