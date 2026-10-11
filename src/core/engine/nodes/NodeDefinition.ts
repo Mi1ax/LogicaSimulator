@@ -27,7 +27,8 @@ export interface NodeDefinition {
    * @param internal Mutable per-node simulation state (registers, counters, last clock level).
    *   Owned by the simulation (`SimulationState.nodeStates`), so it is cleared on reset and
    *   never leaks into the persisted circuit. Sequential nodes must use this, not `properties`.
+   * @param prevInputs Array of signals corresponding to the input pins from the *previous* tick.
    * @returns Array of signals for the output pins (ordered by index)
    */
-  evaluate: (inputs: Signal[], properties?: Record<string, any>, tickCount?: number, internal?: Record<string, any>) => Signal[];
+  evaluate: (inputs: Signal[], properties?: Record<string, any>, tickCount?: number, internal?: Record<string, any>, prevInputs?: Signal[]) => Signal[];
 }

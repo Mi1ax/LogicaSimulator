@@ -231,7 +231,8 @@ export const computeNextState = (
       } else {
         // Always use the committed state from the PREVIOUS tick to avoid glitch increments
         const internal = { ...(prevState.nodeStates?.[node.id] ?? {}) };
-        const outVals = def.evaluate(inVals, node.properties, prevState.tickCount, internal);
+        const prevInVals = node.inputs.map(p => prevState.pinStates[p.id]);
+        const outVals = def.evaluate(inVals, node.properties, prevState.tickCount, internal, prevInVals);
         if (Object.keys(internal).length > 0) finalNodeStates[node.id] = internal;
         
         node.outputs.forEach((pin, idx) => {

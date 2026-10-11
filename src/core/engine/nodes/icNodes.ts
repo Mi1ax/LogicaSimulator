@@ -73,10 +73,19 @@ export const IC74LS161: NodeDefinition = {
     { name: 'RCO', type: 'output', pinNumber: 15 },
     { name: 'VCC', type: 'input', pinNumber: 16 }
   ],
-  evaluate: (inputs, _props, _tick, internal = {}) => {
+  evaluate: (inputs, _props, _tick, internal = {}, prevInputs) => {
     // Inputs:
     // 0: ~CLR, 1: CLK, 2: A, 3: B, 4: C, 5: D, 6: ENP, 7: GND, 8: ~LOAD, 9: ENT, 10: VCC
-    const [clrN, clk, a, b, c, d, enp, , loadN, ent] = inputs;
+    const pInputs = prevInputs || inputs;
+    const clrN = inputs[0]; // Async clear
+    const clk = inputs[1];  // Sync trigger
+    const a = pInputs[2];
+    const b = pInputs[3];
+    const c = pInputs[4];
+    const d = pInputs[5];
+    const enp = pInputs[6];
+    const loadN = pInputs[8];
+    const ent = pInputs[9];
 
     const st = internal;
     if (st.counter === undefined) st.counter = 0;
@@ -150,10 +159,11 @@ export const IC74LS191: NodeDefinition = {
     { name: 'A', type: 'input', pinNumber: 15, schematicSide: 'left', schematicRow: 1 },
     { name: 'VCC', type: 'input', pinNumber: 16 }
   ],
-  evaluate: (inputs, _props, _tick, internal = {}) => {
+  evaluate: (inputs, _props, _tick, internal = {}, prevInputs) => {
+    const pInputs = prevInputs || inputs;
     const b = inputs[0];
-    const ctenN = inputs[1] ?? 0;
-    const du = inputs[2] ?? 0;
+    const ctenN = pInputs[1] ?? 0;
+    const du = pInputs[2] ?? 0;
     const d = inputs[4];
     const c = inputs[5];
     const loadN = inputs[6] ?? 1;
@@ -162,7 +172,7 @@ export const IC74LS191: NodeDefinition = {
 
     const st = internal;
     if (st.counter === undefined) st.counter = 0;
-    if (st.lastClk === undefined) st.lastClk = 0;
+    if (st.lastClk === undefined) st.lastClk = clk === 1 ? 1 : 0;
 
     if (loadN === 0) {
        let val = 0;
@@ -238,10 +248,12 @@ export const IC74LS273: NodeDefinition = {
     { name: 'Q7', type: 'output', pinNumber: 19, schematicSide: 'right', schematicRow: 8 },
     { name: 'VCC', type: 'input', pinNumber: 20 }
   ],
-  evaluate: (inputs, _props, _tick, internal = {}) => {
+  evaluate: (inputs, _props, _tick, internal = {}, prevInputs) => {
     // Inputs (12):
     // 0: ~MR, 1: D0, 2: D1, 3: D2, 4: D3, 5: GND, 6: CP, 7: D4, 8: D5, 9: D6, 10: D7, 11: VCC
-    const [mrN, d0, d1, d2, d3, , cp, d4, d5, d6, d7] = inputs;
+    const pInputs = prevInputs || inputs;
+    const [mrN, , , , , , cp, , , , ] = inputs;
+    const [, d0, d1, d2, d3, , , d4, d5, d6, d7] = pInputs;
 
     const st = internal;
     if (st.state === undefined) st.state = 0;
@@ -1138,17 +1150,18 @@ export const IC74LS175: NodeDefinition = {
     { name: '4Q', type: 'output', pinNumber: 15, schematicSide: 'right', schematicRow: 7 },
     { name: 'VCC', type: 'input', pinNumber: 16 }
   ],
-  evaluate: (inputs, _, __, internal) => {
+  evaluate: (inputs, _, __, internal, prevInputs) => {
     if (!internal) return [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined];
     if (internal.data === undefined) internal.data = [0, 0, 0, 0];
-    // lastClk init moved below clk extraction
+    
+    const pInputs = prevInputs || inputs;
 
     const clr = inputs[0]; // Active LOW
     const clk = inputs[4];
-    const d1 = inputs[1];
-    const d2 = inputs[2];
-    const d3 = inputs[5];
-    const d4 = inputs[6];
+    const d1 = pInputs[1];
+    const d2 = pInputs[2];
+    const d3 = pInputs[5];
+    const d4 = pInputs[6];
 
     const clkVal = clk === 1 ? 1 : 0;
     if (internal.lastClk === undefined) internal.lastClk = clkVal;
@@ -1202,18 +1215,19 @@ export const IC74LS173: NodeDefinition = {
     { type: 'output', name: '1Q', pinNumber: 15, schematicSide: 'right', schematicRow: 1 },
     { type: 'input', name: 'VCC', pinNumber: 16 }
   ],
-  evaluate: (inputs: any[], _, __, internal) => {
+  evaluate: (inputs: any[], _, __, internal, prevInputs) => {
     if (!internal) return [undefined, undefined, undefined, undefined];
     if (internal!.data === undefined) internal!.data = [0, 0, 0, 0];
-    // init moved below clk
+    
+    const pInputs = prevInputs || inputs;
 
     const M1 = inputs[0] ?? 0;
     const M2 = inputs[1] ?? 0;
-    const D = [inputs[2], inputs[3], inputs[4], inputs[5]];
+    const D = [pInputs[2], pInputs[3], pInputs[4], pInputs[5]];
     const clk = inputs[6] ?? 0;
     if (internal!.lastClk === undefined) internal!.lastClk = clk === 1 ? 1 : 0;
-    const G1 = inputs[8] ?? 0;
-    const G2 = inputs[9] ?? 0;
+    const G1 = pInputs[8] ?? 0;
+    const G2 = pInputs[9] ?? 0;
     const clr = inputs[10] ?? 0;
 
     if (clr === 1) {
@@ -1586,7 +1600,7 @@ export const IC_GAL22V10: NodeDefinition = {
     { name: 'IO23', type: 'bidir', pinNumber: 23, schematicSide: 'right', schematicRow: 3 },
     { name: 'VCC', type: 'input', pinNumber: 24 }
   ],
-evaluate: (inputs, properties, _, internal) => {
+evaluate: (inputs, properties, _, internal, prevInputs) => {
     if (!internal!.registers) internal!.registers = Array(10).fill(0);
     const clk = inputs[0] === 1 ? 1 : 0;
     if (internal!.lastClk === undefined) internal!.lastClk = clk;
@@ -1609,38 +1623,39 @@ evaluate: (inputs, properties, _, internal) => {
       }
       fuses = internal!.fuses;
     }
-
-    // Determine current column states
-    const colStates = Array(44).fill(0);
-    for (const mapping of GAL22V10_COL_MAP) {
-      let val = 0;
-      if (mapping.pin >= 13 && mapping.pin <= 22) {
-        const olmcIndex = mapping.pin - 13;
-        const olmcMap = GAL22V10_OLMC_MAP[olmcIndex];
-        const s1 = fuses[olmcMap.s1Fuse] ? 1 : 0;
-        
-        if (s1 === 0) {
-           // Registered mode: Feedback from register (/Q internally, but let's assume Q for logic)
-           // Actually, standard says registered feedback is /Q. Let's invert it here.
-           val = internal!.registers[olmcIndex] === 1 ? 0 : 1;
+    const buildColStates = (sourceInputs: any[]) => {
+      const colStates = Array(44).fill(0);
+      for (const mapping of GAL22V10_COL_MAP) {
+        let val = 0;
+        if (mapping.pin >= 13 && mapping.pin <= 22) {
+          const olmcIndex = mapping.pin - 13;
+          const olmcMap = GAL22V10_OLMC_MAP[olmcIndex];
+          const s1 = fuses[olmcMap.s1Fuse] ? 1 : 0;
+          
+          if (s1 === 0) {
+             val = internal!.registers[olmcIndex] === 1 ? 0 : 1;
+          } else {
+             val = sourceInputs[mapping.pin] === 1 ? 1 : 0;
+          }
         } else {
-           // Combinatorial mode: Feedback from pin
-           val = inputs[mapping.pin] === 1 ? 1 : 0;
+          val = sourceInputs[mapping.pin] === 1 ? 1 : 0;
         }
-      } else {
-        val = inputs[mapping.pin] === 1 ? 1 : 0;
+        
+        colStates[mapping.trueCol] = val;
+        colStates[mapping.trueCol + 1] = val === 1 ? 0 : 1;
       }
-      
-      colStates[mapping.trueCol] = val;
-      colStates[mapping.trueCol + 1] = val === 1 ? 0 : 1;
-    }
+      return colStates;
+    };
 
-    const evaluateRow = (rowIdx: number) => {
+    const colStates = buildColStates(inputs);
+    const prevColStates = isRisingEdge && prevInputs ? buildColStates(prevInputs) : colStates;
+
+    const evaluateRow = (rowIdx: number, states = colStates) => {
       let result = 1;
       const rowStart = rowIdx * 44;
       for (let c = 0; c < 44; c++) {
         if (!fuses[rowStart + c]) { // fuse intact
-          if (colStates[c] === 0) {
+          if (states[c] === 0) {
             result = 0;
             break;
           }
@@ -1650,9 +1665,10 @@ evaluate: (inputs, properties, _, internal) => {
     };
 
     const ar = evaluateRow(0);
-    const sp = evaluateRow(131);
+    const arPrev = isRisingEdge && prevInputs ? evaluateRow(0, prevColStates) : ar;
+    const spPrev = isRisingEdge && prevInputs ? evaluateRow(131, prevColStates) : evaluateRow(131);
 
-    let dInputs = Array(10).fill(0);
+    let dInputsPrev = Array(10).fill(0);
     let returnOutputs = Array(10).fill(undefined);
 
     for (let i = 0; i < 10; i++) {
@@ -1660,14 +1676,18 @@ evaluate: (inputs, properties, _, internal) => {
        const oe = evaluateRow(olmc.startRow);
        
        let orResult = 0;
+       let orResultPrev = 0;
        for (let r = 1; r < olmc.size; r++) {
          if (evaluateRow(olmc.startRow + r) === 1) {
            orResult = 1;
-           break;
+         }
+         if (isRisingEdge && prevInputs && evaluateRow(olmc.startRow + r, prevColStates) === 1) {
+           orResultPrev = 1;
          }
        }
+       if (!isRisingEdge || !prevInputs) orResultPrev = orResult;
        
-       dInputs[i] = orResult;
+       dInputsPrev[i] = orResultPrev;
        
        const s0 = fuses[olmc.s0Fuse] ? 1 : 0;
        const s1 = fuses[olmc.s1Fuse] ? 1 : 0;
@@ -1690,17 +1710,18 @@ evaluate: (inputs, properties, _, internal) => {
        }
     }
 
-    if (ar === 1) {
+    if (arPrev === 1) {
       internal!.registers.fill(0);
     } else if (isRisingEdge) {
-      if (sp === 1) {
+      if (spPrev === 1) {
         internal!.registers.fill(1);
       } else {
         for (let i = 0; i < 10; i++) {
-          internal!.registers[i] = dInputs[i];
+          internal!.registers[i] = dInputsPrev[i];
         }
       }
     }
+
 
     return returnOutputs as any;
   }
