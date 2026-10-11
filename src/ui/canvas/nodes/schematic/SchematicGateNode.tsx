@@ -26,14 +26,14 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
   const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id || (state.pastingNodeIds && state.pastingNodeIds.includes(node.id)));
 
   const type = node.type;
-  const isStandardGate = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'XNOR', 'BUFFER'].includes(type);
+  const isStandardGate = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'XNOR', 'BUFFER', '74LS30'].includes(type);
 
   const padY = 10;
   const startX = 20;
   const endX = width - 20; // 60
   const bubbleRadius = 4;
   
-  const hasBubble = ['NOT', 'NAND', 'NOR', 'XNOR'].includes(type);
+  const hasBubble = ['NOT', 'NAND', 'NOR', 'XNOR', '74LS30'].includes(type);
   const isOR = ['OR', 'NOR', 'XOR', 'XNOR'].includes(type);
   const isXOR = ['XOR', 'XNOR'].includes(type);
   const isTri = ['NOT', 'BUFFER'].includes(type);

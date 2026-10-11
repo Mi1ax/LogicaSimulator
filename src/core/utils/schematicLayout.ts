@@ -16,6 +16,10 @@ export const getSchematicDimensions = (node: LogicNode) => {
   if (node.type === 'BUTTON') {
     return { width: 40, height: 40 };
   }
+  
+  if (node.type === 'NC') {
+    return { width: 0, height: 0 };
+  }
 
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
     const visiblePins = [...node.inputs, ...node.outputs].filter(p => p.name !== 'VCC' && p.name !== 'GND');

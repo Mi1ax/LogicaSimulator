@@ -1001,22 +1001,8 @@ export const IC74LS30: NodeDefinition = {
   type: '74LS30',
   label: '74LS30 (8-Input NAND Gate)',
   tags: ["logic", "gate", "nand", "8-input"],
-  renderAs: 'DIP',
-  numInputs: 0,
-  numOutputs: 0,
-  customPins: [
-    { name: 'A', type: 'input', pinNumber: 1, schematicSide: 'left', schematicRow: 1 },
-    { name: 'B', type: 'input', pinNumber: 2, schematicSide: 'left', schematicRow: 2 },
-    { name: 'C', type: 'input', pinNumber: 3, schematicSide: 'left', schematicRow: 3 },
-    { name: 'D', type: 'input', pinNumber: 4, schematicSide: 'left', schematicRow: 4 },
-    { name: 'E', type: 'input', pinNumber: 5, schematicSide: 'left', schematicRow: 5 },
-    { name: 'F', type: 'input', pinNumber: 6, schematicSide: 'left', schematicRow: 6 },
-    { name: 'G', type: 'input', pinNumber: 11, schematicSide: 'left', schematicRow: 7 },
-    { name: 'H', type: 'input', pinNumber: 12, schematicSide: 'left', schematicRow: 8 },
-    { name: 'GND', type: 'input', pinNumber: 7 },
-    { name: 'VCC', type: 'input', pinNumber: 14 },
-    { name: 'Y', type: 'output', pinNumber: 8, schematicSide: 'right', schematicRow: 4 }
-  ],
+  numInputs: 8,
+  numOutputs: 1,
   evaluate: (inputs) => {
     const a = inputs[0] ?? 1;
     const b = inputs[1] ?? 1;
