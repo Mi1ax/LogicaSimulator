@@ -194,6 +194,47 @@ export const PropertiesPanel: React.FC = () => {
           </div>
         )}
 
+        {/* GAL22V10 JEDEC Loader */}
+        {node.type === 'GAL22V10' && (
+          <div className="mt-4">
+            <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+              JEDEC File
+            </label>
+            <input
+              type="file"
+              accept=".jed"
+              className="hidden"
+              id="jedec-upload"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  const result = event.target?.result;
+                  if (typeof result === 'string') {
+                    // Store the raw string in properties
+                    updateNodeProperties(node.id, { jedecString: result });
+                  }
+                };
+                reader.readAsText(file);
+                // reset input so it can be uploaded again
+                e.target.value = '';
+              }}
+            />
+            <button
+              onClick={() => document.getElementById('jedec-upload')?.click()}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded transition-colors text-sm"
+            >
+              Load .jed File
+            </button>
+            {node.properties?.jedecString && (
+              <div className="mt-2 text-[10px] text-green-600 dark:text-green-400 text-center">
+                ✓ JEDEC Loaded
+              </div>
+            )}
+          </div>
+        )}
+
         {/* DIP Pinout Diagram */}
         {(node.properties?.renderAs === 'DIP' || def.renderAs === 'DIP') && (
           <div className="mt-6 pt-4 border-t border-gray-200 dark:border-slate-700">

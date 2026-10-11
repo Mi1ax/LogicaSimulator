@@ -52,6 +52,7 @@ const CATEGORIES: ToolCategory[] = [
           { type: '74LS02', icon: <Cpu size={18} /> },
           { type: '74LS04', icon: <Cpu size={18} /> },
           { type: '74LS08', icon: <Cpu size={18} /> },
+          { type: '74LS30', icon: <Cpu size={18} /> },
           { type: '74LS32', icon: <Cpu size={18} /> },
           { type: '74LS86', icon: <Cpu size={18} /> },
         ]
@@ -82,10 +83,12 @@ const CATEGORIES: ToolCategory[] = [
         name: 'Registers & Buffers',
         items: [
           { type: '74LS173', icon: <Cpu size={18} /> },
+          { type: '74LS175', icon: <Cpu size={18} /> },
           { type: '74LS241', icon: <Cpu size={18} /> },
           { type: '74LS244', icon: <Cpu size={18} /> },
           { type: '74LS245', icon: <Cpu size={18} /> },
           { type: '74LS273', icon: <Cpu size={18} /> },
+          { type: '74LS373', icon: <Cpu size={18} /> },
           { type: '74LS541', icon: <Cpu size={18} /> },
         ]
       },
@@ -94,6 +97,12 @@ const CATEGORIES: ToolCategory[] = [
         items: [
           { type: '27C256', icon: <Cpu size={18} /> },
           { type: '62256', icon: <Cpu size={18} /> },
+        ]
+      },
+      {
+        name: 'Programmable Logic',
+        items: [
+          { type: 'GAL22V10', icon: <Cpu size={18} /> },
         ]
       }
     ]

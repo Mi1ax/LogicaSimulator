@@ -53,31 +53,31 @@ describe('schematicLayout', () => {
       const node = createNode();
       
       // visibleInputs = 2, visibleOutputs = 2. max = 2.
-      // Height = (2 + 1) * 40 = 120
-      // Width = 160
+      // Height = (2 + 3) * 20 = 100
+      // Width = 120 (default)
       const dims = getSchematicDimensions(node);
-      expect(dims.height).toBe(120);
-      expect(dims.width).toBe(200);
+      expect(dims.height).toBe(100);
+      expect(dims.width).toBe(120);
       
       // IN1 is first input -> row 1 left side
       // rawX = -legLength (-20)
-      // rawY = spacing + (row - 1) * spacing = 40 + (1 - 1) * 40 = 40
+      // rawY = spacing + (row - 1) * spacing = 40 + (1 - 1) * 20 = 40
       const in1 = getSchematicPinPosition(node, 'p1');
       expect(in1.x).toBe(100 - 20); // 80
       expect(in1.y).toBe(100 + 40); // 140
       
       // OUT1 is first output -> row 1 right side
-      // rawX = width + legLength (200 + 20 = 220)
-      // rawY = 40
+      // rawX = width + legLength (120 + 20 = 140)
+      // rawY = spacing + (row - 1) * spacing = 40 + (1 - 1) * 20 = 40
       const out1 = getSchematicPinPosition(node, 'p15');
-      expect(out1.x).toBe(100 + 220); // 320
+      expect(out1.x).toBe(100 + 140); // 240
       expect(out1.y).toBe(100 + 40); // 140
       
       // OUT2 is second output -> row 2 right side
-      // rawY = 40 + 40 = 80
+      // rawY = 40 + 20 = 60
       const out2 = getSchematicPinPosition(node, 'p16');
-      expect(out2.x).toBe(320);
-      expect(out2.y).toBe(100 + 80); // 180
+      expect(out2.x).toBe(240);
+      expect(out2.y).toBe(100 + 60); // 160
     });
   });
 });

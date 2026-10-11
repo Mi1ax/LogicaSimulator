@@ -102,10 +102,10 @@ export const getSchematicAnchor = (node: LogicNode): { x: number; y: number } =>
     return { x: Math.round(width / 40) * 20, y: Math.round(height / 40) * 20 };
   }
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
-    return { x: width / 2, y: height / 2 };
+    return { x: Math.round(width / 40) * 20, y: Math.round(height / 40) * 20 };
   }
   if (node.properties?.renderAs === 'BUS' || def?.renderAs === 'BUS') {
-    return { x: width / 2, y: height / 2 };
+    return { x: Math.round(width / 40) * 20, y: Math.round(height / 40) * 20 };
   }
   if (['INPUT', 'OUTPUT', 'VCC', 'GND', 'NET_LABEL'].includes(node.type)) {
     // IO nodes have always pivoted around (20,20); keep it so saved layouts don't shift.

@@ -424,11 +424,11 @@ export const SRAM_62256: NodeDefinition = {
     const safeWE_L = inputs[25] ?? 1; // Default to not writing if disconnected
 
     if (!internal) return [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined];
-    if (!internal.data) {
-      internal.data = new Uint8Array(32768);
+    if (!internal!.data) {
+      internal!.data = new Uint8Array(32768);
       if (properties?.data && Array.isArray(properties.data)) {
         for (let i = 0; i < Math.min(properties.data.length, 32768); i++) {
-          internal.data[i] = properties.data[i] || 0;
+          internal!.data[i] = properties.data[i] || 0;
         }
       }
     }
@@ -453,14 +453,14 @@ export const SRAM_62256: NodeDefinition = {
         else if (inputs[15 + i] !== 0) valid = false; // undefined or X data invalidates write
       }
       if (valid) {
-        internal.data[address] = dataIn;
+        internal!.data[address] = dataIn;
       }
     }
 
     // Read cycle
     if (safeCE_L === 0 && safeOE_L === 0 && safeWE_L !== 0) {
       if (address < 0) return [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined];
-      const dataOut = internal.data[address];
+      const dataOut = internal!.data[address];
       return [
         (dataOut & (1 << 0)) ? 1 : 0,
         (dataOut & (1 << 1)) ? 1 : 0,
@@ -984,8 +984,89 @@ export const IC74LS02: NodeDefinition = {
     ];
   }
 };
+
+export const IC74LS30: NodeDefinition = {
+  type: '74LS30',
+  label: '74LS30 (8-Input NAND Gate)',
+  tags: ["logic", "gate", "nand", "8-input"],
+  renderAs: 'DIP',
+  numInputs: 0,
+  numOutputs: 0,
+  customPins: [
+    { name: 'A', type: 'input', pinNumber: 1, schematicSide: 'left', schematicRow: 1 },
+    { name: 'B', type: 'input', pinNumber: 2, schematicSide: 'left', schematicRow: 2 },
+    { name: 'C', type: 'input', pinNumber: 3, schematicSide: 'left', schematicRow: 3 },
+    { name: 'D', type: 'input', pinNumber: 4, schematicSide: 'left', schematicRow: 4 },
+    { name: 'E', type: 'input', pinNumber: 5, schematicSide: 'left', schematicRow: 5 },
+    { name: 'F', type: 'input', pinNumber: 6, schematicSide: 'left', schematicRow: 6 },
+    { name: 'G', type: 'input', pinNumber: 11, schematicSide: 'left', schematicRow: 7 },
+    { name: 'H', type: 'input', pinNumber: 12, schematicSide: 'left', schematicRow: 8 },
+    { name: 'GND', type: 'input', pinNumber: 7 },
+    { name: 'VCC', type: 'input', pinNumber: 14 },
+    { name: 'Y', type: 'output', pinNumber: 8, schematicSide: 'right', schematicRow: 4 }
+  ],
+  evaluate: (inputs) => {
+    const a = inputs[0] ?? 1;
+    const b = inputs[1] ?? 1;
+    const c = inputs[2] ?? 1;
+    const d = inputs[3] ?? 1;
+    const e = inputs[4] ?? 1;
+    const f = inputs[5] ?? 1;
+    const g = inputs[6] ?? 1;
+    const h = inputs[7] ?? 1;
+
+    if (a === 'X' || b === 'X' || c === 'X' || d === 'X' || e === 'X' || f === 'X' || g === 'X' || h === 'X') {
+       if (a === 0 || b === 0 || c === 0 || d === 0 || e === 0 || f === 0 || g === 0 || h === 0) return [1];
+       return ['X' as any];
+    }
+
+    const allHigh = (a === 1 && b === 1 && c === 1 && d === 1 && e === 1 && f === 1 && g === 1 && h === 1);
+    return [allHigh ? 0 : 1];
+  }
+};
+
 export const IC74LS32 = createQuad2InputGate('74LS32', '74LS32 (Quad OR)', (a, b) => (a || b) ? 1 : 0);
 export const IC74LS86 = createQuad2InputGate('74LS86', '74LS86 (Quad XOR)', (a, b) => (a ^ b) ? 1 : 0);
+
+import { parseJedec } from '../../utils/jedecParser';
+
+const GAL22V10_COL_MAP = [
+  { pin: 0, trueCol: 0 },   // Pin 1
+  { pin: 22, trueCol: 2 },  // Pin 23
+  { pin: 1, trueCol: 4 },   // Pin 2
+  { pin: 21, trueCol: 6 },  // Pin 22
+  { pin: 2, trueCol: 8 },   // Pin 3
+  { pin: 20, trueCol: 10 }, // Pin 21
+  { pin: 3, trueCol: 12 },  // Pin 4
+  { pin: 19, trueCol: 14 }, // Pin 20
+  { pin: 4, trueCol: 16 },  // Pin 5
+  { pin: 18, trueCol: 18 }, // Pin 19
+  { pin: 5, trueCol: 20 },  // Pin 6
+  { pin: 17, trueCol: 22 }, // Pin 18
+  { pin: 6, trueCol: 24 },  // Pin 7
+  { pin: 16, trueCol: 26 }, // Pin 17
+  { pin: 7, trueCol: 28 },  // Pin 8
+  { pin: 15, trueCol: 30 }, // Pin 16
+  { pin: 8, trueCol: 32 },  // Pin 9
+  { pin: 14, trueCol: 34 }, // Pin 15
+  { pin: 9, trueCol: 36 },  // Pin 10
+  { pin: 13, trueCol: 38 }, // Pin 14
+  { pin: 10, trueCol: 40 }, // Pin 11
+  { pin: 12, trueCol: 42 }, // Pin 13
+];
+
+const GAL22V10_OLMC_MAP = [
+  { pinIndex: 13, s0Fuse: 5826, s1Fuse: 5827, startRow: 122, size: 9 },  // Pin 14
+  { pinIndex: 14, s0Fuse: 5824, s1Fuse: 5825, startRow: 111, size: 11 }, // Pin 15
+  { pinIndex: 15, s0Fuse: 5822, s1Fuse: 5823, startRow: 98, size: 13 },  // Pin 16
+  { pinIndex: 16, s0Fuse: 5820, s1Fuse: 5821, startRow: 83, size: 15 },  // Pin 17
+  { pinIndex: 17, s0Fuse: 5818, s1Fuse: 5819, startRow: 66, size: 17 },  // Pin 18
+  { pinIndex: 18, s0Fuse: 5816, s1Fuse: 5817, startRow: 49, size: 17 },  // Pin 19
+  { pinIndex: 19, s0Fuse: 5814, s1Fuse: 5815, startRow: 34, size: 15 },  // Pin 20
+  { pinIndex: 20, s0Fuse: 5812, s1Fuse: 5813, startRow: 21, size: 13 },  // Pin 21
+  { pinIndex: 21, s0Fuse: 5810, s1Fuse: 5811, startRow: 10, size: 11 },  // Pin 22
+  { pinIndex: 22, s0Fuse: 5808, s1Fuse: 5809, startRow: 1, size: 9 },    // Pin 23
+];
 
 export const IC74LS04: NodeDefinition = {
   type: '74LS04',
@@ -1031,6 +1112,70 @@ export const IC74LS04: NodeDefinition = {
 
 
 
+
+export const IC74LS175: NodeDefinition = {
+  type: '74LS175',
+  label: '74LS175 (Quad D Flip-Flop)',
+  tags: ["register","flip-flop","dff"],
+  renderAs: 'DIP',
+  numInputs: 0,
+  numOutputs: 0,
+  customPins: [
+    { name: '!CLR', type: 'input', pinNumber: 1, schematicSide: 'left', schematicRow: 1 },
+    { name: '1Q', type: 'output', pinNumber: 2, schematicSide: 'right', schematicRow: 1 },
+    { name: '!1Q', type: 'output', pinNumber: 3, schematicSide: 'right', schematicRow: 2 },
+    { name: '1D', type: 'input', pinNumber: 4, schematicSide: 'left', schematicRow: 2 },
+    { name: '2D', type: 'input', pinNumber: 5, schematicSide: 'left', schematicRow: 3 },
+    { name: '!2Q', type: 'output', pinNumber: 6, schematicSide: 'right', schematicRow: 4 },
+    { name: '2Q', type: 'output', pinNumber: 7, schematicSide: 'right', schematicRow: 3 },
+    { name: 'GND', type: 'input', pinNumber: 8 },
+    { name: 'CLK', type: 'input', pinNumber: 9, schematicSide: 'left', schematicRow: 7 },
+    { name: '3Q', type: 'output', pinNumber: 10, schematicSide: 'right', schematicRow: 5 },
+    { name: '!3Q', type: 'output', pinNumber: 11, schematicSide: 'right', schematicRow: 6 },
+    { name: '3D', type: 'input', pinNumber: 12, schematicSide: 'left', schematicRow: 4 },
+    { name: '4D', type: 'input', pinNumber: 13, schematicSide: 'left', schematicRow: 5 },
+    { name: '!4Q', type: 'output', pinNumber: 14, schematicSide: 'right', schematicRow: 8 },
+    { name: '4Q', type: 'output', pinNumber: 15, schematicSide: 'right', schematicRow: 7 },
+    { name: 'VCC', type: 'input', pinNumber: 16 }
+  ],
+  evaluate: (inputs, _, __, internal) => {
+    if (!internal) return [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined];
+    if (internal.data === undefined) internal.data = [0, 0, 0, 0];
+    if (internal.lastClk === undefined) internal.lastClk = 0;
+
+    const clr = inputs[0]; // Active LOW
+    const clk = inputs[8];
+    const d1 = inputs[3];
+    const d2 = inputs[4];
+    const d3 = inputs[11];
+    const d4 = inputs[12];
+
+    const clkVal = clk === 1 ? 1 : 0;
+    const clrVal = clr ?? 1;
+
+    if (clrVal === 0) {
+      internal.data = [0, 0, 0, 0];
+    } else {
+      const isRisingEdge = clkVal === 1 && internal.lastClk === 0;
+      if (isRisingEdge) {
+         internal.data[0] = d1 === 1 ? 1 : 0;
+         internal.data[1] = d2 === 1 ? 1 : 0;
+         internal.data[2] = d3 === 1 ? 1 : 0;
+         internal.data[3] = d4 === 1 ? 1 : 0;
+      }
+    }
+    internal.lastClk = clkVal;
+
+    const [q1, q2, q3, q4] = internal.data;
+    return [
+      q1, q1 ? 0 : 1, // 1Q, !1Q
+      q2 ? 0 : 1, q2, // !2Q, 2Q
+      q3, q3 ? 0 : 1, // 3Q, !3Q
+      q4 ? 0 : 1, q4  // !4Q, 4Q
+    ] as any;
+  }
+};
+
 export const IC74LS173: NodeDefinition = {
   type: '74LS173',
   label: '74LS173 (4-bit Register)',
@@ -1058,8 +1203,8 @@ export const IC74LS173: NodeDefinition = {
   ],
   evaluate: (inputs: any[], _, __, internal) => {
     if (!internal) return [undefined, undefined, undefined, undefined];
-    if (internal.data === undefined) internal.data = [0, 0, 0, 0];
-    if (internal.lastClk === undefined) internal.lastClk = 0;
+    if (internal!.data === undefined) internal!.data = [0, 0, 0, 0];
+    if (internal!.lastClk === undefined) internal!.lastClk = 0;
 
     const M1 = inputs[0] ?? 0;
     const M2 = inputs[1] ?? 0;
@@ -1070,16 +1215,16 @@ export const IC74LS173: NodeDefinition = {
     const clr = inputs[10] ?? 0;
 
     if (clr === 1) {
-      internal.data = [0, 0, 0, 0];
-    } else if (clk === 1 && internal.lastClk === 0) {
+      internal!.data = [0, 0, 0, 0];
+    } else if (clk === 1 && internal!.lastClk === 0) {
       if (G1 === 0 && G2 === 0) {
-        internal.data = D.map(val => val === 1 ? 1 : 0);
+        internal!.data = D.map(val => val === 1 ? 1 : 0);
       }
     }
-    internal.lastClk = clk;
+    internal!.lastClk = clk;
 
     if (M1 === 0 && M2 === 0) {
-      return [internal.data[3], internal.data[2], internal.data[1], internal.data[0]];
+      return [internal!.data[3], internal!.data[2], internal!.data[1], internal!.data[0]];
     } else {
       return [undefined, undefined, undefined, undefined];
     }
@@ -1196,6 +1341,59 @@ export const IC74LS181: NodeDefinition = {
 };
 
 
+
+export const IC74LS373: NodeDefinition = {
+  type: '74LS373',
+  label: '74LS373 (Octal Transparent Latch)',
+  tags: ["latch","register","memory","3-state"],
+  renderAs: 'DIP',
+  numInputs: 0,
+  numOutputs: 0,
+  customPins: [
+    { name: '!OE', type: 'input', pinNumber: 1, schematicSide: 'left', schematicRow: 1 },
+    { name: '1D', type: 'input', pinNumber: 3, schematicSide: 'left', schematicRow: 2 },
+    { name: '2D', type: 'input', pinNumber: 4, schematicSide: 'left', schematicRow: 3 },
+    { name: '3D', type: 'input', pinNumber: 7, schematicSide: 'left', schematicRow: 4 },
+    { name: '4D', type: 'input', pinNumber: 8, schematicSide: 'left', schematicRow: 5 },
+    { name: '5D', type: 'input', pinNumber: 13, schematicSide: 'left', schematicRow: 6 },
+    { name: '6D', type: 'input', pinNumber: 14, schematicSide: 'left', schematicRow: 7 },
+    { name: '7D', type: 'input', pinNumber: 17, schematicSide: 'left', schematicRow: 8 },
+    { name: '8D', type: 'input', pinNumber: 18, schematicSide: 'left', schematicRow: 9 },
+    { name: 'LE', type: 'input', pinNumber: 11, schematicSide: 'left', schematicRow: 11 },
+
+    { name: '1Q', type: 'output', pinNumber: 2, schematicSide: 'right', schematicRow: 2 },
+    { name: '2Q', type: 'output', pinNumber: 5, schematicSide: 'right', schematicRow: 3 },
+    { name: '3Q', type: 'output', pinNumber: 6, schematicSide: 'right', schematicRow: 4 },
+    { name: '4Q', type: 'output', pinNumber: 9, schematicSide: 'right', schematicRow: 5 },
+    { name: '5Q', type: 'output', pinNumber: 12, schematicSide: 'right', schematicRow: 6 },
+    { name: '6Q', type: 'output', pinNumber: 15, schematicSide: 'right', schematicRow: 7 },
+    { name: '7Q', type: 'output', pinNumber: 16, schematicSide: 'right', schematicRow: 8 },
+    { name: '8Q', type: 'output', pinNumber: 19, schematicSide: 'right', schematicRow: 9 },
+
+    { name: 'GND', type: 'input', pinNumber: 10 },
+    { name: 'VCC', type: 'input', pinNumber: 20 }
+  ],
+  evaluate: (inputs, _, __, internal) => {
+    if (!internal) return Array(8).fill(undefined);
+    if (!internal.data) internal.data = Array(8).fill(0);
+
+    const oe_n = inputs[0] ?? 1;
+    const le = inputs[9] ?? 0;
+
+    if (le === 1) {
+      for (let i = 0; i < 8; i++) {
+        internal.data[i] = inputs[i + 1] === 1 ? 1 : 0;
+      }
+    }
+
+    if (oe_n === 1) {
+      return Array(8).fill(undefined);
+    }
+
+    return [...internal.data];
+  }
+};
+
 export const IC74LS541: NodeDefinition = {
   type: '74LS541',
   label: '74LS541 (Octal Buffer/Line Driver)',
@@ -1243,5 +1441,161 @@ export const IC74LS541: NodeDefinition = {
     }
     
     return outs;
+  }
+};
+
+
+export const IC_GAL22V10: NodeDefinition = {
+  type: 'GAL22V10',
+  label: 'GAL22V10 (Programmable Logic Device)',
+  tags: ["pld", "gal", "programmable", "logic"],
+  renderAs: 'DIP',
+  numInputs: 0,
+  numOutputs: 0,
+  customPins: [
+    { name: 'I/CLK', type: 'input', pinNumber: 1, schematicSide: 'left', schematicRow: 1 },
+    { name: 'I2', type: 'input', pinNumber: 2, schematicSide: 'left', schematicRow: 2 },
+    { name: 'I3', type: 'input', pinNumber: 3, schematicSide: 'left', schematicRow: 3 },
+    { name: 'I4', type: 'input', pinNumber: 4, schematicSide: 'left', schematicRow: 4 },
+    { name: 'I5', type: 'input', pinNumber: 5, schematicSide: 'left', schematicRow: 5 },
+    { name: 'I6', type: 'input', pinNumber: 6, schematicSide: 'left', schematicRow: 6 },
+    { name: 'I7', type: 'input', pinNumber: 7, schematicSide: 'left', schematicRow: 7 },
+    { name: 'I8', type: 'input', pinNumber: 8, schematicSide: 'left', schematicRow: 8 },
+    { name: 'I9', type: 'input', pinNumber: 9, schematicSide: 'left', schematicRow: 9 },
+    { name: 'I10', type: 'input', pinNumber: 10, schematicSide: 'left', schematicRow: 10 },
+    { name: 'I11', type: 'input', pinNumber: 11, schematicSide: 'left', schematicRow: 11 },
+    { name: 'GND', type: 'input', pinNumber: 12 },
+    { name: 'I13', type: 'input', pinNumber: 13, schematicSide: 'left', schematicRow: 12 },
+    
+    { name: 'IO14', type: 'bidir', pinNumber: 14, schematicSide: 'right', schematicRow: 12 },
+    { name: 'IO15', type: 'bidir', pinNumber: 15, schematicSide: 'right', schematicRow: 11 },
+    { name: 'IO16', type: 'bidir', pinNumber: 16, schematicSide: 'right', schematicRow: 10 },
+    { name: 'IO17', type: 'bidir', pinNumber: 17, schematicSide: 'right', schematicRow: 9 },
+    { name: 'IO18', type: 'bidir', pinNumber: 18, schematicSide: 'right', schematicRow: 8 },
+    { name: 'IO19', type: 'bidir', pinNumber: 19, schematicSide: 'right', schematicRow: 7 },
+    { name: 'IO20', type: 'bidir', pinNumber: 20, schematicSide: 'right', schematicRow: 6 },
+    { name: 'IO21', type: 'bidir', pinNumber: 21, schematicSide: 'right', schematicRow: 5 },
+    { name: 'IO22', type: 'bidir', pinNumber: 22, schematicSide: 'right', schematicRow: 4 },
+    { name: 'IO23', type: 'bidir', pinNumber: 23, schematicSide: 'right', schematicRow: 3 },
+    { name: 'VCC', type: 'input', pinNumber: 24 }
+  ],
+evaluate: (inputs, properties, _, internal) => {
+    if (!internal!.registers) internal!.registers = Array(10).fill(0);
+    if (internal!.lastClk === undefined) internal!.lastClk = 0;
+
+    const clk = inputs[0] === 1 ? 1 : 0;
+    const isRisingEdge = clk === 1 && internal!.lastClk === 0;
+    internal!.lastClk = clk;
+    
+    // Parse fuses if available
+    let fuses;
+    if (properties?.jedecString) {
+      if (!internal!.fuses || internal!.lastJedec !== properties.jedecString) {
+        internal!.fuses = parseJedec(properties.jedecString, 5828);
+        internal!.lastJedec = properties.jedecString;
+      }
+      fuses = internal!.fuses;
+    } else {
+      // Default blank chip: all fuses intact (0). Output is High-Z.
+      if (!internal!.fuses || internal!.lastJedec !== '') {
+        internal!.fuses = Array(5828).fill(false);
+        internal!.lastJedec = '';
+      }
+      fuses = internal!.fuses;
+    }
+
+    // Determine current column states
+    const colStates = Array(44).fill(0);
+    for (const mapping of GAL22V10_COL_MAP) {
+      let val = 0;
+      if (mapping.pin >= 13 && mapping.pin <= 22) {
+        const olmcIndex = mapping.pin - 13;
+        const olmcMap = GAL22V10_OLMC_MAP[olmcIndex];
+        const s1 = fuses[olmcMap.s1Fuse] ? 1 : 0;
+        
+        if (s1 === 0) {
+           // Registered mode: Feedback from register (/Q internally, but let's assume Q for logic)
+           // Actually, standard says registered feedback is /Q. Let's invert it here.
+           val = internal!.registers[olmcIndex] === 1 ? 0 : 1;
+        } else {
+           // Combinatorial mode: Feedback from pin
+           val = inputs[mapping.pin] === 1 ? 1 : 0;
+        }
+      } else {
+        val = inputs[mapping.pin] === 1 ? 1 : 0;
+      }
+      
+      colStates[mapping.trueCol] = val;
+      colStates[mapping.trueCol + 1] = val === 1 ? 0 : 1;
+    }
+
+    const evaluateRow = (rowIdx: number) => {
+      let result = 1;
+      const rowStart = rowIdx * 44;
+      for (let c = 0; c < 44; c++) {
+        if (!fuses[rowStart + c]) { // fuse intact
+          if (colStates[c] === 0) {
+            result = 0;
+            break;
+          }
+        }
+      }
+      return result;
+    };
+
+    const ar = evaluateRow(0);
+    const sp = evaluateRow(131);
+
+    let dInputs = Array(10).fill(0);
+    let returnOutputs = Array(10).fill(undefined);
+
+    for (let i = 0; i < 10; i++) {
+       const olmc = GAL22V10_OLMC_MAP[i];
+       const oe = evaluateRow(olmc.startRow);
+       
+       let orResult = 0;
+       for (let r = 1; r < olmc.size; r++) {
+         if (evaluateRow(olmc.startRow + r) === 1) {
+           orResult = 1;
+           break;
+         }
+       }
+       
+       dInputs[i] = orResult;
+       
+       const s0 = fuses[olmc.s0Fuse] ? 1 : 0;
+       const s1 = fuses[olmc.s1Fuse] ? 1 : 0;
+       
+       let pinOutputValue;
+       if (s1 === 0) {
+         pinOutputValue = internal!.registers[i];
+       } else {
+         pinOutputValue = orResult;
+       }
+       
+       if (s0 === 0) {
+         pinOutputValue = pinOutputValue === 1 ? 0 : 1;
+       }
+       
+       if (oe === 1) {
+         returnOutputs[i] = pinOutputValue;
+       } else {
+         returnOutputs[i] = undefined;
+       }
+    }
+
+    if (ar === 1) {
+      internal!.registers.fill(0);
+    } else if (isRisingEdge) {
+      if (sp === 1) {
+        internal!.registers.fill(1);
+      } else {
+        for (let i = 0; i < 10; i++) {
+          internal!.registers[i] = dInputs[i];
+        }
+      }
+    }
+
+    return returnOutputs as any;
   }
 };
