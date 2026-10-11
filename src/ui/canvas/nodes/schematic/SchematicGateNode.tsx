@@ -23,7 +23,7 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
   const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
 
   const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
-  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
+  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id || (state.pastingNodeIds && state.pastingNodeIds.includes(node.id)));
 
   const type = node.type;
   const isStandardGate = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'XNOR', 'BUFFER'].includes(type);
@@ -90,6 +90,7 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
       onClick={(e) => {
         e.cancelBubble = true;
         const store = useSimulatorStore.getState();
+        if (store.pastingNodeIds && store.pastingNodeIds.includes(node.id)) { store.finishPastingNodes(); return; }
         if (store.placingNodeId === node.id) {
           store.finishPlacingNode();
           return;
@@ -111,7 +112,7 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
       }}
       onMouseEnter={(e) => {
         const container = e.target.getStage()?.container();
-        if (container && !useSimulatorStore.getState().placingNodeId) container.style.cursor = 'grab';
+        if (container && !useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds) container.style.cursor = 'grab';
       }}
       onMouseLeave={(e) => {
         const container = e.target.getStage()?.container();

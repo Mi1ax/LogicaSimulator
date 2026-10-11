@@ -30,7 +30,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
   const allPins = Array.from(new Map([...node.inputs, ...node.outputs].map(p => [p.id, p])).values());
 
   
-  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
+  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id || (state.pastingNodeIds && state.pastingNodeIds.includes(node.id)));
 
   const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
 
@@ -47,6 +47,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
       draggable={!isPlacing}
       onClick={(e) => {
         const store = useSimulatorStore.getState();
+        if (store.pastingNodeIds && store.pastingNodeIds.includes(node.id)) { store.finishPastingNodes(); return; }
         if (store.placingNodeId === node.id) {
           e.cancelBubble = true;
           store.finishPlacingNode();
@@ -70,7 +71,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
       }}
       onMouseEnter={(e) => {
         const container = e.target.getStage()?.container();
-        if (container && !useSimulatorStore.getState().placingNodeId) container.style.cursor = 'grab';
+        if (container && !useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds) container.style.cursor = 'grab';
       }}
       onMouseLeave={(e) => {
         const container = e.target.getStage()?.container();

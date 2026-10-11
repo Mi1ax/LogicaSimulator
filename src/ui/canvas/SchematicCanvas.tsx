@@ -52,6 +52,7 @@ export const SchematicCanvas: React.FC = () => {
 
   const initializedRef = useRef(false);
   const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastMousePosRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -107,6 +108,7 @@ export const SchematicCanvas: React.FC = () => {
       if (e.key === 'Escape') {
         if (store.draftWire) store.cancelWire();
         if (store.placingNodeId) store.cancelPlacingNode();
+        if (store.pastingNodeIds) store.cancelPastingNodes();
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         store.deleteSelection();
       } else if (e.key.toLowerCase() === 'x') {
@@ -136,6 +138,13 @@ export const SchematicCanvas: React.FC = () => {
             store.updateNodeProperties(node.id, { rotation: (currentRot + 90) % 360 });
           }
         }
+      } else if (e.key.toLowerCase() === 'c' && (e.ctrlKey || e.metaKey)) {
+        store.copySelection();
+      } else if (e.key.toLowerCase() === 'v' && (e.ctrlKey || e.metaKey)) {
+        const { x, y } = lastMousePosRef.current;
+        const gridX = Math.round(x / 20) * 20;
+        const gridY = Math.round(y / 20) * 20;
+        store.pasteClipboard(gridX, gridY);
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
@@ -245,6 +254,7 @@ export const SchematicCanvas: React.FC = () => {
           if (!pointer) return;
           const transform = stage.getAbsoluteTransform().copy().invert();
           const pos = transform.point(pointer);
+          lastMousePosRef.current = pos;
 
           if (selectionBox) {
             setSelectionBox({
@@ -257,6 +267,10 @@ export const SchematicCanvas: React.FC = () => {
 
           if (draftWire) {
             updateDraftWire(Math.round(pos.x / 20) * 20, Math.round(pos.y / 20) * 20);
+          } else if (store.pastingNodeIds) {
+            const gridX = Math.round(pos.x / 20) * 20;
+            const gridY = Math.round(pos.y / 20) * 20;
+            store.updatePastingNodes(gridX, gridY);
           } else if (store.placingNodeId) {
             const node = store.nodes.find(n => n.id === store.placingNodeId);
             let offsetX = 0;
@@ -337,11 +351,15 @@ export const SchematicCanvas: React.FC = () => {
           }
           if (e.target === e.target.getStage()) {
             const container = e.target.getStage()?.container();
-            if (container && !draftWire && !useSimulatorStore.getState().placingNodeId) container.style.cursor = 'grab';
+            if (container && !draftWire && (!useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds)) container.style.cursor = 'grab';
           }
         }}
         onClick={(e) => {
           const store = useSimulatorStore.getState();
+          if (store.pastingNodeIds) {
+            store.finishPastingNodes();
+            return;
+          }
           if (store.placingNodeId) {
             store.finishPlacingNode();
             return;
@@ -366,7 +384,7 @@ export const SchematicCanvas: React.FC = () => {
           }
         }}
         onMouseDown={(e) => {
-          if (e.target === e.target.getStage() && e.evt.shiftKey && !draftWire && !useSimulatorStore.getState().placingNodeId) {
+          if (e.target === e.target.getStage() && e.evt.shiftKey && !draftWire && (!useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds)) {
             const stage = e.target.getStage();
             const pointer = stage?.getPointerPosition();
             if (stage && pointer) {
@@ -381,6 +399,7 @@ export const SchematicCanvas: React.FC = () => {
             // Right click
             const store = useSimulatorStore.getState();
             if (store.draftWire) store.cancelWire();
+            if (store.pastingNodeIds) store.cancelPastingNodes();
             return;
           }
           if (e.target === e.target.getStage()) {

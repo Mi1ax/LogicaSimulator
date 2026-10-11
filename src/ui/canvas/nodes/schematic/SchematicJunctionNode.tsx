@@ -39,6 +39,7 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
       onClick={(e) => {
         e.cancelBubble = true;
         const store = useSimulatorStore.getState();
+        if (store.pastingNodeIds && store.pastingNodeIds.includes(node.id)) { store.finishPastingNodes(); return; }
         if (store.placingNodeId === node.id) {
           store.finishPlacingNode();
           return;

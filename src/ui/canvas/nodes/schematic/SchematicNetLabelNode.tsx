@@ -22,7 +22,7 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
   const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
   
   const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
-  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
+  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id || (state.pastingNodeIds && state.pastingNodeIds.includes(node.id)));
 
   
   const pin = node.inputs[0] || node.outputs[0];
@@ -44,6 +44,7 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
       draggable={!isPlacing}
       onClick={(e) => {
         const store = useSimulatorStore.getState();
+        if (store.pastingNodeIds && store.pastingNodeIds.includes(node.id)) { store.finishPastingNodes(); return; }
         if (store.placingNodeId === node.id) {
           e.cancelBubble = true;
           store.finishPlacingNode();
@@ -79,7 +80,7 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
       }}
       onMouseEnter={(e) => {
         const container = e.target.getStage()?.container();
-        if (container && !useSimulatorStore.getState().placingNodeId) {
+        if (container && !useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds) {
           container.style.cursor = (node.type === 'SUB_IN' || node.type === 'SUB_IO') ? 'pointer' : 'grab';
         }
       }}

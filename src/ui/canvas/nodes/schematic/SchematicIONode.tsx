@@ -45,7 +45,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   
   const borderStroke = isInputLike ? canvasTheme.inputNodeBorder : canvasTheme.outputNodeBorder;
 
-  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
+  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id || (state.pastingNodeIds && state.pastingNodeIds.includes(node.id)));
   const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
 
   return (
@@ -61,6 +61,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
       draggable={!isPlacing}
       onClick={(e) => {
         const store = useSimulatorStore.getState();
+        if (store.pastingNodeIds && store.pastingNodeIds.includes(node.id)) { store.finishPastingNodes(); return; }
         if (store.placingNodeId === node.id) {
           e.cancelBubble = true;
           store.finishPlacingNode();
@@ -83,7 +84,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
       }}
       onMouseEnter={(e) => {
         const container = e.target.getStage()?.container();
-        if (container && !useSimulatorStore.getState().placingNodeId) container.style.cursor = isInput ? 'pointer' : 'grab';
+        if (container && !useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds) container.style.cursor = isInput ? 'pointer' : 'grab';
       }}
       onMouseLeave={(e) => {
         const container = e.target.getStage()?.container();
@@ -162,11 +163,11 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
               y={4}
               onMouseEnter={(e) => {
                 const container = e.target.getStage()?.container();
-                if (container && !useSimulatorStore.getState().placingNodeId) container.style.cursor = 'pointer';
+                if (container && !useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds) container.style.cursor = 'pointer';
               }}
               onMouseLeave={(e) => {
                 const container = e.target.getStage()?.container();
-                if (container && !useSimulatorStore.getState().placingNodeId) container.style.cursor = 'grab';
+                if (container && !useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds) container.style.cursor = 'grab';
               }}
               onClick={(e) => {
                 if (!isPlacing) {

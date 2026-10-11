@@ -29,7 +29,7 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
   const { width, height } = getSchematicDimensions(node);
   
   const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
-  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id);
+  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id || (state.pastingNodeIds && state.pastingNodeIds.includes(node.id)));
 
   const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
   const pins = node.inputs;
@@ -66,6 +66,7 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
       draggable={!isPlacing}
       onClick={(evt) => {
         const store = useSimulatorStore.getState();
+        if (store.pastingNodeIds && store.pastingNodeIds.includes(node.id)) { store.finishPastingNodes(); return; }
         if (store.placingNodeId === node.id) {
           evt.cancelBubble = true;
           store.finishPlacingNode();
@@ -89,7 +90,7 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
       }}
       onMouseEnter={(evt) => {
         const container = evt.target.getStage()?.container();
-        if (container && !useSimulatorStore.getState().placingNodeId) container.style.cursor = 'grab';
+        if (container && !useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds) container.style.cursor = 'grab';
       }}
       onMouseLeave={(evt) => {
         const container = evt.target.getStage()?.container();

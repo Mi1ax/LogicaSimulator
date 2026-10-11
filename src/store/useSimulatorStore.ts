@@ -47,6 +47,10 @@ interface SimulatorState {
   completeWireOnWire: (wireId: string, dropX?: number, dropY?: number, wp1?: {x:number, y:number}[], wp2?: {x:number, y:number}[]) => void;
   cancelWire: () => void;
 
+  clipboard: { nodes: any[], wires: any[] } | null;
+  copySelection: () => void;
+  pasteClipboard: (x: number, y: number) => void;
+
   // UI state for selection
   selection: Selection;
   select: (selection: Selection, append?: boolean) => void;
@@ -64,6 +68,11 @@ interface SimulatorState {
 
   // UI state for node placement
   placingNodeId: string | null;
+  pastingNodeIds: string[] | null;
+  pastingBasePoint: { x: number, y: number } | null;
+  updatePastingNodes: (x: number, y: number) => void;
+  finishPastingNodes: () => void;
+  cancelPastingNodes: () => void;
   startPlacingNode: (type: NodeType) => void;
   updatePlacingNode: (x: number, y: number) => void;
   finishPlacingNode: () => void;
@@ -379,11 +388,14 @@ export const useSimulatorStore = create<SimulatorState>()(
   }),
 
   placingNodeId: null,
+  pastingNodeIds: null,
+  pastingBasePoint: null,
+  clipboard: null,
   
   startPlacingNode: (type) => set((state) => {
     const nextState = circuit.addNode(state, type, 0, 0);
     const newNode = nextState.nodes[nextState.nodes.length - 1];
-    return { ...nextState, placingNodeId: newNode.id };
+    return { ...nextState, placingNodeId: newNode.id, ...pushHistory(state) };
   }),
 
   updatePlacingNode: (x, y) => set((state) => {
@@ -394,12 +406,142 @@ export const useSimulatorStore = create<SimulatorState>()(
   finishPlacingNode: () => set((state) => {
     if (!state.placingNodeId) return state;
     const nextState = applyAutoConnect(state, [state.placingNodeId]);
-    return { ...nextState, placingNodeId: null, ...pushHistory(nextState) };
+    return { ...nextState, placingNodeId: null };
   }),
 
   cancelPlacingNode: () => set((state) => {
     if (!state.placingNodeId) return state;
-    return { ...state, ...circuit.deleteNode(state, state.placingNodeId), placingNodeId: null };
+    return { ...state, ...circuit.deleteNode(state, state.placingNodeId), placingNodeId: null, history: state.history.slice(0, -1) };
+  }),
+
+  copySelection: () => set((state) => {
+    const ids = state.multiSelection && state.multiSelection.length > 0 
+      ? state.multiSelection 
+      : (state.selection ? [state.selection.id] : []);
+
+    const nodesToCopy = state.nodes.filter(n => ids.includes(n.id));
+    if (nodesToCopy.length === 0) return state;
+
+    const wiresToCopy = state.wires.filter(w => 
+      ids.includes(w.sourceNodeId) && (w.targetNodeId && ids.includes(w.targetNodeId))
+    );
+
+    return {
+      clipboard: {
+        nodes: structuredClone(nodesToCopy),
+        wires: structuredClone(wiresToCopy)
+      }
+    };
+  }),
+
+  pasteClipboard: (x: number, y: number) => set((state) => {
+    if (!state.clipboard || state.clipboard.nodes.length === 0) return state;
+
+    const idMap: Record<string, string> = {};
+    const newNodes: any[] = [];
+    const newWires: any[] = [];
+
+    let minX = Infinity, minY = Infinity;
+    state.clipboard.nodes.forEach(n => {
+      minX = Math.min(minX, n.x);
+      minY = Math.min(minY, n.y);
+    });
+
+    state.clipboard.nodes.forEach(n => {
+      const newId = generateId('node');
+      idMap[n.id] = newId;
+
+      const newInputs = n.inputs ? n.inputs.map((p: any) => ({ ...p, id: p.id.replace(n.id, newId), nodeId: newId })) : [];
+      const newOutputs = n.outputs ? n.outputs.map((p: any) => ({ ...p, id: p.id.replace(n.id, newId), nodeId: newId })) : [];
+
+      newNodes.push({
+        ...n,
+        id: newId,
+        x: x + (n.x - minX),
+        y: y + (n.y - minY),
+        inputs: newInputs,
+        outputs: newOutputs,
+      });
+    });
+
+    state.clipboard.wires.forEach(w => {
+      const sourceId = idMap[w.sourceNodeId];
+      const targetId = w.targetNodeId ? idMap[w.targetNodeId] : null;
+
+      if (sourceId && targetId) {
+        newWires.push({
+          ...w,
+          id: generateId('wire'),
+          sourceNodeId: sourceId,
+          targetNodeId: targetId,
+          sourcePinId: w.sourcePinId.replace(w.sourceNodeId, sourceId),
+          targetPinId: w.targetPinId ? w.targetPinId.replace(w.targetNodeId, targetId) : undefined,
+          waypoints: (w.waypoints || []).map((wp: any) => ({ x: x + (wp.x - minX), y: y + (wp.y - minY) }))
+        });
+      }
+    });
+
+    return {
+      ...pushHistory(state),
+      nodes: [...state.nodes, ...newNodes],
+      wires: [...state.wires, ...newWires],
+      pastingNodeIds: newNodes.map(n => n.id),
+      pastingBasePoint: { x, y },
+      selection: null,
+      multiSelection: []
+    };
+  }),
+
+  updatePastingNodes: (x: number, y: number) => set((state) => {
+    if (!state.pastingNodeIds || !state.pastingBasePoint) return state;
+    const dx = x - state.pastingBasePoint.x;
+    const dy = y - state.pastingBasePoint.y;
+    if (dx === 0 && dy === 0) return state;
+
+    const nextState = { ...state };
+    const pastingSet = new Set(state.pastingNodeIds);
+    nextState.nodes = nextState.nodes.map(n => {
+      if (pastingSet.has(n.id)) {
+        return { ...n, x: n.x + dx, y: n.y + dy };
+      }
+      return n;
+    });
+    nextState.wires = nextState.wires.map(w => {
+      if (pastingSet.has(w.sourceNodeId) && w.targetNodeId && pastingSet.has(w.targetNodeId)) {
+        return {
+          ...w,
+          waypoints: (w.waypoints || []).map(wp => ({ x: wp.x + dx, y: wp.y + dy }))
+        };
+      }
+      return w;
+    });
+
+    nextState.pastingBasePoint = { x, y };
+    return nextState;
+  }),
+
+  finishPastingNodes: () => set((state) => {
+    if (!state.pastingNodeIds) return state;
+    return { 
+      ...state, 
+      pastingNodeIds: null, 
+      pastingBasePoint: null, 
+      multiSelection: state.pastingNodeIds, 
+      selection: null
+    };
+  }),
+
+  cancelPastingNodes: () => set((state) => {
+    if (!state.pastingNodeIds) return state;
+    const pastingSet = new Set(state.pastingNodeIds);
+    return {
+      ...state,
+      nodes: state.nodes.filter(n => !pastingSet.has(n.id)),
+      wires: state.wires.filter(w => !(pastingSet.has(w.sourceNodeId) && w.targetNodeId && pastingSet.has(w.targetNodeId))),
+      pastingNodeIds: null,
+      pastingBasePoint: null,
+      history: state.history.slice(0, -1)
+    };
   }),
 
   addNode: (type, x, y) => set((state) => ({ ...circuit.addNode(state, type, x, y), ...pushHistory(state) })),
