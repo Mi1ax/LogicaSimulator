@@ -2,29 +2,25 @@ import React from 'react';
 import { Group, Rect, Text, Path } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
-import { getSchematicDimensions, getSchematicAnchor } from '../../../../core/utils/schematicLayout';
+import { getSchematicDimensions } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
 import { Pin } from '../../primitives/Pin';
+import { SchematicNodeWrapper } from './SchematicNodeWrapper';
 
 interface Props {
   node: LogicNode;
 }
 
 export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => {
-  const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
   const updateNodeProperties = useSimulatorStore(state => state.updateNodeProperties);
   const theme = useSimulatorStore(state => state.theme);
-  const selection = useSimulatorStore(state => state.selection);
-  const multiSelection = useSimulatorStore(state => state.multiSelection);
-  const select = useSimulatorStore(state => state.select);
+  const isSelected = useSimulatorStore(state =>
+    (state.selection?.type === 'node' && state.selection.id === node.id) ||
+    state.multiSelection.includes(node.id)
+  );
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getSchematicDimensions(node);
-  
-  const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
-  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id || (state.pastingNodeIds && state.pastingNodeIds.includes(node.id)));
-
-  const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
 
   const numSwitches = node.outputs.length || 4;
   let switches = node.properties?.switches || [];
@@ -33,49 +29,7 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
   }
 
   return (
-    <Group
-      x={node.x + anchorX}
-      y={node.y + anchorY}
-      offsetX={anchorX}
-      offsetY={anchorY}
-      rotation={node.properties?.rotation || 0}
-      scaleX={node.properties?.flipX ? -1 : 1}
-      scaleY={node.properties?.flipY ? -1 : 1}
-      opacity={isPlacing ? 0.6 : 1}
-      draggable={!isPlacing}
-      onClick={(e) => {
-        const store = useSimulatorStore.getState();
-        if (store.pastingNodeIds && store.pastingNodeIds.includes(node.id)) { store.finishPastingNodes(); return; }
-        if (store.placingNodeId === node.id) {
-          e.cancelBubble = true;
-          store.finishPlacingNode();
-          return;
-        }
-        e.cancelBubble = true;
-        select({ type: 'node', id: node.id }, e.evt.shiftKey);
-      }}
-      onDragStart={() => useSimulatorStore.getState().saveHistory()}
-      onDragMove={(e) => {
-        const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
-        const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
-        e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY);
-      }}
-      onDragEnd={(e) => {
-        const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
-        const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
-        e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY, true);
-      }}
-      onMouseEnter={(e) => {
-        const container = e.target.getStage()?.container();
-        if (container && !useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds) container.style.cursor = 'grab';
-      }}
-      onMouseLeave={(e) => {
-        const container = e.target.getStage()?.container();
-        if (container) container.style.cursor = 'default';
-      }}
-    >
+    <SchematicNodeWrapper node={node}>
       {/* Switch Body */}
       <Rect
         x={0}
@@ -86,10 +40,11 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
         stroke={isSelected ? canvasTheme.selectedNodeColor : "#b91c1c"}
         strokeWidth={isSelected ? 3 : 2}
         cornerRadius={4}
+        perfectDrawEnabled={false}
       />
 
       {/* Label */}
-      <Group x={width / 2} y={9} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+      <Group x={width / 2} y={9} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
         <Text
           text="ON"
           x={-width / 2}
@@ -100,6 +55,7 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
           fontFamily="monospace"
           fontStyle="bold"
           fill="#ffffff"
+          listening={false}
         />
       </Group>
 
@@ -118,6 +74,8 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
               height={12}
               fill="#7f1d1d"
               cornerRadius={2}
+              perfectDrawEnabled={false}
+              listening={false}
             />
             {/* Slider */}
             <Rect
@@ -127,6 +85,7 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
               height={12}
               fill="#ffffff"
               cornerRadius={2}
+              perfectDrawEnabled={false}
               onClick={(e) => {
                 e.cancelBubble = true;
                 const newSwitches = [...switches];
@@ -143,13 +102,14 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
               }}
             />
             {/* Number Label */}
-            <Group x={10} y={yOffset} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+            <Group x={10} y={yOffset} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
               <Text
                 text={String(i + 1)}
                 x={-5}
                 y={-5}
                 fontSize={10}
                 fill="#ffffff"
+                listening={false}
               />
             </Group>
             
@@ -158,6 +118,8 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
               data={`M ${width} ${yOffset} L ${width + 20} ${yOffset}`}
               stroke={canvasTheme.nodeBorder}
               strokeWidth={2}
+              perfectDrawEnabled={false}
+              listening={false}
             />
             {/* The actual connection pin */}
             <Pin
@@ -170,6 +132,6 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
           </Group>
         );
       })}
-    </Group>
+    </SchematicNodeWrapper>
   );
 });

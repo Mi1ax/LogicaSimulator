@@ -3,27 +3,24 @@ import { Group, Rect, Text, Line } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
 import { Pin } from '../../primitives/Pin';
-import { getSchematicDimensions, getSchematicAnchor } from '../../../../core/utils/schematicLayout';
+import { getSchematicDimensions } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
 import { getNodeDefinition } from '../../../../core/engine/nodes';
+import { SchematicNodeWrapper } from './SchematicNodeWrapper';
 
 interface BusProps {
   node: LogicNode;
 }
 
 export const SchematicBusNode: React.FC<BusProps> = React.memo(({ node }) => {
-  const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
   const theme = useSimulatorStore(state => state.theme);
-  const selection = useSimulatorStore(state => state.selection);
-  const multiSelection = useSimulatorStore(state => state.multiSelection);
-  const select = useSimulatorStore(state => state.select);
+  const isSelected = useSimulatorStore(state =>
+    (state.selection?.type === 'node' && state.selection.id === node.id) ||
+    state.multiSelection.includes(node.id)
+  );
   const canvasTheme = getCanvasTheme(theme === 'dark');
   
   const { width, height } = getSchematicDimensions(node);
-  const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
-  
-  const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
-  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id || (state.pastingNodeIds && state.pastingNodeIds.includes(node.id)));
 
   const def = getNodeDefinition(node.type);
   const generatedPins = def?.generatePins ? def.generatePins(node.properties || {}) : [];
@@ -34,55 +31,14 @@ export const SchematicBusNode: React.FC<BusProps> = React.memo(({ node }) => {
   const label = node.properties?.label || 'DB[7..0]';
 
   return (
-    <Group
-      x={node.x + anchorX}
-      y={node.y + anchorY}
-      offsetX={anchorX}
-      offsetY={anchorY}
-      rotation={node.properties?.rotation || 0}
-      scaleX={node.properties?.flipX ? -1 : 1}
-      scaleY={node.properties?.flipY ? -1 : 1}
-      opacity={isPlacing ? 0.6 : 1}
-      draggable={!isPlacing}
-      onClick={(e) => {
-        e.cancelBubble = true;
-        const store = useSimulatorStore.getState();
-        if (store.pastingNodeIds && store.pastingNodeIds.includes(node.id)) { store.finishPastingNodes(); return; }
-        if (store.placingNodeId === node.id) {
-          store.finishPlacingNode();
-          return;
-        }
-        select({ type: 'node', id: node.id }, e.evt.shiftKey);
-      }}
-      onDragStart={() => useSimulatorStore.getState().saveHistory()}
-      onDragMove={(e) => {
-        const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
-        const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
-        e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY);
-      }}
-      onDragEnd={(e) => {
-        const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
-        const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
-        e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY, true);
-      }}
-      onMouseEnter={(e) => {
-        const container = e.target.getStage()?.container();
-        if (container && !useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds) container.style.cursor = 'grab';
-      }}
-      onMouseLeave={(e) => {
-        const container = e.target.getStage()?.container();
-        if (container) container.style.cursor = 'default';
-      }}
-    >
-      <Rect x={0} y={0} width={width} height={height} fill="transparent" />
+    <SchematicNodeWrapper node={node}>
+      <Rect x={0} y={0} width={width} height={height} fill="transparent" perfectDrawEnabled={false} />
       
       {/* Bus backbone line */}
-      <Line points={[width, 20, width, height - 20]} stroke={canvasTheme.nodeBorder} strokeWidth={4} />
+      <Line points={[width, 20, width, height - 20]} stroke={canvasTheme.nodeBorder} strokeWidth={4} listening={false} perfectDrawEnabled={false} />
       
       {/* Label for the bus */}
-      <Group x={width / 2} y={-10} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+      <Group x={width / 2} y={-10} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
         <Text 
           x={-100}
           y={-14}
@@ -94,10 +50,11 @@ export const SchematicBusNode: React.FC<BusProps> = React.memo(({ node }) => {
           fontFamily="sans-serif"
           fontStyle="bold"
           fill={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.textColor}
+          listening={false}
         />
       </Group>
 
-      {isSelected && <Rect x={-5} y={0} width={width + 10} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={1} dash={[2,2]} />}
+      {isSelected && <Rect x={-5} y={0} width={width + 10} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={1} dash={[2,2]} listening={false} perfectDrawEnabled={false} />}
       
       {pins.map(pin => {
         const pinDef = generatedPins.find(cp => cp.name === pin.name);
@@ -119,9 +76,11 @@ export const SchematicBusNode: React.FC<BusProps> = React.memo(({ node }) => {
               points={[side === 'left' ? pinX : width, pinY, side === 'left' ? width : pinX, pinY]} 
               stroke={canvasTheme.nodeBorder} 
               strokeWidth={side === 'right' ? 4 : 2} 
+              listening={false}
+              perfectDrawEnabled={false}
             />
             {side === 'left' && (
-              <Group x={pinX + 10} y={pinY - 9} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+              <Group x={pinX + 10} y={pinY - 9} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
                 <Text 
                   x={-6}
                   y={-5}
@@ -129,6 +88,7 @@ export const SchematicBusNode: React.FC<BusProps> = React.memo(({ node }) => {
                   fontSize={10} 
                   fontFamily="sans-serif"
                   fill={canvasTheme.textColor}
+                  listening={false}
                 />
               </Group>
             )}
@@ -142,6 +102,6 @@ export const SchematicBusNode: React.FC<BusProps> = React.memo(({ node }) => {
           </React.Fragment>
         );
       })}
-    </Group>
+    </SchematicNodeWrapper>
   );
 });

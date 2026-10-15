@@ -34,21 +34,36 @@ function getNodeById(state: any, id: string) {
   return nodeMapCache.get(id);
 }
 
+import { LogicNode } from '../../core/models/types';
+
+const SCHEMATIC_NODE_RENDERERS: Record<string, React.FC<{ node: LogicNode }>> = {
+  NC: SchematicNCNode,
+  '7_SEG_DISPLAY': Schematic7SegNode,
+  DIP_SWITCH: SchematicDipSwitchNode,
+  BUTTON: SchematicButtonNode,
+  LED_BAR: SchematicLEDBarNode,
+  INPUT: SchematicIONode,
+  OUTPUT: SchematicIONode,
+  CLOCK: SchematicIONode,
+  VCC: SchematicIONode,
+  GND: SchematicIONode,
+  JUNCTION: SchematicJunctionNode,
+  NET_LABEL: SchematicNetLabelNode,
+  SUB_IN: SchematicNetLabelNode,
+  SUB_OUT: SchematicNetLabelNode,
+  SUB_IO: SchematicNetLabelNode,
+};
+
 const ConnectedNode = React.memo(({ id }: { id: string }) => {
   const node = useSimulatorStore(state => getNodeById(state, id));
 
   if (!node) return null;
+  const SpecificRenderer = SCHEMATIC_NODE_RENDERERS[node.type];
+  if (SpecificRenderer) return <SpecificRenderer node={node} />;
+
   const def = getNodeDefinition(node.type);
-  if (node.type === 'NC') return <SchematicNCNode node={node} />;
-  if (node.type === '7_SEG_DISPLAY') return <Schematic7SegNode node={node} />;
-  if (node.type === 'DIP_SWITCH') return <SchematicDipSwitchNode node={node} />;
-  if (node.type === 'BUTTON') return <SchematicButtonNode node={node} />;
-  if (node.type === 'LED_BAR') return <SchematicLEDBarNode node={node} />;
   if (def?.renderAs === 'DIP') return <SchematicICNode node={node} />;
   if (def?.renderAs === 'BUS') return <SchematicBusNode node={node} />;
-  if (['INPUT', 'OUTPUT', 'CLOCK', 'VCC', 'GND'].includes(node.type)) return <SchematicIONode node={node} />;
-  if (node.type === 'JUNCTION') return <SchematicJunctionNode node={node} />;
-  if (['NET_LABEL', 'SUB_IN', 'SUB_OUT', 'SUB_IO'].includes(node.type)) return <SchematicNetLabelNode node={node} />;
   return <SchematicGateNode node={node} />;
 });
 
@@ -63,7 +78,7 @@ export const SchematicCanvas: React.FC = () => {
   const setCanvasOffset = useSimulatorStore(state => state.setCanvasOffset);
   
   const nodeIds = useSimulatorStore(useShallow(state => state.nodes.map(n => n.id)));
-  const draftWire = useSimulatorStore(state => state.draftWire);
+  const isDrawingWire = useSimulatorStore(state => Boolean(state.draftWire));
   const updateDraftWire = useSimulatorStore(state => state.updateDraftWire);
   const select = useSimulatorStore(state => state.select);
   const settings = useSimulatorStore(state => state.settings);
@@ -123,7 +138,9 @@ export const SchematicCanvas: React.FC = () => {
         }
       }
       
-      if (e.key === 'Escape') {
+      if (e.key === 'Shift') {
+        if (store.draftWire) store.setDraftWireManhattan(true);
+      } else if (e.key === 'Escape') {
         if (store.draftWire) store.cancelWire();
         if (store.placingNodeId) store.cancelPlacingNode();
         if (store.pastingNodeIds) store.cancelPastingNodes();
@@ -133,7 +150,7 @@ export const SchematicCanvas: React.FC = () => {
         const targetNodeId = store.placingNodeId || (store.selection?.type === 'node' ? store.selection.id : null);
         if (targetNodeId) {
           const node = store.nodes.find(n => n.id === targetNodeId);
-          if (node && node.type !== 'JUNCTION') {
+          if (node && !getNodeDefinition(node.type)?.disableTransform) {
             const currentFlipX = node.properties?.flipX || false;
             store.updateNodeProperties(node.id, { flipX: !currentFlipX });
           }
@@ -142,7 +159,7 @@ export const SchematicCanvas: React.FC = () => {
         const targetNodeId = store.placingNodeId || (store.selection?.type === 'node' ? store.selection.id : null);
         if (targetNodeId) {
           const node = store.nodes.find(n => n.id === targetNodeId);
-          if (node && node.type !== 'JUNCTION') {
+          if (node && !getNodeDefinition(node.type)?.disableTransform) {
             const currentFlipY = node.properties?.flipY || false;
             store.updateNodeProperties(node.id, { flipY: !currentFlipY });
           }
@@ -151,7 +168,7 @@ export const SchematicCanvas: React.FC = () => {
         const targetNodeId = store.placingNodeId || (store.selection?.type === 'node' ? store.selection.id : null);
         if (targetNodeId) {
           const node = store.nodes.find(n => n.id === targetNodeId);
-          if (node && node.type !== 'JUNCTION') {
+          if (node && !getNodeDefinition(node.type)?.disableTransform) {
             const currentRot = node.properties?.rotation || 0;
             store.updateNodeProperties(node.id, { rotation: (currentRot + 90) % 360 });
           }
@@ -165,8 +182,18 @@ export const SchematicCanvas: React.FC = () => {
         store.pasteClipboard(gridX, gridY);
       }
     };
+    const handleGlobalKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        const store = useSimulatorStore.getState();
+        if (store.draftWire) store.setDraftWireManhattan(false);
+      }
+    };
     window.addEventListener('keydown', handleGlobalKeyDown);
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    window.addEventListener('keyup', handleGlobalKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+      window.removeEventListener('keyup', handleGlobalKeyUp);
+    };
   }, []);
 
   return (
@@ -179,7 +206,7 @@ export const SchematicCanvas: React.FC = () => {
         <Stage
           width={dimensions.width}
           height={dimensions.height}
-        draggable={!draftWire && !selectionBox} // Disable stage dragging while drawing wire or selecting
+        draggable={!isDrawingWire && !selectionBox} // Disable stage dragging while drawing wire or selecting
         x={stagePos.x}
         y={stagePos.y}
         scaleX={scale}
@@ -283,8 +310,8 @@ export const SchematicCanvas: React.FC = () => {
             return;
           }
 
-          if (draftWire) {
-            updateDraftWire(Math.round(pos.x / 20) * 20, Math.round(pos.y / 20) * 20);
+          if (store.draftWire) {
+            updateDraftWire(Math.round(pos.x / 20) * 20, Math.round(pos.y / 20) * 20, e.evt.shiftKey);
           } else if (store.pastingNodeIds) {
             const gridX = Math.round(pos.x / 20) * 20;
             const gridY = Math.round(pos.y / 20) * 20;
@@ -368,8 +395,9 @@ export const SchematicCanvas: React.FC = () => {
             return;
           }
           if (e.target === e.target.getStage()) {
+            const store = useSimulatorStore.getState();
             const container = e.target.getStage()?.container();
-            if (container && !draftWire && (!useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds)) container.style.cursor = 'grab';
+            if (container && !store.draftWire && (!store.placingNodeId && !store.pastingNodeIds)) container.style.cursor = 'grab';
           }
         }}
         onClick={(e) => {
@@ -385,7 +413,7 @@ export const SchematicCanvas: React.FC = () => {
 
           const isBackground = e.target === e.target.getStage() || e.target.name() === 'grid';
           if (isBackground) {
-            if (draftWire) {
+            if (store.draftWire) {
               const stage = e.target.getStage();
               const pointer = stage?.getPointerPosition();
               if (stage && pointer) {
@@ -394,7 +422,7 @@ export const SchematicCanvas: React.FC = () => {
                 // Snap to grid
                 const nx = Math.round(pos.x / 20) * 20;
                 const ny = Math.round(pos.y / 20) * 20;
-                store.addWaypoint(nx, ny);
+                store.addWaypoint(nx, ny, e.evt.shiftKey);
               }
             } else {
               select(null);
@@ -402,7 +430,8 @@ export const SchematicCanvas: React.FC = () => {
           }
         }}
         onMouseDown={(e) => {
-          if (e.target === e.target.getStage() && e.evt.shiftKey && !draftWire && (!useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds)) {
+          const store = useSimulatorStore.getState();
+          if (e.target === e.target.getStage() && e.evt.shiftKey && !store.draftWire && (!store.placingNodeId && !store.pastingNodeIds)) {
             const stage = e.target.getStage();
             const pointer = stage?.getPointerPosition();
             if (stage && pointer) {
@@ -415,21 +444,20 @@ export const SchematicCanvas: React.FC = () => {
           }
           if (e.evt.button === 2) {
             // Right click
-            const store = useSimulatorStore.getState();
             if (store.draftWire) store.cancelWire();
             if (store.pastingNodeIds) store.cancelPastingNodes();
             return;
           }
           if (e.target === e.target.getStage()) {
             select(null);
-            if (!draftWire) {
+            if (!store.draftWire) {
               const container = e.target.getStage()?.container();
               if (container) container.style.cursor = 'grabbing';
             }
           }
         }}
         onContextMenu={(e) => e.evt.preventDefault()}
-        style={{ cursor: draftWire ? 'crosshair' : 'grab' }}
+        style={{ cursor: isDrawingWire ? 'crosshair' : 'grab' }}
       >
         <Grid 
           width={dimensions.width} 

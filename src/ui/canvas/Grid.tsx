@@ -13,7 +13,6 @@ interface GridProps {
 
 export const Grid: React.FC<GridProps> = ({ width, height, scale, x, y }) => {
   const theme = useSimulatorStore((state) => state.theme);
-  const appMode = useSimulatorStore((state) => state.appMode);
   const canvasTheme = getCanvasTheme(theme === 'dark');
 
   const patternCanvas = useMemo(() => {
@@ -27,15 +26,15 @@ export const Grid: React.FC<GridProps> = ({ width, height, scale, x, y }) => {
       [[0, 0], [GRID_SIZE, 0], [0, GRID_SIZE], [GRID_SIZE, GRID_SIZE]].forEach(([cx, cy]) => drawFn(cx, cy));
     };
 
-      ctx.fillStyle = canvasTheme.gridColor;
-      drawCorners((cx, cy) => {
-        ctx.fillRect(cx - 0.5, cy - 0.5, 1.5, 1.5);
-      });
+    ctx.fillStyle = canvasTheme.gridColor;
+    drawCorners((cx, cy) => {
+      ctx.fillRect(cx - 0.5, cy - 0.5, 1.5, 1.5);
+    });
     return canvas;
-  }, [appMode, theme, canvasTheme.gridColor]);
+  }, [theme, canvasTheme.gridColor]);
 
   return (
-    <Layer>
+    <Layer listening={false}>
       <Shape
         sceneFunc={(context) => {
           let step = GRID_SIZE;
@@ -50,8 +49,6 @@ export const Grid: React.FC<GridProps> = ({ width, height, scale, x, y }) => {
 
           const startY = Math.floor(-y / scale / step) * step - padY;
           const endY = startY + Math.ceil(height / scale / step) * step + step + padY * 2;
-
-          // Draw board boundary in Board Mode
 
           if (patternCanvas) {
             // Note: Konva's context wrapper doesn't type createPattern strictly correctly for all canvases

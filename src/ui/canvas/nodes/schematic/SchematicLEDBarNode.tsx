@@ -1,75 +1,34 @@
 import React from 'react';
 import { Group, Rect, Path } from 'react-konva';
+import { useShallow } from 'zustand/react/shallow';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
-import { getSchematicDimensions, getSchematicAnchor, getGridAlignedPinYs } from '../../../../core/utils/schematicLayout';
+import { getSchematicDimensions, getGridAlignedPinYs } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
 import { Pin } from '../../primitives/Pin';
+import { SchematicNodeWrapper } from './SchematicNodeWrapper';
 
 interface Props {
   node: LogicNode;
 }
 
 export const SchematicLEDBarNode: React.FC<Props> = React.memo(({ node }) => {
-  const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
   const theme = useSimulatorStore(state => state.theme);
-  const selection = useSimulatorStore(state => state.selection);
-  const multiSelection = useSimulatorStore(state => state.multiSelection);
-  const select = useSimulatorStore(state => state.select);
-  const simState = useSimulatorStore(state => state.simState);
+  const isSelected = useSimulatorStore(state =>
+    (state.selection?.type === 'node' && state.selection.id === node.id) ||
+    state.multiSelection.includes(node.id)
+  );
+  const ledStates = useSimulatorStore(
+    useShallow(state => node.inputs.map(pin => state.simState.pinStates[pin.id] === 1))
+  );
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getSchematicDimensions(node);
   
-  const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
-  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id || (state.pastingNodeIds && state.pastingNodeIds.includes(node.id)));
-
-  const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
   const pinYs = getGridAlignedPinYs(node.inputs.length, height);
 
   return (
-    <Group
-      x={node.x + anchorX}
-      y={node.y + anchorY}
-      offsetX={anchorX}
-      offsetY={anchorY}
-      rotation={node.properties?.rotation || 0}
-      scaleX={node.properties?.flipX ? -1 : 1}
-      scaleY={node.properties?.flipY ? -1 : 1}
-      opacity={isPlacing ? 0.6 : 1}
-      draggable={!isPlacing}
-      onClick={(e) => {
-        const store = useSimulatorStore.getState();
-        if (store.pastingNodeIds && store.pastingNodeIds.includes(node.id)) { store.finishPastingNodes(); return; }
-        if (store.placingNodeId === node.id) {
-          e.cancelBubble = true;
-          store.finishPlacingNode();
-          return;
-        }
-        select({ type: 'node', id: node.id }, e.evt.shiftKey);
-      }}
-      onDragStart={() => useSimulatorStore.getState().saveHistory()}
-      onDragMove={(e) => {
-        const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
-        const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
-        e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY);
-      }}
-      onDragEnd={(e) => {
-        const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
-        const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
-        e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY, true);
-      }}
-      onMouseEnter={(e) => {
-        const container = e.target.getStage()?.container();
-        if (container && !useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds) container.style.cursor = 'grab';
-      }}
-      onMouseLeave={(e) => {
-        const container = e.target.getStage()?.container();
-        if (container) container.style.cursor = 'default';
-      }}
-    >
+    <SchematicNodeWrapper node={node}>
       <Rect
         x={0}
         y={0}
@@ -79,12 +38,12 @@ export const SchematicLEDBarNode: React.FC<Props> = React.memo(({ node }) => {
         stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
         strokeWidth={isSelected ? 3 : 2}
         cornerRadius={4}
+        perfectDrawEnabled={false}
       />
       
       {node.inputs.map((pin, index) => {
         const y = pinYs[index];
-        const state = simState.pinStates[pin.id] || 0;
-        const isHigh = state === 1;
+        const isHigh = ledStates[index];
 
         return (
           <Group key={pin.id}>
@@ -92,6 +51,8 @@ export const SchematicLEDBarNode: React.FC<Props> = React.memo(({ node }) => {
               data={`M 0 ${y} L -20 ${y}`}
               stroke={canvasTheme.nodeBorder}
               strokeWidth={2}
+              perfectDrawEnabled={false}
+              listening={false}
             />
             <Pin
               id={pin.id}
@@ -111,10 +72,12 @@ export const SchematicLEDBarNode: React.FC<Props> = React.memo(({ node }) => {
               stroke={isHigh ? "#16a34a" : (theme === 'dark' ? "#022c22" : "#86efac")}
               strokeWidth={1}
               cornerRadius={2}
+              perfectDrawEnabled={false}
+              listening={false}
             />
           </Group>
         );
       })}
-    </Group>
+    </SchematicNodeWrapper>
   );
 });

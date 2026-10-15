@@ -2,82 +2,34 @@ import React from 'react';
 import { Group, Rect, Text, Path } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
-import { getSchematicDimensions, getSchematicAnchor } from '../../../../core/utils/schematicLayout';
+import { getSchematicDimensions } from '../../../../core/utils/schematicLayout';
 import { getSafePinNumber } from '../../../../core/utils/layoutUtils';
 import { getCanvasTheme } from '../../theme';
 import { Pin } from '../../primitives/Pin';
 import { getNodeDefinition } from '../../../../core/engine/nodes';
+import { SchematicNodeWrapper } from './SchematicNodeWrapper';
 
 interface ICNodeProps {
   node: LogicNode;
 }
 
 export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
-  const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
   const theme = useSimulatorStore(state => state.theme);
-  const selection = useSimulatorStore(state => state.selection);
-  const multiSelection = useSimulatorStore(state => state.multiSelection);
-  const select = useSimulatorStore(state => state.select);
+  const isSelected = useSimulatorStore(state =>
+    (state.selection?.type === 'node' && state.selection.id === node.id) ||
+    state.multiSelection.includes(node.id)
+  );
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getSchematicDimensions(node);
-  
-  const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
   const def = getNodeDefinition(node.type);
   
   const visibleInputs = node.inputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
   const visibleOutputs = node.outputs.filter(p => p.name !== 'VCC' && p.name !== 'GND');
   const allPins = Array.from(new Map([...node.inputs, ...node.outputs].map(p => [p.id, p])).values());
 
-  
-  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id || (state.pastingNodeIds && state.pastingNodeIds.includes(node.id)));
-
-  const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
-
   return (
-    <Group
-      x={node.x + anchorX}
-      y={node.y + anchorY}
-      offsetX={anchorX}
-      offsetY={anchorY}
-      rotation={node.properties?.rotation || 0}
-      scaleX={node.properties?.flipX ? -1 : 1}
-      scaleY={node.properties?.flipY ? -1 : 1}
-      opacity={isPlacing ? 0.6 : 1}
-      draggable={!isPlacing}
-      onClick={(e) => {
-        const store = useSimulatorStore.getState();
-        if (store.pastingNodeIds && store.pastingNodeIds.includes(node.id)) { store.finishPastingNodes(); return; }
-        if (store.placingNodeId === node.id) {
-          e.cancelBubble = true;
-          store.finishPlacingNode();
-          return;
-        }
-        e.cancelBubble = true;
-        select({ type: 'node', id: node.id }, e.evt.shiftKey);
-      }}
-      onDragStart={() => useSimulatorStore.getState().saveHistory()}
-      onDragMove={(e) => {
-        const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
-        const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
-        e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY);
-      }}
-      onDragEnd={(e) => {
-        const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
-        const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
-        e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY, true);
-      }}
-      onMouseEnter={(e) => {
-        const container = e.target.getStage()?.container();
-        if (container && !useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds) container.style.cursor = 'grab';
-      }}
-      onMouseLeave={(e) => {
-        const container = e.target.getStage()?.container();
-        if (container) container.style.cursor = 'default';
-      }}
-    >
+    <SchematicNodeWrapper node={node}>
       {/* IC Body */}
       <Rect
         x={0}
@@ -88,11 +40,12 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
         stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
         strokeWidth={isSelected ? 3 : 2}
         cornerRadius={0}
+        perfectDrawEnabled={false}
       />
 
       {/* Custom Name Label */}
       {node.properties?.label && (
-        <Group x={width / 2} y={-20} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+        <Group x={width / 2} y={-20} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
           <Text
             text={node.properties.label}
             x={-width / 2}
@@ -102,12 +55,13 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
             fontSize={11}
             fontFamily="sans-serif"
             fill={canvasTheme.textColor}
+            listening={false}
           />
         </Group>
       )}
 
       {/* IC Label */}
-      <Group x={width / 2} y={height / 2} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+      <Group x={width / 2} y={height / 2} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
         <Text
           text={def?.type?.startsWith('SUBCIRCUIT:') ? def.label : (def?.type || 'IC')}
           x={0}
@@ -122,6 +76,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
           rotation={-90}
           offsetX={height / 2}
           offsetY={8}
+          listening={false}
         />
       </Group>
 
@@ -184,6 +139,8 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
               data={`M ${legX} ${legY} L ${toX} ${toY}`}
               stroke={canvasTheme.nodeBorder}
               strokeWidth={2}
+              perfectDrawEnabled={false}
+              listening={false}
             />
             {/* The actual connection pin */}
             <Pin
@@ -198,7 +155,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
               const safePin = getSafePinNumber(node.type, pin);
               if (safePin === undefined) return null;
               return (
-                <Group x={numX + 10} y={numY + 4.5} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+                <Group x={numX + 10} y={numY + 4.5} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
                   <Text
                     text={String(safePin)}
                     x={-10}
@@ -209,13 +166,14 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
                     fontFamily="sans-serif"
                     fill={canvasTheme.nodeBorder}
                     opacity={1}
+                    listening={false}
                   />
                 </Group>
               );
             })()}
             {/* Logical Pin Name Label */}
             {pin.name && (
-              <Group x={labelX + 30} y={labelY + 5} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+              <Group x={labelX + 30} y={labelY + 5} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
                 <Text
                   text={pin.name}
                   x={-30}
@@ -232,12 +190,13 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
                   fontStyle="normal"
                   fill={canvasTheme.textColor}
                   opacity={1}
+                  listening={false}
                 />
               </Group>
             )}
           </Group>
         );
       })}
-    </Group>
+    </SchematicNodeWrapper>
   );
 });

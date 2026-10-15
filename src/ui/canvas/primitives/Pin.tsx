@@ -2,6 +2,36 @@ import React from 'react';
 import { Circle } from 'react-konva';
 import { useSimulatorStore } from '../../../store/useSimulatorStore';
 import { getCanvasTheme } from '../theme';
+import { LogicNode, Wire } from '../../../core/models/types';
+
+let cachedWiresRef: Wire[] | null = null;
+let cachedNodesRef: LogicNode[] | null = null;
+let connectedPinsSet = new Set<string>();
+let ncConnectedPinsSet = new Set<string>();
+
+function getPinConnectionSets(wires: Wire[], nodes: LogicNode[]) {
+  if (wires !== cachedWiresRef || nodes !== cachedNodesRef) {
+    connectedPinsSet = new Set<string>();
+    ncConnectedPinsSet = new Set<string>();
+
+    const ncNodeIds = new Set<string>();
+    for (let i = 0; i < nodes.length; i++) {
+      if (nodes[i].type === 'NC') ncNodeIds.add(nodes[i].id);
+    }
+
+    for (let i = 0; i < wires.length; i++) {
+      const w = wires[i];
+      connectedPinsSet.add(w.sourcePinId);
+      connectedPinsSet.add(w.targetPinId);
+      if (ncNodeIds.has(w.targetNodeId)) ncConnectedPinsSet.add(w.sourcePinId);
+      if (ncNodeIds.has(w.sourceNodeId)) ncConnectedPinsSet.add(w.targetPinId);
+    }
+
+    cachedWiresRef = wires;
+    cachedNodesRef = nodes;
+  }
+  return { connectedPinsSet, ncConnectedPinsSet };
+}
 
 interface PinProps {
   x: number;
@@ -12,23 +42,18 @@ interface PinProps {
   opacity?: number;
 }
 
-export const Pin: React.FC<PinProps> = ({ x, y, type, id, nodeId, opacity }) => {
+export const Pin: React.FC<PinProps> = React.memo(({ x, y, type, id, nodeId, opacity }) => {
   const startWire = useSimulatorStore(state => state.startWire);
   const completeWire = useSimulatorStore(state => state.completeWire);
   const cancelWire = useSimulatorStore(state => state.cancelWire);
   const pinState = useSimulatorStore(state => state.simState.pinStates[id]);
   const theme = useSimulatorStore(state => state.theme);
   const canvasTheme = getCanvasTheme(theme === 'dark');
-  const isConnected = useSimulatorStore(state => 
-    state.wires.some(w => w.sourcePinId === id || w.targetPinId === id)
+  const isConnected = useSimulatorStore(state =>
+    getPinConnectionSets(state.wires, state.nodes).connectedPinsSet.has(id)
   );
-  
-  const isConnectedToNC = useSimulatorStore(state => 
-    state.wires.some(w => {
-      if (w.sourcePinId === id) return state.nodes.find(n => n.id === w.targetNodeId)?.type === 'NC';
-      if (w.targetPinId === id) return state.nodes.find(n => n.id === w.sourceNodeId)?.type === 'NC';
-      return false;
-    })
+  const isConnectedToNC = useSimulatorStore(state =>
+    getPinConnectionSets(state.wires, state.nodes).ncConnectedPinsSet.has(id)
   );
 
   let fill = type === 'input' ? canvasTheme.pinInputFill : canvasTheme.pinOutputFill;
@@ -112,12 +137,13 @@ export const Pin: React.FC<PinProps> = ({ x, y, type, id, nodeId, opacity }) => 
           const transform = stage.getAbsoluteTransform().copy().invert();
           const pos = transform.point(pointer);
           
-          startWire(nodeId, id, type, pos.x, pos.y);
+          startWire(nodeId, id, type, pos.x, pos.y, e.evt.shiftKey);
         } else {
-          completeWire(nodeId, id, type);
+          completeWire(nodeId, id, type, e.evt.shiftKey);
         }
       }}
-      listening={true}
+      perfectDrawEnabled={false}
+      listening={isVisible}
     />
   );
-};
+});

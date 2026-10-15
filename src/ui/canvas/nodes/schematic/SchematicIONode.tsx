@@ -3,19 +3,20 @@ import { Group, Rect, Text, Line } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
 import { Pin } from '../../primitives/Pin';
-import { getSchematicDimensions, getSchematicAnchor } from '../../../../core/utils/schematicLayout';
+import { getSchematicDimensions } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
+import { SchematicNodeWrapper } from './SchematicNodeWrapper';
 
 interface IONodeProps {
   node: LogicNode;
 }
 
 export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
-  const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
   const theme = useSimulatorStore(state => state.theme);
-  const selection = useSimulatorStore(state => state.selection);
-  const multiSelection = useSimulatorStore(state => state.multiSelection);
-  const select = useSimulatorStore(state => state.select);
+  const isSelected = useSimulatorStore(state =>
+    (state.selection?.type === 'node' && state.selection.id === node.id) ||
+    state.multiSelection.includes(node.id)
+  );
   const toggleInputNode = useSimulatorStore(state => state.toggleInputNode);
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
@@ -25,8 +26,6 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   const isClock = node.type === 'CLOCK';
   const isVcc = node.type === 'VCC';
   const isGnd = node.type === 'GND';
-  
-  const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
 
   const val = useSimulatorStore(state => {
     if (isInput) return node.properties?.value === 1 ? 1 : 0;
@@ -45,105 +44,63 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   
   const borderStroke = isInputLike ? canvasTheme.inputNodeBorder : canvasTheme.outputNodeBorder;
 
-  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id || (state.pastingNodeIds && state.pastingNodeIds.includes(node.id)));
-  const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
+  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id || Boolean(state.pastingNodeIds && state.pastingNodeIds.includes(node.id)));
 
   return (
-    <Group
-      x={node.x + anchorX}
-      y={node.y + anchorY}
-      offsetX={anchorX}
-      offsetY={anchorY}
-      rotation={node.properties?.rotation || 0}
-      scaleX={node.properties?.flipX ? -1 : 1}
-      scaleY={node.properties?.flipY ? -1 : 1}
-      opacity={isPlacing ? 0.6 : 1}
-      draggable={!isPlacing}
-      onClick={(e) => {
-        const store = useSimulatorStore.getState();
-        if (store.pastingNodeIds && store.pastingNodeIds.includes(node.id)) { store.finishPastingNodes(); return; }
-        if (store.placingNodeId === node.id) {
-          e.cancelBubble = true;
-          store.finishPlacingNode();
-          return;
-        }
-        select({ type: 'node', id: node.id }, e.evt.shiftKey);
-      }}
-      onDragStart={() => useSimulatorStore.getState().saveHistory()}
-      onDragMove={(e) => {
-        const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
-        const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
-        e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY);
-      }}
-      onDragEnd={(e) => {
-        const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
-        const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
-        e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY, true);
-      }}
-      onMouseEnter={(e) => {
-        const container = e.target.getStage()?.container();
-        if (container && !useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds) container.style.cursor = isInput ? 'pointer' : 'grab';
-      }}
-      onMouseLeave={(e) => {
-        const container = e.target.getStage()?.container();
-        if (container) container.style.cursor = 'default';
-      }}
-    >
+    <SchematicNodeWrapper node={node} cursor={isInput ? 'pointer' : 'grab'}>
       {isVcc ? (
         <>
-          <Line points={[width/2, 10, width/2, height]} stroke={borderStroke} strokeWidth={2} />
-          <Line points={[10, 10, width-10, 10]} stroke={borderStroke} strokeWidth={2} />
-          <Group x={width / 2} y={-4} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
-            <Text text="VCC" x={-width / 2} y={-6} width={width} align="center" fontSize={12} fontFamily="monospace" fill={canvasTheme.textColor} />
+          <Line points={[width/2, 10, width/2, height]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+          <Line points={[10, 10, width-10, 10]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+          <Group x={width / 2} y={-4} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
+            <Text text="VCC" x={-width / 2} y={-6} width={width} align="center" fontSize={12} fontFamily="monospace" fill={canvasTheme.textColor} listening={false} />
           </Group>
-          <Rect x={0} y={0} width={width} height={height} fill="transparent" />
-          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} />}
+          <Rect x={0} y={0} width={width} height={height} fill="transparent" perfectDrawEnabled={false} />
+          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} listening={false} perfectDrawEnabled={false} />}
         </>
       ) : isGnd ? (
         <>
-          <Line points={[width/2, 0, width/2, height - 10]} stroke={borderStroke} strokeWidth={2} />
-          <Line points={[10, height - 10, width - 10, height - 10]} stroke={borderStroke} strokeWidth={2} />
-          <Line points={[14, height - 5, width - 14, height - 5]} stroke={borderStroke} strokeWidth={2} />
-          <Line points={[18, height, width - 18, height]} stroke={borderStroke} strokeWidth={2} />
-          <Group x={width / 2} y={height + 11} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
-            <Text text="GND" x={-width / 2} y={-6} width={width} align="center" fontSize={12} fontFamily="monospace" fill={canvasTheme.textColor} />
+          <Line points={[width/2, 0, width/2, height - 10]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+          <Line points={[10, height - 10, width - 10, height - 10]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+          <Line points={[14, height - 5, width - 14, height - 5]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+          <Line points={[18, height, width - 18, height]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+          <Group x={width / 2} y={height + 11} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
+            <Text text="GND" x={-width / 2} y={-6} width={width} align="center" fontSize={12} fontFamily="monospace" fill={canvasTheme.textColor} listening={false} />
           </Group>
-          <Rect x={0} y={0} width={width} height={height} fill="transparent" />
-          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} />}
+          <Rect x={0} y={0} width={width} height={height} fill="transparent" perfectDrawEnabled={false} />
+          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} listening={false} perfectDrawEnabled={false} />}
         </>
       ) : isOutput ? (
         <>
           {/* Schematic LED Symbol */}
-          <Group x={10} y={height/2}>
+          <Group x={10} y={height/2} listening={false}>
             {/* Input wire */}
-            <Line points={[-10, 0, 10, 0]} stroke={borderStroke} strokeWidth={2} />
+            <Line points={[-10, 0, 10, 0]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
             
             {/* Diode Triangle (Anode) */}
-            <Line points={[10, -10, 10, 10, 25, 0]} closed fill={val === 1 ? indicatorFill : 'transparent'} stroke={borderStroke} strokeWidth={2} />
+            <Line points={[10, -10, 10, 10, 25, 0]} closed fill={val === 1 ? indicatorFill : 'transparent'} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
             
             {/* Diode Line (Cathode) */}
-            <Line points={[25, -10, 25, 10]} stroke={borderStroke} strokeWidth={2} />
+            <Line points={[25, -10, 25, 10]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
             
             {/* Wire to ground symbol */}
-            <Line points={[25, 0, 35, 0]} stroke={borderStroke} strokeWidth={2} />
+            <Line points={[25, 0, 35, 0]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
             {/* Ground symbol */}
-            <Line points={[35, -8, 35, 8]} stroke={borderStroke} strokeWidth={2} />
-            <Line points={[39, -5, 39, 5]} stroke={borderStroke} strokeWidth={2} />
-            <Line points={[43, -2, 43, 2]} stroke={borderStroke} strokeWidth={2} />
+            <Line points={[35, -8, 35, 8]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+            <Line points={[39, -5, 39, 5]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+            <Line points={[43, -2, 43, 2]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
             
             {/* Light Arrows */}
-            <Group opacity={val === 1 ? 1 : 0.3}>
-              <Line points={[12, -15, 20, -25]} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} />
-              <Line points={[15, -25, 20, -25, 20, -20]} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} />
+            <Group opacity={val === 1 ? 1 : 0.3} listening={false}>
+              <Line points={[12, -15, 20, -25]} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+              <Line points={[15, -25, 20, -25, 20, -20]} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
               
-              <Line points={[22, -15, 30, -25]} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} />
-              <Line points={[25, -25, 30, -25, 30, -20]} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} />
+              <Line points={[22, -15, 30, -25]} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+              <Line points={[25, -25, 30, -25, 30, -20]} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
             </Group>
           </Group>
-          <Rect x={0} y={0} width={width} height={height} fill="transparent" />
-          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} />}
+          <Rect x={0} y={0} width={width} height={height} fill="transparent" perfectDrawEnabled={false} />
+          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} listening={false} perfectDrawEnabled={false} />}
         </>
       ) : (
         <>
@@ -156,6 +113,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
             stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
             strokeWidth={isSelected ? 3 : 2}
             cornerRadius={4}
+            perfectDrawEnabled={false}
           />
           {isInput && (
             <Group
@@ -185,6 +143,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
                 stroke={canvasTheme.nodeBorder}
                 strokeWidth={1}
                 cornerRadius={2}
+                perfectDrawEnabled={false}
               />
               <Text
                 text={val === 1 ? '1' : '0'}
@@ -198,11 +157,12 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
                 fontFamily="monospace"
                 fontStyle="bold"
                 fill={val === 1 ? '#ffffff' : canvasTheme.textColor}
+                listening={false}
               />
             </Group>
           )}
           {isClock && (
-            <Group x={width / 2} y={height / 2} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+            <Group x={width / 2} y={height / 2} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
               <Text
                 text="CLK"
                 x={-width / 2}
@@ -215,6 +175,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
                 fontFamily="monospace"
                 fontStyle="bold"
                 fill={canvasTheme.textColor}
+                listening={false}
               />
             </Group>
           )}
@@ -222,7 +183,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
       )}
 
       {node.properties?.label && !isVcc && !isGnd && (
-        <Group x={width / 2} y={-14} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+        <Group x={width / 2} y={-14} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
           <Text
             text={node.properties.label}
             x={-width / 2}
@@ -231,6 +192,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
             align="center"
             fontSize={12}
             fill={canvasTheme.textColor}
+            listening={false}
           />
         </Group>
       )}
@@ -262,6 +224,6 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
           />
         );
       })}
-    </Group>
+    </SchematicNodeWrapper>
   );
 });

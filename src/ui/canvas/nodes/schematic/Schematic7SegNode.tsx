@@ -2,9 +2,10 @@ import React from 'react';
 import { Group, Rect, Path, Text, Circle } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
-import { getSchematicDimensions, getSchematicAnchor } from '../../../../core/utils/schematicLayout';
+import { getSchematicDimensions } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
 import { Pin } from '../../primitives/Pin';
+import { SchematicNodeWrapper } from './SchematicNodeWrapper';
 
 import { useShallow } from 'zustand/react/shallow';
 
@@ -13,11 +14,11 @@ interface Props {
 }
 
 export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
-  const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
   const theme = useSimulatorStore(state => state.theme);
-  const selection = useSimulatorStore(state => state.selection);
-  const multiSelection = useSimulatorStore(state => state.multiSelection);
-  const select = useSimulatorStore(state => state.select);
+  const isSelected = useSimulatorStore(state =>
+    (state.selection?.type === 'node' && state.selection.id === node.id) ||
+    state.multiSelection.includes(node.id)
+  );
   
   const segments = useSimulatorStore(useShallow(state => {
     const activeLevel = node.properties?.commonAnode ? 0 : 1;
@@ -28,10 +29,6 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getSchematicDimensions(node);
   
-  const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
-  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id || (state.pastingNodeIds && state.pastingNodeIds.includes(node.id)));
-
-  const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
   const pins = node.inputs;
 
   const activeColor = '#ef4444'; // Red
@@ -44,6 +41,9 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
     <Path
       data={`M ${points[0] + (100 - points[1]) / 100 * slant} ${points[1]} L ${points[2] + (100 - points[3]) / 100 * slant} ${points[3]} L ${points[4] + (100 - points[5]) / 100 * slant} ${points[5]} L ${points[6] + (100 - points[7]) / 100 * slant} ${points[7]} L ${points[8] + (100 - points[9]) / 100 * slant} ${points[9]} L ${points[10] + (100 - points[11]) / 100 * slant} ${points[11]} Z`}
       fill={active ? activeColor : inactiveColor}
+      perfectDrawEnabled={false}
+      listening={false}
+      shadowEnabled={active}
       shadowColor={active ? activeColor : 'transparent'}
       shadowBlur={active ? 8 : 0}
       shadowOpacity={0.8}
@@ -54,49 +54,7 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
   const dy = 25;
 
   return (
-    <Group
-      x={node.x + anchorX}
-      y={node.y + anchorY}
-      offsetX={anchorX}
-      offsetY={anchorY}
-      rotation={node.properties?.rotation || 0}
-      scaleX={node.properties?.flipX ? -1 : 1}
-      scaleY={node.properties?.flipY ? -1 : 1}
-      opacity={isPlacing ? 0.6 : 1}
-      draggable={!isPlacing}
-      onClick={(evt) => {
-        const store = useSimulatorStore.getState();
-        if (store.pastingNodeIds && store.pastingNodeIds.includes(node.id)) { store.finishPastingNodes(); return; }
-        if (store.placingNodeId === node.id) {
-          evt.cancelBubble = true;
-          store.finishPlacingNode();
-          return;
-        }
-        evt.cancelBubble = true;
-        select({ type: 'node', id: node.id }, evt.evt.shiftKey);
-      }}
-      onDragStart={() => useSimulatorStore.getState().saveHistory()}
-      onDragMove={(evt) => {
-        const localX = Math.round((evt.target.x() - anchorX) / 20) * 20;
-        const localY = Math.round((evt.target.y() - anchorY) / 20) * 20;
-        evt.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY);
-      }}
-      onDragEnd={(evt) => {
-        const localX = Math.round((evt.target.x() - anchorX) / 20) * 20;
-        const localY = Math.round((evt.target.y() - anchorY) / 20) * 20;
-        evt.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY, true);
-      }}
-      onMouseEnter={(evt) => {
-        const container = evt.target.getStage()?.container();
-        if (container && !useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds) container.style.cursor = 'grab';
-      }}
-      onMouseLeave={(evt) => {
-        const container = evt.target.getStage()?.container();
-        if (container) container.style.cursor = 'default';
-      }}
-    >
+    <SchematicNodeWrapper node={node}>
       {/* Body */}
       <Rect
         x={0}
@@ -107,6 +65,7 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
         stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
         strokeWidth={isSelected ? 3 : 2}
         cornerRadius={4}
+        perfectDrawEnabled={false}
       />
 
       <Rect
@@ -116,10 +75,12 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
         height={height - 30}
         fill={theme === 'dark' ? '#000000' : '#ffffff'}
         cornerRadius={2}
+        perfectDrawEnabled={false}
+        listening={false}
       />
 
       {/* Segments Display Area */}
-      <Group x={dx} y={dy}>
+      <Group x={dx} y={dy} listening={false}>
         {/* A */}
         {renderSeg([8,0, 24,0, 28,4, 24,8, 8,8, 4,4], a === 1)}
         {/* B */}
@@ -141,6 +102,9 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
           y={64}
           radius={4}
           fill={dp === 1 ? activeColor : inactiveColor}
+          perfectDrawEnabled={false}
+          listening={false}
+          shadowEnabled={dp === 1}
           shadowColor={dp === 1 ? activeColor : 'transparent'}
           shadowBlur={dp === 1 ? 8 : 0}
           shadowOpacity={0.8}
@@ -159,6 +123,8 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
               data={`M ${xOffset} ${isTop ? 0 : height} L ${xOffset} ${isTop ? 10 : height - 10}`}
               stroke={canvasTheme.nodeBorder}
               strokeWidth={2}
+              perfectDrawEnabled={false}
+              listening={false}
             />
             <Pin
               id={pin.id}
@@ -167,7 +133,7 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
               y={yOffset}
               type={pin.type}
             />
-            <Group x={xOffset} y={isTop ? 16 : height - 16} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+            <Group x={xOffset} y={isTop ? 16 : height - 16} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
               <Text
                 text={pin.name}
                 x={-10}
@@ -176,11 +142,12 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
                 align="center"
                 fontSize={8}
                 fill={canvasTheme.textColor}
+                listening={false}
               />
             </Group>
           </Group>
         );
       })}
-    </Group>
+    </SchematicNodeWrapper>
   );
 });

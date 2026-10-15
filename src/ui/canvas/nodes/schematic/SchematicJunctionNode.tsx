@@ -11,25 +11,27 @@ interface Props {
 export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
   const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
   const theme = useSimulatorStore(state => state.theme);
-  const selection = useSimulatorStore(state => state.selection);
-  const multiSelection = useSimulatorStore(state => state.multiSelection);
+  const isSelected = useSimulatorStore(state =>
+    (state.selection?.type === 'node' && state.selection.id === node.id) ||
+    state.multiSelection.includes(node.id)
+  );
   const select = useSimulatorStore(state => state.select);
   const startWire = useSimulatorStore(state => state.startWire);
   const completeWire = useSimulatorStore(state => state.completeWire);
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
-  const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
 
   const clickTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const simState = useSimulatorStore(state => state.simState);
-  
-  const signal = simState.pinStates[node.inputs[0].id] ?? simState.pinStates[node.outputs[0].id];
+  const signal = useSimulatorStore(state =>
+    state.simState.pinStates[node.inputs[0].id] ?? state.simState.pinStates[node.outputs[0].id]
+  );
   let color = canvasTheme.wireColor;
   if (signal === 1) color = canvasTheme.signalHigh;
   else if (signal === 0) color = canvasTheme.signalLow;
   else if (signal === 'X') color = '#ef4444';
   if (isSelected) color = canvasTheme.selectedNodeColor;
+  const isHigh = signal === 1;
 
   return (
     <Group
@@ -46,19 +48,20 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
         }
 
         if (store.draftWire) {
-          completeWire(node.id, node.inputs[0].id, 'input');
+          completeWire(node.id, node.inputs[0].id, 'input', e.evt.shiftKey);
         } else {
           if (!isSelected) {
             select({ type: 'node', id: node.id }, e.evt.shiftKey);
           } else {
             if (clickTimeout.current) clearTimeout(clickTimeout.current);
+            const shiftKey = e.evt.shiftKey;
             clickTimeout.current = setTimeout(() => {
               const stage = e.target.getStage();
               const pointer = stage?.getPointerPosition();
               if (stage && pointer) {
                 const transform = stage.getAbsoluteTransform().copy().invert();
                 const pos = transform.point(pointer);
-                startWire(node.id, node.outputs[0].id, 'output', pos.x, pos.y);
+                startWire(node.id, node.outputs[0].id, 'output', pos.x, pos.y, shiftKey);
               }
             }, 250);
           }
@@ -67,7 +70,6 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
       onDblClick={(e) => {
         e.cancelBubble = true;
         if (clickTimeout.current) clearTimeout(clickTimeout.current);
-        useSimulatorStore.getState().deleteSelection(); // Actually wait, it might not be selected yet, so let's use a specific action or select and delete.
         const store = useSimulatorStore.getState();
         store.select({ type: 'node', id: node.id }, e.evt.shiftKey);
         store.deleteSelection();
@@ -103,6 +105,7 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
         x={-10} y={-10}
         width={20} height={20}
         fill="transparent"
+        perfectDrawEnabled={false}
       />
       {/* Visible Dot */}
       <Circle
@@ -110,8 +113,11 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
         y={0}
         radius={isSelected ? 6 : 4}
         fill={color}
-        shadowColor={signal === 1 ? canvasTheme.signalHigh : 'transparent'}
-        shadowBlur={signal === 1 ? 4 : 0}
+        perfectDrawEnabled={false}
+        listening={false}
+        shadowEnabled={isHigh}
+        shadowColor={isHigh ? canvasTheme.signalHigh : 'transparent'}
+        shadowBlur={isHigh ? 4 : 0}
         shadowOpacity={0.8}
       />
     </Group>

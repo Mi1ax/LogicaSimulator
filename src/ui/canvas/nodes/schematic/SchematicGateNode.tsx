@@ -3,27 +3,23 @@ import { Group, Rect, Text, Path, Circle } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
 import { Pin } from '../../primitives/Pin';
-import { getSchematicDimensions, getGridAlignedPinYs, getSchematicAnchor } from '../../../../core/utils/schematicLayout';
+import { getSchematicDimensions, getGridAlignedPinYs } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
+import { SchematicNodeWrapper } from './SchematicNodeWrapper';
 
 interface GateNodeProps {
   node: LogicNode;
 }
 
 export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) => {
-  const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
   const theme = useSimulatorStore(state => state.theme);
-  const selection = useSimulatorStore(state => state.selection);
-  const multiSelection = useSimulatorStore(state => state.multiSelection);
-  const select = useSimulatorStore(state => state.select);
+  const isSelected = useSimulatorStore(state =>
+    (state.selection?.type === 'node' && state.selection.id === node.id) ||
+    state.multiSelection.includes(node.id)
+  );
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getSchematicDimensions(node);
-  
-  const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
-
-  const isSelected = (selection?.type === 'node' && selection.id === node.id) || multiSelection.includes(node.id);
-  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id || (state.pastingNodeIds && state.pastingNodeIds.includes(node.id)));
 
   const type = node.type;
   const isStandardGate = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'XNOR', 'BUFFER', '74LS30'].includes(type);
@@ -77,51 +73,10 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
   const outputYs = getGridAlignedPinYs(node.outputs.length, height);
 
   return (
-    <Group
-      x={node.x + anchorX}
-      y={node.y + anchorY}
-      offsetX={anchorX}
-      offsetY={anchorY}
-      rotation={node.properties?.rotation || 0}
-      scaleX={node.properties?.flipX ? -1 : 1}
-      scaleY={node.properties?.flipY ? -1 : 1}
-      opacity={isPlacing ? 0.6 : 1}
-      draggable={!isPlacing}
-      onClick={(e) => {
-        e.cancelBubble = true;
-        const store = useSimulatorStore.getState();
-        if (store.pastingNodeIds && store.pastingNodeIds.includes(node.id)) { store.finishPastingNodes(); return; }
-        if (store.placingNodeId === node.id) {
-          store.finishPlacingNode();
-          return;
-        }
-        select({ type: 'node', id: node.id }, e.evt.shiftKey);
-      }}
-      onDragStart={() => useSimulatorStore.getState().saveHistory()}
-      onDragMove={(e) => {
-        const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
-        const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
-        e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY);
-      }}
-      onDragEnd={(e) => {
-        const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
-        const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
-        e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY, true);
-      }}
-      onMouseEnter={(e) => {
-        const container = e.target.getStage()?.container();
-        if (container && !useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds) container.style.cursor = 'grab';
-      }}
-      onMouseLeave={(e) => {
-        const container = e.target.getStage()?.container();
-        if (container) container.style.cursor = 'default';
-      }}
-    >
+    <SchematicNodeWrapper node={node}>
       {isStandardGate ? (
         <>
-          <Rect x={0} y={0} width={width} height={height} fill="transparent" />
+          <Rect x={0} y={0} width={width} height={height} fill="transparent" perfectDrawEnabled={false} />
           
           {node.inputs.map((pin, index) => {
             const py = inputYs[index];
@@ -131,6 +86,8 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
                 data={`M 0 ${py} L ${getLineEndX(py)} ${py}`}
                 stroke={canvasTheme.nodeBorder}
                 strokeWidth={2}
+                perfectDrawEnabled={false}
+                listening={false}
               />
             );
           })}
@@ -143,6 +100,8 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
                 data={`M ${endX} ${py} L ${width} ${py}`}
                 stroke={canvasTheme.nodeBorder}
                 strokeWidth={2}
+                perfectDrawEnabled={false}
+                listening={false}
               />
             );
           })}
@@ -153,6 +112,8 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
             stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
             strokeWidth={isSelected ? 3 : 2}
             lineJoin="round"
+            perfectDrawEnabled={false}
+            listening={false}
           />
           
           {isXOR && (
@@ -162,6 +123,8 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
               strokeWidth={isSelected ? 3 : 2}
               fill="transparent"
               lineCap="round"
+              perfectDrawEnabled={false}
+              listening={false}
             />
           )}
 
@@ -173,6 +136,8 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
               fill={canvasTheme.nodeBg}
               stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
               strokeWidth={isSelected ? 3 : 2}
+              perfectDrawEnabled={false}
+              listening={false}
             />
           )}
         </>
@@ -187,8 +152,9 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
             stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
             strokeWidth={isSelected ? 3 : 2}
             cornerRadius={0}
+            perfectDrawEnabled={false}
           />
-          <Group x={width / 2} y={height / 2} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1}>
+          <Group x={width / 2} y={height / 2} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
             <Text
               text={node.type}
               x={-width / 2}
@@ -201,6 +167,7 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
               fontFamily="monospace"
               fontStyle="bold"
               fill={canvasTheme.textColor}
+              listening={false}
             />
           </Group>
         </>
@@ -226,6 +193,6 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
           type={pin.type}
         />
       ))}
-    </Group>
+    </SchematicNodeWrapper>
   );
 });
