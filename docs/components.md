@@ -1,113 +1,123 @@
 # Creating and Configuring Components
 
-Logica's component system is designed to be highly modular. You can add new logic gates, basic IO elements, or complex stateful Integrated Circuits (ICs) purely by writing TypeScript logic, without touching the UI layer.
+Logica's component system is declarative and modular. You can add new logic gates, basic I/O elements, or complex stateful Integrated Circuits (ICs) purely by defining a `NodeDefinition` in the Core Engine — the Toolbox, Properties Panel, and Hex Editor automatically adapt based on declarative metadata.
 
-## How to Add a New Component
+## Directory Structure
 
-To add a new component, you must define it in the Core Engine and then expose it to the UI.
-
-### 1. Define the Electrical Logic
-Navigate to `src/core/engine/nodes/`. You will find definition files like `basicNodes.ts` and `icNodes.ts`.
-
-A node definition must conform to the `NodeDefinition` interface:
-```typescript
-import { NodeDefinition } from './NodeDefinition';
-
-export const MyCustomChip: NodeDefinition = {
-  type: 'MY_CHIP',
-  label: 'My Custom Chip',
-  
-  // Ignored if customPins is provided, but required by interface
-  numInputs: 0,
-  numOutputs: 0,
-  
-  // Choose how it looks in the UI ('GATE', 'DIP', or omitted for default)
-  renderAs: 'DIP', 
-  
-  // Define custom pins (required for DIP ICs to specify standard counter-clockwise pin layout)
-  customPins: [
-    { type: 'input', name: 'A', pinNumber: 1 },
-    { type: 'output', name: 'Q', pinNumber: 2 }
-  ],
-  
-  // Default properties injected into the node upon creation
-  defaultProperties: {
-    label: 'CHIP1',
-    internalMemory: 0
-  },
-
-  /**
-   * The evaluation function. Runs on every simulation tick.
-   * @param inputs Array of input values (0, 1, or undefined/High-Z)
-   * @param props The node's current properties/state (you may mutate this for stateful logic)
-   * @param tickCount The current global tick count
-   * @returns An array of output signals ordered by pin index
-   */
-  evaluate: (inputs, props, tickCount) => {
-    const A = inputs[0] ?? 0; // Read input A, default to 0 if floating
-    
-    // Read and mutate internal state via properties in-place
-    if (props) {
-      if (A === 1) {
-          props.internalMemory = (props.internalMemory || 0) + 1;
-      }
-    }
-
-    return [ props ? (props.internalMemory % 2) : 0 ]; // Output array matching output pins
-  }
-};
-```
-
-### 2. Register the Component
-Once defined, export it and add it to the central registry in `src/core/engine/nodes/index.ts`:
-
-```typescript
-import { MyCustomChip } from './icNodes';
-
-export const NodeRegistry: Record<string, NodeDefinition> = {
-  // ... existing nodes
-  [MyCustomChip.type]: MyCustomChip
-};
-```
-
-### 3. Add to the Toolbox UI
-To make the component draggable from the sidebar, add it to `src/ui/components/Toolbox.tsx`. The toolbox will automatically read your component's `label` from the registry:
-
-```tsx
-const CATEGORIES: ToolCategory[] = [
-  // ...
-  {
-    name: 'Custom ICs',
-    items: [
-      { type: 'MY_CHIP' } // No label/description needed here, it infers from NodeDefinition
-    ]
-  }
-];
-```
+All built-in node definitions live in `src/core/engine/nodes/`:
+- `NodeDefinition.ts`: TypeScript interfaces (`NodeDefinition`, `NodeCategory`, `CustomPinDef`).
+- `basicNodes.ts`: Basic logic gates, I/O components, displays, and wiring helpers (`JUNCTION`, `NC`, `NET_LABEL`, `BUS_SPLITTER`).
+- `ics/`: Modular IC families:
+  - `gates.ts`: 74LS series logic gate chips (`74LS00`, `74LS02`, `74LS04`, `74LS08`, `74LS30`, `74LS32`, `74LS86`)
+  - `counters.ts`: Synchronous counters (`74LS161`, `74LS191`)
+  - `decoders.ts`: Decoders and demultiplexers (`74LS47`, `74LS138`, `74LS154`)
+  - `alu.ts`: Arithmetic logic units and adders (`74LS283`, `74LS181`)
+  - `registers.ts`: Flip-flops, latches, buffers, and bus transceivers (`74LS173`, `74LS175`, `74LS241`, `74LS244`, `74LS245`, `74LS273`, `74LS373`, `74LS541`)
+  - `memory.ts`: EPROM and SRAM chips (`27C256`, `6116`, `62256`)
+  - `pld.ts`: Programmable Logic Devices (`GAL22V10`)
+- `index.ts`: Central `NodeRegistry` automatically built from `ALL_BUILTIN_NODES`.
 
 ---
 
-## Working with Properties (`node.properties`)
+## How to Add a New Component
 
-Properties act as both **User Configurations** (like labels or gate input counts) and **Internal Memory** for stateful components (like Flip-Flops and Counters).
+### 1. Define the `NodeDefinition`
+Choose the appropriate file in `src/core/engine/nodes/ics/` (or `basicNodes.ts`) and create your `NodeDefinition`:
 
-### User Configuration Properties
-You can expose properties to the user via the Properties Panel (`src/ui/components/PropertiesPanel.tsx`). 
-
-For example, the user can dynamically change how many inputs an AND gate has. When they do, the store calls:
 ```typescript
-useSimulatorStore.getState().setNodeInputCount(nodeId, newCount);
+import { NodeDefinition } from '../NodeDefinition';
+
+export const IC_74LS999Node: NodeDefinition = {
+  type: '74LS999',
+  label: '74LS999 Custom Chip',
+  category: '74LS Series ICs', // Automatically places this chip into the Toolbox category
+
+  numInputs: 0,
+  numOutputs: 0,
+  renderAs: 'DIP',
+
+  // Optional declarative metadata for UI & Canvas:
+  // variableInputs: { min: 2, max: 8 },
+  // variableOutputs: { min: 1, max: 16 },
+  // memorySize: 2048,
+  // disableTransform: true,
+
+  customPins: [
+    { type: 'input', name: 'CLK', pinNumber: 1, schematicSide: 'left', schematicRow: 0 },
+    { type: 'input', name: 'D',   pinNumber: 2, schematicSide: 'left', schematicRow: 1 },
+    { type: 'input', name: 'GND', pinNumber: 3 },
+    { type: 'output', name: 'Q',  pinNumber: 4, schematicSide: 'right', schematicRow: 0 },
+    { type: 'input', name: 'VCC', pinNumber: 5 },
+  ],
+
+  defaultProperties: {
+    label: 'U1',
+  },
+
+  evaluate: (inputs, props) => {
+    const [CLK, D, GND, VCC] = inputs;
+
+    // Require valid power and ground
+    if (VCC !== 1 || GND !== 0) {
+      return [undefined]; // High-Z when unpowered
+    }
+
+    if (props) {
+      if (!props.internal) {
+        props.internal = { latch: 0, lastClk: 0 };
+      }
+      // Rising-edge detection
+      if (CLK === 1 && props.internal.lastClk === 0) {
+        props.internal.latch = D === 1 ? 1 : 0;
+      }
+      props.internal.lastClk = CLK === 1 ? 1 : 0;
+      return [props.internal.latch];
+    }
+
+    return [0];
+  }
+};
 ```
-This strictly modifies the structural blueprint, triggering the UI to instantly redraw the gate with the new pin layout.
 
-### Stateful Memory Properties
-Because the simulator runs continuously at a high frequency (e.g. up to 50Hz), you cannot dispatch Zustand store updates on every tick without cratering UI performance.
+### 2. Export from the IC Barrel (`src/core/engine/nodes/ics/index.ts`)
+Add your new definition to the exported array in its family file (or `src/core/engine/nodes/ics/index.ts`) and optionally add its type literal to `BuiltinNodeType` in `src/core/models/types.ts`.
 
-Instead, the `evaluate` function intentionally mutates `props` **in-place**:
-1. Define a default value in `defaultProperties: { lastClk: 0 }`.
-2. In `evaluate(inputs, props, tickCount)`, read `props.lastClk`.
-3. If the state changes, simply mutate the object: `props.lastClk = 1`.
+Because `NodeRegistry`, `Toolbox`, `PropertiesPanel`, and `HexEditorView` read `ALL_BUILTIN_NODES` and declarative `NodeDefinition` fields directly, **no hardcoded UI lists need to be edited**.
 
-Because the simulation engine passes `node.properties` by reference, this provides extremely fast internal memory that survives across ticks without triggering heavy React UI reconciliations.
+---
 
-When the user hits the "Stop & Reset" button on the Bottombar, the simulation store explicitly zeroes out these memory properties (like `counter` and `lastClk`) to reset the chip.
+## Declarative Metadata Reference
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `category` | `NodeCategory` | Determines which sidebar section in `Toolbox.tsx` displays the component (`'Basic Gates'`, `'I/O & Displays'`, `'Wiring'`, `'74LS Series ICs'`, `'Memory & PLD'`). |
+| `renderAs` | `'GATE' \| 'DIP' \| 'BUS'` | Controls how the node is rendered and sized on the schematic canvas. |
+| `variableInputs` | `{ min: number; max: number }` | Automatically enables the "Number of Inputs" selector in `PropertiesPanel.tsx`. |
+| `variableOutputs` | `{ min: number; max: number }` | Automatically enables the "Number of Switches/Outputs" selector in `PropertiesPanel.tsx`. |
+| `memorySize` | `number` | Marks the chip as a memory device with the given byte capacity (e.g., `2048` for 6116, `32768` for 27C256/62256), enabling the Live Hex Editor and ROM/RAM binary upload/download. |
+| `disableTransform` | `boolean` | Hides rotation/flip controls in `PropertiesPanel.tsx` and blocks `R`, `X`, `Y` transform hotkeys on the canvas (used for `JUNCTION` and `NC`). |
+
+---
+
+## Working with Properties (`node.properties` vs `props.internal`)
+
+Properties serve two distinct purposes:
+
+### 1. Persistent User Configuration (`node.properties`)
+User-editable settings such as `label`, `rotation`, `flipX`, `flipY`, `romData` (for EPROM/SRAM), or `jedec` (for `GAL22V10`) live directly on `node.properties`. These are saved in project files (`.logica`) and preserved when the simulation is reset.
+
+### 2. Transient Runtime State (`node.properties.internal`)
+Because the simulation engine can run at high speeds (up to 1MHz in batched ticks), `evaluate()` mutates `props.internal` **in-place** rather than dispatching React state updates:
+- Store flip-flop latches, counters, edge-detection flags (`lastClk`), and SRAM runtime memory (`props.internal.memory`) inside `props.internal`.
+- When the user clicks **Reset Simulation**, `useSimulatorStore.resetSimulation()` deletes `node.properties.internal` across all nodes, cleanly resetting all flip-flops, counters, and volatile RAM without losing user labels or uploaded ROM data.
+
+---
+
+## Custom Canvas Renderers (`SchematicNodeWrapper`)
+
+Most components use existing renderers (`SchematicGateNode`, `SchematicICNode`, `SchematicBusNode`). If you create a new visual widget in `src/ui/canvas/nodes/schematic/`, wrap its Konva elements in `<SchematicNodeWrapper node={node}>`. This automatically provides:
+- 20px grid drag snapping and `anchorX`/`anchorY` offset handling
+- `rotation`, `flipX`, and `flipY` transformations
+- Placement/paste ghost opacity and click-to-place completion
+- Undo/Redo history snapshots on drag start
+- Node selection (including `Shift+Click` multi-selection)

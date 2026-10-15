@@ -3,40 +3,42 @@
 Welcome to the Logica Simulator project! When assisting with this codebase, please adhere to the following architectural guidelines and principles.
 
 ## 1. Project Architecture & Separation of Concerns
-This project strictly separates the **Simulation Engine** (mathematical logic) from the **UI Layer** (rendering).
-- **Engine (`src/core/engine/`)**: Pure TypeScript. Handles the 60Hz tick loop, topological execution, and structural mutators (adding nodes/wires). It has absolutely no knowledge of React, Konva, or the DOM.
-- **UI (`src/ui/`)**: Built with React and `react-konva`. Strictly consumes the state provided by the engine and renders it visually.
+This project strictly separates the **Simulation Engine** (mathematical logic) from the **UI Layer** (rendering):
+- **Engine (`src/core/engine/`)**: Pure TypeScript. Handles discrete-event tick simulation, multi-driver net resolution, Manhattan wire routing, and structural mutators. It has zero knowledge of React, Konva, or the DOM.
+- **UI (`src/ui/`)**: Built with React and `react-konva`. Consumes engine state via Zustand (`src/store/useSimulatorStore.ts`) and renders it visually.
 
 ## 2. State Management (Zustand)
-We use Zustand (`src/store/useSimulatorStore.ts`) to bridge the UI and the Engine.
-- **Structural Changes**: Adding nodes, drawing wires, or changing component types are dispatched as standard immutable state updates.
-- **High-Frequency Simulation State**: To prevent the React UI from cratering under 60Hz updates, the simulator mutates `node.properties` **in-place** for internal memory (e.g., flip-flop latches, counters). The UI does *not* re-render on every tick unless a visible wire's signal changes.
+- **Structural Changes**: Adding/moving nodes, drawing wires, or changing pin counts are dispatched as immutable state updates and recorded in the Undo/Redo history stack via `structuredClone()`.
+- **High-Frequency Simulation State**: To avoid React re-render overhead during high-speed simulation (up to 1MHz batched ticks), stateful components mutate `node.properties.internal` **in-place** (e.g., flip-flop latches, counters, volatile SRAM memory). `resetSimulation()` clears `node.properties.internal` while preserving user properties (`label`, `romData`, `jedec`).
 
-## 3. Node Definitions
-Components (Gates, ICs, IO) are defined in `src/core/engine/nodes/`.
-- Never hardcode node types in the UI. Always query the `NodeRegistry` via `getNodeDefinition(node.type)`.
-- **DIP ICs**: Multi-pin ICs use `renderAs: 'DIP'`. They rely on `customPins` arrays defining their logical `name`, `type` (input/output), and physical `pinNumber`.
-- Always respect the fallback `getSafePinNumber(node.type, pin)` to ensure backwards compatibility with older `localStorage` saves that may lack the `pinNumber` property.
+## 3. Declarative Node Definitions & Modular ICs
+Components are defined in `src/core/engine/nodes/`:
+- `basicNodes.ts` for gates, I/O, displays, and wiring helpers (`JUNCTION`, `NC`, `NET_LABEL`, `BUS_SPLITTER`).
+- `ics/` for integrated circuits, split by family (`gates.ts`, `counters.ts`, `decoders.ts`, `alu.ts`, `registers.ts`, `memory.ts`, `pld.ts`).
+- **Never hardcode node type lists in UI components.** Always query `getNodeDefinition(node.type)` and use declarative metadata on `NodeDefinition`:
+  - `category`: Organizes the component in `Toolbox.tsx`.
+  - `variableInputs` / `variableOutputs`: Enables dynamic pin count controls in `PropertiesPanel.tsx`.
+  - `memorySize`: Enables ROM/RAM binary management and `HexEditorView.tsx`.
+  - `disableTransform`: Disables rotation/flipping for non-directional markers (`JUNCTION`, `NC`).
+- Always respect `getSafePinNumber(node.type, pin)` for backwards compatibility with older saved circuits.
 
-## 4. Routing (Manhattan Pathfinding)
-Wires use orthogonal Manhattan routing defined in `src/core/engine/routing.ts`.
-- The router calculates U-shapes, L-shapes, and mid-point splits based on normal vectors (`nx`, `ny`).
-- A normal vector of `-1` means pointing Left, `1` means Right. 
-- A normal vector of `0` is used for **draft floating wires** attached to the user's cursor, ensuring they connect directly without hooking.
+## 4. Schematic Canvas & `<SchematicNodeWrapper>`
+- All schematic node components in `src/ui/canvas/nodes/schematic/` (except `SchematicJunctionNode`) must wrap their Konva shapes in `<SchematicNodeWrapper node={node}>` (`SchematicNodeWrapper.tsx`). Do not duplicate `<Group>` drag/snap/transform/selection boilerplate.
+- All schematic pins and node anchors (`getSchematicAnchor`, `getSchematicPinPosition` in `src/core/utils/schematicLayout.ts`) must align to the **20px grid** so that rotations (`R`) and flips (`X`, `Y`) keep pins on grid intersections.
 
-## 5. Testing
-The project uses `Vitest` for pure Node.js environment testing.
-- **Combinational Gates**: Test using the visual CLI Truth Table generator in `src/core/engine/__tests__/gates.test.ts`.
-- **Stateful ICs**: Write sequential tick tests to simulate clock edges and memory latches.
-- UI tests are generally avoided in favor of testing the pure underlying mathematical state.
+## 5. Routing (Manhattan Pathfinding)
+Wires use orthogonal Manhattan routing defined in `src/core/engine/routing.ts`:
+- The router calculates paths based on pin coordinates, port normal vectors (`nx`, `ny`), and obstacle bounding boxes.
+- Wire routing is cached by a structural hash (`lastTopologyHash`) that includes endpoint coordinates and node transforms (`rotation`, `flipX`, `flipY`).
 
-## 6. Styling
-- **HTML/DOM**: Use Tailwind CSS (configured in `tailwind.config.js`).
-- **Canvas/Konva**: Do not hardcode colors in Konva components. Always use the central `getCanvasTheme(isDark)` utility in `src/ui/canvas/theme.ts` to ensure Light/Dark mode compatibility.
+## 6. Testing & Verification
+The project uses `Vitest` for unit testing:
+- Always run `npx tsc --noEmit && npm test -- --run` after making changes to verify zero TypeScript errors and ensure all gate, circuit, simulation, and rotation/grid-alignment tests pass.
 
-## 7. Performance Guidelines
-- **Deep Cloning**: Always use the native `structuredClone()` for deep copies (especially in the Undo/Redo stack). Avoid `JSON.parse(JSON.stringify)`.
-- **Render Optimization**: Ensure heavy Konva calculations (like wire path SVG string generation) are wrapped in `useMemo` and rely strictly on structural dependencies, NOT simulation tick dependencies.
+## 7. Styling
+- **HTML/DOM**: Use Tailwind CSS v4.
+- **Canvas/Konva**: Use `getCanvasTheme(isDark)` in `src/ui/canvas/theme.ts` for Light/Dark mode compatibility.
 
 ## 8. Git Operations
-- **Do not make git commits** unless the user explicitly asks you to. Provide the code and wait for their cue to version control it.
+- **NEVER run `git commit`** unless the user's message explicitly contains the phrase `"Делай commit"`.
+- When asked to commit, follow the commit message prefix convention in `.agents/rules/commits.md` (`[Feature]`, `[Fix]`, `[UI]`, `[Core]`, `[Refactor]`, `[Chore]`, `[Docs]`).
