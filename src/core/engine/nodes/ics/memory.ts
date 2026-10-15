@@ -25,7 +25,7 @@ export const ROM_27C256: NodeDefinition = {
     { name: 'A12', type: 'input', pinNumber: 2, schematicSide: 'left', schematicRow: 13 },
     { name: 'A13', type: 'input', pinNumber: 26, schematicSide: 'left', schematicRow: 14 },
     { name: 'A14', type: 'input', pinNumber: 27, schematicSide: 'left', schematicRow: 15 },
-    { name: 'VPP', type: 'input', pinNumber: 1, schematicSide: 'left', schematicRow: 17 },
+    { name: 'VPP', type: 'input', pinNumber: 1, schematicSide: 'left', schematicRow: 19 },
 
     { name: 'D0', type: 'output', pinNumber: 11, schematicSide: 'right', schematicRow: 1 },
     { name: 'D1', type: 'output', pinNumber: 12, schematicSide: 'right', schematicRow: 2 },
@@ -36,8 +36,8 @@ export const ROM_27C256: NodeDefinition = {
     { name: 'D6', type: 'output', pinNumber: 18, schematicSide: 'right', schematicRow: 7 },
     { name: 'D7', type: 'output', pinNumber: 19, schematicSide: 'right', schematicRow: 8 },
 
-    { name: '/CE', type: 'input', pinNumber: 20, schematicSide: 'right', schematicRow: 10 },
-    { name: '/OE', type: 'input', pinNumber: 22, schematicSide: 'right', schematicRow: 11 },
+    { name: '/CE', type: 'input', pinNumber: 20, schematicSide: 'left', schematicRow: 18 },
+    { name: '/OE', type: 'input', pinNumber: 22, schematicSide: 'left', schematicRow: 17 },
 
     { name: 'GND', type: 'input', pinNumber: 14 },
     { name: 'VCC', type: 'input', pinNumber: 28 },
@@ -113,9 +113,9 @@ export const SRAM_62256: NodeDefinition = {
     { name: 'D6', type: 'bidir', pinNumber: 18, schematicSide: 'right', schematicRow: 7 },
     { name: 'D7', type: 'bidir', pinNumber: 19, schematicSide: 'right', schematicRow: 8 },
 
-    { name: '/CE', type: 'input', pinNumber: 20, schematicSide: 'right', schematicRow: 10 },
-    { name: '/OE', type: 'input', pinNumber: 22, schematicSide: 'right', schematicRow: 11 },
-    { name: '/WE', type: 'input', pinNumber: 27, schematicSide: 'right', schematicRow: 12 },
+    { name: '/CE', type: 'input', pinNumber: 20, schematicSide: 'left', schematicRow: 19 },
+    { name: '/OE', type: 'input', pinNumber: 22, schematicSide: 'left', schematicRow: 17 },
+    { name: '/WE', type: 'input', pinNumber: 27, schematicSide: 'left', schematicRow: 18 },
 
     { name: 'GND', type: 'input', pinNumber: 14 },
     { name: 'VCC', type: 'input', pinNumber: 28 },
@@ -202,10 +202,10 @@ export const IC6116: NodeDefinition = {
     { name: 'DQ5', type: 'bidir', pinNumber: 15, schematicSide: 'right', schematicRow: 6 },
     { name: 'DQ6', type: 'bidir', pinNumber: 16, schematicSide: 'right', schematicRow: 7 },
     { name: 'DQ7', type: 'bidir', pinNumber: 17, schematicSide: 'right', schematicRow: 8 },
-    { name: '~CE', type: 'input', pinNumber: 18, schematicSide: 'bottom', schematicRow: 2 },
+    { name: '~CE', type: 'input', pinNumber: 18, schematicSide: 'left', schematicRow: 15 },
     { name: 'A10', type: 'input', pinNumber: 19, schematicSide: 'left', schematicRow: 11 },
-    { name: '~OE', type: 'input', pinNumber: 20, schematicSide: 'bottom', schematicRow: 4 },
-    { name: '~WE', type: 'input', pinNumber: 21, schematicSide: 'bottom', schematicRow: 6 },
+    { name: '~OE', type: 'input', pinNumber: 20, schematicSide: 'left', schematicRow: 13 },
+    { name: '~WE', type: 'input', pinNumber: 21, schematicSide: 'left', schematicRow: 14 },
     { name: 'A9', type: 'input', pinNumber: 22, schematicSide: 'left', schematicRow: 10 },
     { name: 'A8', type: 'input', pinNumber: 23, schematicSide: 'left', schematicRow: 9 },
     { name: 'VCC', type: 'input', pinNumber: 24 },
