@@ -9,18 +9,18 @@ export interface CircuitState {
 
 export const GRID_SIZE = 20;
 
-export const addNode = (state: CircuitState, type: NodeType, x: number, y: number): CircuitState => {
+export const buildNodePins = (
+  id: string,
+  type: NodeType,
+  properties: Record<string, any> = {},
+  numInputsOverride?: number,
+  numOutputsOverride?: number
+): { inputs: Pin[]; outputs: Pin[] } => {
   const def = getNodeDefinition(type);
   if (!def) {
-    console.error(`Unknown node type: ${type}`);
-    return state;
+    return { inputs: [], outputs: [] };
   }
 
-  const id = generateId('node');
-  
-  const properties = def.defaultProperties ? { ...def.defaultProperties } : {};
-  if (def.renderAs) properties.renderAs = def.renderAs;
-  
   let inputs: Pin[] = [];
   let outputs: Pin[] = [];
 
@@ -45,27 +45,46 @@ export const addNode = (state: CircuitState, type: NodeType, x: number, y: numbe
       }
     });
   } else {
-    inputs = Array.from({ length: def.numInputs }).map((_, i) => ({
+    const inCount = numInputsOverride ?? properties.numInputs ?? def.numInputs;
+    const outCount = numOutputsOverride ?? properties.numOutputs ?? def.numOutputs;
+
+    inputs = Array.from({ length: inCount }).map((_, i) => ({
       id: `pin-${id}-in-${i}`,
       nodeId: id,
       type: 'input',
       index: i,
     }));
-    
-    outputs = Array.from({ length: def.numOutputs }).map((_, i) => ({
+
+    outputs = Array.from({ length: outCount }).map((_, i) => ({
       id: `pin-${id}-out-${i}`,
       nodeId: id,
       type: 'output',
       index: i,
     }));
   }
+
+  return { inputs, outputs };
+};
+
+export const addNode = (state: CircuitState, type: NodeType, x: number, y: number): CircuitState => {
+  const def = getNodeDefinition(type);
+  if (!def) {
+    console.error(`Unknown node type: ${type}`);
+    return state;
+  }
+
+  const id = generateId('node');
   
-  const snap = type === 'JUNCTION' ? 10 : GRID_SIZE;
+  const properties = def.defaultProperties ? { ...def.defaultProperties } : {};
+  if (def.renderAs) properties.renderAs = def.renderAs;
+  
+  const { inputs, outputs } = buildNodePins(id, type, properties);
+  
   const newNode: LogicNode = {
     id,
     type,
-    x: Math.round(x / snap) * snap,
-    y: Math.round(y / snap) * snap,
+    x: Math.round(x / GRID_SIZE) * GRID_SIZE,
+    y: Math.round(y / GRID_SIZE) * GRID_SIZE,
     inputs,
     outputs,
     properties,
@@ -125,9 +144,8 @@ export const moveNode = (state: CircuitState, id: string, x: number, y: number):
     ...state,
     nodes: state.nodes.map((node) => {
       if (node.id === id) {
-        const snap = node.type === 'JUNCTION' ? 10 : GRID_SIZE;
-        const snappedX = Math.round(x / snap) * snap;
-        const snappedY = Math.round(y / snap) * snap;
+        const snappedX = Math.round(x / GRID_SIZE) * GRID_SIZE;
+        const snappedY = Math.round(y / GRID_SIZE) * GRID_SIZE;
         return { ...node, x: snappedX, y: snappedY };
       }
       return node;
@@ -137,7 +155,8 @@ export const moveNode = (state: CircuitState, id: string, x: number, y: number):
 
 
 export const moveSelection = (state: CircuitState, ids: string[], primaryId: string, x: number, y: number): CircuitState => {
-  let oldX = 0, oldY = 0, snap = 20; // GRID_SIZE
+  let oldX = 0, oldY = 0;
+  const snap = GRID_SIZE;
   
   if (primaryId.startsWith('wp:')) {
     const [, wireId, idxStr] = primaryId.split(':');
@@ -150,7 +169,6 @@ export const moveSelection = (state: CircuitState, ids: string[], primaryId: str
     if (!primaryNode) return state;
     oldX = primaryNode.x;
     oldY = primaryNode.y;
-    snap = primaryNode.type === 'JUNCTION' ? 10 : 20;
   }
 
   const snappedX = Math.round(x / snap) * snap;
@@ -248,7 +266,7 @@ export const setNodeInputCount = (state: CircuitState, nodeId: string, count: nu
       });
     }
     
-    return { ...node, inputs: newInputs };
+    return { ...node, inputs: newInputs, properties: { ...node.properties, numInputs: count } };
   });
 
   const wires = state.wires.filter(w => !wiresToDelete.has(w.id));

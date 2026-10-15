@@ -1,4 +1,9 @@
-export type BuiltinNodeType = 'AND' | 'OR' | 'NOR' | 'NOT' | 'XOR' | 'INPUT' | 'OUTPUT' | 'CLOCK' | 'VCC' | 'GND' | 'NET_LABEL' | 'BUS_BREAKOUT';
+export type BuiltinNodeType =
+  | 'AND' | 'OR' | 'NOR' | 'NAND' | 'NOT' | 'XOR' | 'XNOR' | 'BUFFER'
+  | 'INPUT' | 'OUTPUT' | 'CLOCK' | 'VCC' | 'GND' | 'JUNCTION' | 'NC'
+  | 'SUB_IN' | 'SUB_OUT' | 'SUB_IO'
+  | 'DIP_SWITCH' | 'BUTTON' | 'LED_BAR' | '7_SEG_DISPLAY'
+  | 'NET_LABEL' | 'BUS_BREAKOUT';
 // Allows IDE autocomplete for built-ins, but accepts ANY string for custom ICs
 export type NodeType = BuiltinNodeType | (string & {});
 export type Signal = 0 | 1 | undefined | 'X';
@@ -30,6 +35,7 @@ export interface DraftWire {
   endX: number;
   endY: number;
   waypoints?: { x: number; y: number }[];
+  manhattan?: boolean;
 }
 
 export interface LogicNode {

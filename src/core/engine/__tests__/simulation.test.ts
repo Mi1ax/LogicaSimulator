@@ -118,4 +118,52 @@ describe('Simulation Engine', () => {
     
     expect(state1.pinStates['and1-in0']).toBeUndefined();
   });
+
+  it('should propagate signals between BUS_BREAKOUT nodes connected by a BUS wire', () => {
+    const switch1: LogicNode = {
+      id: 'sw1', type: 'SWITCH', x: 0, y: 0,
+      inputs: [],
+      outputs: [{ id: 'sw1-out', nodeId: 'sw1', type: 'output', index: 0 }],
+      properties: { active: true }
+    };
+
+    const busA: LogicNode = {
+      id: 'busA', type: 'BUS_BREAKOUT', x: 40, y: 0,
+      inputs: [
+        { id: 'busA-0', nodeId: 'busA', type: 'bidir', index: 0, name: '0' },
+        { id: 'busA-bus', nodeId: 'busA', type: 'bidir', index: 8, name: 'BUS' }
+      ],
+      outputs: [
+        { id: 'busA-0', nodeId: 'busA', type: 'bidir', index: 0, name: '0' },
+        { id: 'busA-bus', nodeId: 'busA', type: 'bidir', index: 8, name: 'BUS' }
+      ],
+      properties: {}
+    };
+
+    const busB: LogicNode = {
+      id: 'busB', type: 'BUS_BREAKOUT', x: 100, y: 0,
+      inputs: [
+        { id: 'busB-0', nodeId: 'busB', type: 'bidir', index: 0, name: '0' },
+        { id: 'busB-bus', nodeId: 'busB', type: 'bidir', index: 8, name: 'BUS' }
+      ],
+      outputs: [
+        { id: 'busB-0', nodeId: 'busB', type: 'bidir', index: 0, name: '0' },
+        { id: 'busB-bus', nodeId: 'busB', type: 'bidir', index: 8, name: 'BUS' }
+      ],
+      properties: {}
+    };
+
+    const wires: Wire[] = [
+      { id: 'w-sw-busA', sourceNodeId: 'sw1', sourcePinId: 'sw1-out', targetNodeId: 'busA', targetPinId: 'busA-0' },
+      { id: 'w-bus-bus', sourceNodeId: 'busA', sourcePinId: 'busA-bus', targetNodeId: 'busB', targetPinId: 'busB-bus' }
+    ];
+
+    const state = computeNextState([switch1, busA, busB], wires, {
+      tickCount: 0,
+      pinStates: {},
+      wireStates: {}
+    });
+
+    expect(state.pinStates['busB-0']).toBe(1);
+  });
 });

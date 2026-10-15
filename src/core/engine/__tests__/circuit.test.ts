@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { addNode, deleteNode, addWire, CircuitState, setNodeInputCount } from '../circuit';
+import { computeManhattanElbow, computeAllWirePaths } from '../routing';
 
 // Mock the node registry
 vi.mock('../nodes', () => {
@@ -11,6 +12,13 @@ vi.mock('../nodes', () => {
           numInputs: 2,
           numOutputs: 1,
           defaultProperties: { label: 'AndGate' }
+        };
+      }
+      if (type === 'JUNCTION') {
+        return {
+          type: 'JUNCTION',
+          numInputs: 1,
+          numOutputs: 1
         };
       }
       if (type === '74LS161') {
@@ -50,6 +58,32 @@ describe('Circuit Store Core Mutators', () => {
     expect(node.inputs.length).toBe(2);
     expect(node.outputs.length).toBe(1);
     expect(node.properties?.label).toBe('AndGate');
+  });
+
+  it('should snap JUNCTION nodes to 20px grid just like other nodes', () => {
+    const state = addNode(initialState, 'JUNCTION', 28, 32);
+    expect(state.nodes[0].x).toBe(20);
+    expect(state.nodes[0].y).toBe(40);
+  });
+
+  it('should compute Manhattan elbow and draft wire paths accurately', () => {
+    expect(computeManhattanElbow({ x: 0, y: 0 }, { x: 100, y: 40 })).toEqual({ x: 100, y: 0 });
+    expect(computeManhattanElbow({ x: 0, y: 0 }, { x: 40, y: 100 })).toEqual({ x: 0, y: 100 });
+    expect(computeManhattanElbow({ x: 0, y: 0 }, { x: 100, y: 0 })).toBeNull();
+
+    const straight = computeAllWirePaths([], [], {
+      start: { x: 0, y: 0 },
+      end: { x: 100, y: 40 },
+      manhattan: false
+    });
+    expect(straight.draftWirePath).toBe('M 0 0 L 100 40');
+
+    const manhattan = computeAllWirePaths([], [], {
+      start: { x: 0, y: 0 },
+      end: { x: 100, y: 40 },
+      manhattan: true
+    });
+    expect(manhattan.draftWirePath).toBe('M 0 0 L 100 0 L 100 40');
   });
 
   it('should add a node with customPins correctly mapped', () => {

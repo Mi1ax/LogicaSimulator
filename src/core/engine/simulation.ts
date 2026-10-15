@@ -187,6 +187,29 @@ export const computeNextState = (
     }
   });
 
+  // Connect bit pins (0..7) of BUS_BREAKOUT nodes whose BUS pins are in the same net
+  const busBreakouts = nodes.filter(n => n.type === 'BUS_BREAKOUT');
+  for (let i = 0; i < busBreakouts.length; i++) {
+    const busPinA = busBreakouts[i].inputs.find(p => p.name === 'BUS');
+    if (!busPinA) continue;
+    const netA = pinToNet.get(busPinA.id);
+    if (netA === undefined) continue;
+
+    for (let j = i + 1; j < busBreakouts.length; j++) {
+      const busPinB = busBreakouts[j].inputs.find(p => p.name === 'BUS');
+      if (!busPinB) continue;
+      const netB = pinToNet.get(busPinB.id);
+      if (netA === netB) {
+        busBreakouts[i].inputs.forEach(pinA => {
+          if (pinA.name && /^\d+$/.test(pinA.name)) {
+            const pinB = busBreakouts[j].inputs.find(p => p.name === pinA.name);
+            if (pinB) union(pinA.id, pinB.id);
+          }
+        });
+      }
+    }
+  }
+
   const activeNets = nets.filter(n => n.length > 0);
   
   const outputPins = new Set<string>();
@@ -196,6 +219,23 @@ export const computeNextState = (
 
   const connectedPins = new Set(activeNets.flat());
   // ------------------
+
+  const cloneInternalState = (raw?: Record<string, any>): Record<string, any> => {
+    if (!raw) return {};
+    const cloned: Record<string, any> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (Array.isArray(v)) {
+        cloned[k] = [...v];
+      } else if (v instanceof Uint8Array) {
+        cloned[k] = new Uint8Array(v);
+      } else if (v && typeof v === 'object') {
+        cloned[k] = { ...v };
+      } else {
+        cloned[k] = v;
+      }
+    }
+    return cloned;
+  };
 
   let currentPinStates: Record<string, Signal> = { ...prevState.pinStates };
   let finalWireStates: Record<string, Signal> = {};
@@ -229,8 +269,8 @@ export const computeNextState = (
           nextIterPinStates[pin.id] = undefined;
         });
       } else {
-        // Always use the committed state from the PREVIOUS tick to avoid glitch increments
-        const internal = { ...(prevState.nodeStates?.[node.id] ?? {}) };
+        // Always use a deep copy of the committed state from the PREVIOUS tick to avoid in-place mutation across iterations
+        const internal = cloneInternalState(prevState.nodeStates?.[node.id]);
         const prevInVals = node.inputs.map(p => prevState.pinStates[p.id]);
         const outVals = def.evaluate(inVals, node.properties, prevState.tickCount, internal, prevInVals);
         if (Object.keys(internal).length > 0) finalNodeStates[node.id] = internal;

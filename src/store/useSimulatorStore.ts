@@ -6,6 +6,7 @@ import * as circuit from '../core/engine/circuit';
 import { syncSubcircuitInstances } from '../core/engine/circuit';
 import { computeNextState } from '../core/engine/simulation';
 import { getSchematicPinPosition } from '../core/utils/schematicLayout';
+import { computeManhattanElbow } from '../core/engine/routing';
 import { generateId } from '../core/utils/id';
 
 export type Selection = { type: 'node' | 'wire' | 'waypoint', id: string } | null;
@@ -39,12 +40,13 @@ interface SimulatorState {
   // UI state for drawing wires
   draftWire: DraftWire | null;
   startWireFromWaypoint: (wireId: string, waypointIndex: number) => void;
-  startWire: (nodeId: string, pinId: string, pinType: 'input' | 'output' | 'bidir', x: number, y: number) => void;
-  updateDraftWire: (x: number, y: number) => void;
-  addWaypoint: (x: number, y: number) => void;
+  startWire: (nodeId: string, pinId: string, pinType: 'input' | 'output' | 'bidir', x: number, y: number, manhattan?: boolean) => void;
+  updateDraftWire: (x: number, y: number, manhattan?: boolean) => void;
+  setDraftWireManhattan: (manhattan: boolean) => void;
+  addWaypoint: (x: number, y: number, manhattan?: boolean) => void;
   updateWireWaypoints: (wireId: string, waypoints: {x: number, y: number}[]) => void;
-  completeWire: (nodeId: string, pinId: string, pinType: 'input' | 'output' | 'bidir') => void;
-  completeWireOnWire: (wireId: string, dropX?: number, dropY?: number, wp1?: {x:number, y:number}[], wp2?: {x:number, y:number}[]) => void;
+  completeWire: (nodeId: string, pinId: string, pinType: 'input' | 'output' | 'bidir', manhattan?: boolean) => void;
+  completeWireOnWire: (wireId: string, dropX?: number, dropY?: number, wp1?: {x:number, y:number}[], wp2?: {x:number, y:number}[], manhattan?: boolean) => void;
   cancelWire: () => void;
 
   clipboard: { nodes: any[], wires: any[] } | null;
@@ -618,19 +620,52 @@ export const useSimulatorStore = create<SimulatorState>()(
     return circuit.updateNodeProperties(state, id, { value: currentVal });
   }),
 
-  startWire: (nodeId, pinId, pinType, x, y) => set({
-    draftWire: { sourceNodeId: nodeId, sourcePinId: pinId, sourceType: pinType, endX: x, endY: y, waypoints: [] },
+  startWire: (nodeId, pinId, pinType, x, y, manhattan = false) => set({
+    draftWire: { sourceNodeId: nodeId, sourcePinId: pinId, sourceType: pinType, endX: x, endY: y, waypoints: [], manhattan },
     selection: null
   }),
 
-  updateDraftWire: (x, y) => set((state) => {
+  updateDraftWire: (x, y, manhattan) => set((state) => {
     if (!state.draftWire) return state;
-    return { draftWire: { ...state.draftWire, endX: x, endY: y } };
+    return {
+      draftWire: {
+        ...state.draftWire,
+        endX: x,
+        endY: y,
+        manhattan: manhattan ?? state.draftWire.manhattan,
+      }
+    };
   }),
 
-  addWaypoint: (x, y) => set((state) => {
+  setDraftWireManhattan: (manhattan) => set((state) => {
+    if (!state.draftWire || state.draftWire.manhattan === manhattan) return state;
+    return { draftWire: { ...state.draftWire, manhattan } };
+  }),
+
+  addWaypoint: (x, y, manhattan) => set((state) => {
     if (!state.draftWire) return state;
-    return { draftWire: { ...state.draftWire, waypoints: [...(state.draftWire.waypoints || []), { x, y }] } };
+    const isManhattan = manhattan ?? state.draftWire.manhattan;
+    const currentWaypoints = [...(state.draftWire.waypoints || [])];
+
+    if (isManhattan) {
+      let lastPt: { x: number; y: number; nx?: number; ny?: number } | undefined =
+        currentWaypoints[currentWaypoints.length - 1];
+      if (!lastPt) {
+        const srcNode = state.nodes.find(n => n.id === state.draftWire!.sourceNodeId);
+        if (srcNode) {
+          lastPt = getSchematicPinPosition(srcNode, state.draftWire.sourcePinId);
+        }
+      }
+      if (lastPt) {
+        const elbow = computeManhattanElbow(lastPt, { x, y });
+        if (elbow) {
+          currentWaypoints.push(elbow);
+        }
+      }
+    }
+
+    currentWaypoints.push({ x, y });
+    return { draftWire: { ...state.draftWire, waypoints: currentWaypoints } };
   }),
 
   updateWireWaypoints: (wireId, waypoints) => set((state) => {
@@ -641,12 +676,22 @@ export const useSimulatorStore = create<SimulatorState>()(
   }),
 
   
-  completeWire: (nodeId, pinId, pinType) => set((state) => {
+  completeWire: (nodeId, pinId, pinType, manhattan) => set((state) => {
     if (!state.draftWire) return state;
 
     const { sourceNodeId, sourcePinId, sourceType } = state.draftWire;
 
     if (sourcePinId === pinId) {
+      return { draftWire: null };
+    }
+
+    // Prevent duplicate wires between the same two pins
+    const alreadyConnected = state.wires.some(
+      w =>
+        (w.sourcePinId === sourcePinId && w.targetPinId === pinId) ||
+        (w.sourcePinId === pinId && w.targetPinId === sourcePinId)
+    );
+    if (alreadyConnected) {
       return { draftWire: null };
     }
 
@@ -670,8 +715,28 @@ export const useSimulatorStore = create<SimulatorState>()(
       inputPinId
     );
 
-    const waypoints = state.draftWire.waypoints;
-    const finalWaypoints = isSourceOutput ? (waypoints || []) : (waypoints ? [...waypoints].reverse() : []);
+    const waypoints = [...(state.draftWire.waypoints || [])];
+    const isManhattan = manhattan ?? state.draftWire.manhattan;
+    if (isManhattan) {
+      let lastPt: { x: number; y: number; nx?: number; ny?: number } | undefined =
+        waypoints[waypoints.length - 1];
+      if (!lastPt) {
+        const srcNode = state.nodes.find(n => n.id === sourceNodeId);
+        if (srcNode) {
+          lastPt = getSchematicPinPosition(srcNode, sourcePinId);
+        }
+      }
+      const tgtNode = state.nodes.find(n => n.id === nodeId);
+      if (lastPt && tgtNode) {
+        const tgtPos = getSchematicPinPosition(tgtNode, pinId);
+        const elbow = computeManhattanElbow(lastPt, tgtPos);
+        if (elbow) {
+          waypoints.push(elbow);
+        }
+      }
+    }
+
+    const finalWaypoints = isSourceOutput ? waypoints : [...waypoints].reverse();
     if (finalWaypoints.length > 0) {
       const newWire = nextCircuit.wires[nextCircuit.wires.length - 1];
       newWire.waypoints = finalWaypoints;
@@ -680,15 +745,34 @@ export const useSimulatorStore = create<SimulatorState>()(
     return { ...nextCircuit, ...pushHistory(state), draftWire: null };
   }),
 
-  completeWireOnWire: (targetWireId: string, dropX?: number, dropY?: number, splitWp1?: {x:number, y:number}[], splitWp2?: {x:number, y:number}[]) => set((state) => {
+  completeWireOnWire: (targetWireId: string, dropX?: number, dropY?: number, splitWp1?: {x:number, y:number}[], splitWp2?: {x:number, y:number}[], manhattan?: boolean) => set((state) => {
     if (!state.draftWire) return state;
 
     const targetWire = state.wires.find(w => w.id === targetWireId);
     if (!targetWire) return { draftWire: null };
 
     const { sourceNodeId, sourcePinId, sourceType, endX, endY } = state.draftWire;
-    const finalX = dropX ?? endX;
-    const finalY = dropY ?? endY;
+    const finalX = Math.round((dropX ?? endX) / 20) * 20;
+    const finalY = Math.round((dropY ?? endY) / 20) * 20;
+
+    const waypoints = [...(state.draftWire.waypoints || [])];
+    const isManhattan = manhattan ?? state.draftWire.manhattan;
+    if (isManhattan) {
+      let lastPt: { x: number; y: number; nx?: number; ny?: number } | undefined =
+        waypoints[waypoints.length - 1];
+      if (!lastPt) {
+        const srcNode = state.nodes.find(n => n.id === sourceNodeId);
+        if (srcNode) {
+          lastPt = getSchematicPinPosition(srcNode, sourcePinId);
+        }
+      }
+      if (lastPt) {
+        const elbow = computeManhattanElbow(lastPt, { x: finalX, y: finalY });
+        if (elbow) {
+          waypoints.push(elbow);
+        }
+      }
+    }
 
     if (sourceType === 'input') {
       let nextState = circuit.addNode(state, 'JUNCTION', finalX, finalY);
@@ -726,8 +810,7 @@ export const useSimulatorStore = create<SimulatorState>()(
         sourcePinId
       );
 
-      const waypoints = state.draftWire.waypoints;
-      if (waypoints && waypoints.length > 0) {
+      if (waypoints.length > 0) {
         nextState.wires[nextState.wires.length - 1].waypoints = [...waypoints].reverse();
       }
 
@@ -768,8 +851,7 @@ export const useSimulatorStore = create<SimulatorState>()(
         jInPin.id
       );
 
-      const waypoints = state.draftWire.waypoints;
-      if (waypoints && waypoints.length > 0) {
+      if (waypoints.length > 0) {
         nextState.wires[nextState.wires.length - 1].waypoints = waypoints;
       }
 
