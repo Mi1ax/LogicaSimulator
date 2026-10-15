@@ -4,6 +4,99 @@ import { getNodeDefinition } from '../../core/engine/nodes';
 
 const PAGE_SIZE = 1024; // Bytes per page (64 rows of 16)
 
+export function parseHexFile(text: string, memSize: number): Uint8Array {
+  const result = new Uint8Array(memSize);
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('#') && !l.startsWith(';'));
+
+  // 1. Intel HEX format (:LLAAAATT[DD...]CC)
+  if (lines.some(l => l.startsWith(':'))) {
+    let upperAddress = 0;
+    for (const line of lines) {
+      if (!line.startsWith(':')) continue;
+      const hex = line.slice(1);
+      if (hex.length < 10) continue;
+
+      const byteCount = parseInt(hex.slice(0, 2), 16);
+      const address = parseInt(hex.slice(2, 6), 16);
+      const recordType = parseInt(hex.slice(6, 8), 16);
+      if (isNaN(byteCount) || isNaN(address) || isNaN(recordType)) continue;
+
+      if (recordType === 0x00) {
+        // Data record
+        for (let i = 0; i < byteCount; i++) {
+          const byteHex = hex.slice(8 + i * 2, 10 + i * 2);
+          const val = parseInt(byteHex, 16);
+          const targetAddr = upperAddress + address + i;
+          if (!isNaN(val) && targetAddr >= 0 && targetAddr < memSize) {
+            result[targetAddr] = val & 0xff;
+          }
+        }
+      } else if (recordType === 0x01) {
+        // End of File
+        break;
+      } else if (recordType === 0x02) {
+        // Extended Segment Address
+        const seg = parseInt(hex.slice(8, 12), 16);
+        if (!isNaN(seg)) upperAddress = seg << 4;
+      } else if (recordType === 0x04) {
+        // Extended Linear Address
+        const lin = parseInt(hex.slice(8, 12), 16);
+        if (!isNaN(lin)) upperAddress = lin << 16;
+      }
+    }
+    return result;
+  }
+
+  // 2. Logisim "v2.0 raw" or plain whitespace/comma-separated hex bytes
+  let writePtr = 0;
+  for (const line of lines) {
+    if (/^v\d+\.\d+\s+raw/i.test(line)) continue;
+
+    // Optional "ADDR: DATA..." prefix
+    let dataPart = line;
+    const colonIdx = line.indexOf(':');
+    if (colonIdx !== -1) {
+      const addrPrefix = parseInt(line.slice(0, colonIdx).trim(), 16);
+      if (!isNaN(addrPrefix)) {
+        writePtr = addrPrefix;
+      }
+      dataPart = line.slice(colonIdx + 1);
+    }
+
+    const tokens = dataPart.trim().split(/[\s,]+/).filter(Boolean);
+    for (const token of tokens) {
+      // Support Logisim run-length encoding like "16*00"
+      const rleMatch = token.match(/^(\d+)\*([0-9a-fA-F]+)$/);
+      if (rleMatch) {
+        const count = parseInt(rleMatch[1], 10);
+        const val = parseInt(rleMatch[2], 16);
+        for (let c = 0; c < count && writePtr < memSize; c++) {
+          result[writePtr++] = val & 0xff;
+        }
+        continue;
+      }
+
+      const clean = token.replace(/^0x/i, '');
+      if (!/^[0-9a-fA-F]+$/.test(clean)) continue;
+
+      if (clean.length <= 2) {
+        if (writePtr < memSize) {
+          result[writePtr++] = parseInt(clean, 16) & 0xff;
+        }
+      } else {
+        // Multi-byte contiguous hex string
+        for (let i = 0; i < clean.length; i += 2) {
+          if (writePtr >= memSize) break;
+          const pair = clean.slice(i, i + 2);
+          result[writePtr++] = parseInt(pair, 16) & 0xff;
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
 export const HexEditorView: React.FC = () => {
   const nodes = useSimulatorStore(state => state.nodes);
   const updateNodeProperties = useSimulatorStore(state => state.updateNodeProperties);
@@ -116,8 +209,30 @@ export const HexEditorView: React.FC = () => {
       }
       const dataArray = lastNonZero < 0 ? [] : Array.from(memory.subarray(0, lastNonZero + 1));
       updateNodeProperties(selectedNode.id, { data: dataArray });
+      if (liveMemory) {
+        liveMemory.set(memory.subarray(0, Math.min(memory.length, liveMemory.length)));
+      }
       setIsDirty(false);
     }
+  };
+
+  const loadFileIntoMemory = async (file: File) => {
+    const isHexExt = /\.(hex|ihx|txt)$/i.test(file.name);
+    let newMem: Uint8Array;
+    if (isHexExt) {
+      const text = await file.text();
+      newMem = parseHexFile(text, memSize);
+    } else {
+      const buffer = await file.arrayBuffer();
+      const importedMem = new Uint8Array(buffer);
+      newMem = new Uint8Array(memSize);
+      newMem.set(importedMem.slice(0, memSize));
+    }
+    setMemory(newMem);
+    if (liveMemory) {
+      liveMemory.set(newMem.subarray(0, Math.min(newMem.length, liveMemory.length)));
+    }
+    setIsDirty(true);
   };
 
   const handleImport = async () => {
@@ -125,31 +240,29 @@ export const HexEditorView: React.FC = () => {
       try {
         // @ts-ignore
         const [fileHandle] = await window.showOpenFilePicker({
-          types: [{ description: 'Binary File', accept: { 'application/octet-stream': ['.bin'] } }],
+          types: [
+            {
+              description: 'Memory Files (.bin, .hex, .ihx)',
+              accept: {
+                'application/octet-stream': ['.bin', '.hex', '.ihx'],
+                'text/plain': ['.hex', '.ihx', '.txt'],
+              },
+            },
+          ],
         });
         const file = await fileHandle.getFile();
-        const buffer = await file.arrayBuffer();
-        const importedMem = new Uint8Array(buffer);
-        const newMem = new Uint8Array(memSize);
-        newMem.set(importedMem.slice(0, memSize));
-        setMemory(newMem);
-        setIsDirty(true);
+        await loadFileIntoMemory(file);
       } catch (err: any) {
         if (err.name !== 'AbortError') console.error(err);
       }
     } else {
       const input = document.createElement('input');
       input.type = 'file';
-      input.accept = '.bin';
+      input.accept = '.bin,.hex,.ihx,.txt';
       input.onchange = async (e) => {
         const file = (e.target as HTMLInputElement).files?.[0];
         if (file) {
-          const buffer = await file.arrayBuffer();
-          const importedMem = new Uint8Array(buffer);
-          const newMem = new Uint8Array(memSize);
-          newMem.set(importedMem.slice(0, memSize));
-          setMemory(newMem);
-          setIsDirty(true);
+          await loadFileIntoMemory(file);
         }
       };
       input.click();
@@ -271,7 +384,7 @@ export const HexEditorView: React.FC = () => {
               </div>
               <div className="flex gap-2">
                 <button onClick={handleImport} className="text-xs px-3 py-1 bg-gray-200 hover:bg-gray-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded text-gray-700 dark:text-slate-200 transition-colors">
-                  Import .bin
+                  Import .bin / .hex
                 </button>
                 <button onClick={handleExport} className="text-xs px-3 py-1 bg-gray-200 hover:bg-gray-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded text-gray-700 dark:text-slate-200 transition-colors">
                   Export .bin
