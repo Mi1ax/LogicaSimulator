@@ -292,13 +292,16 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
       rawX = 0; rawY = height / 2; rawNx = -1; rawNy = 0;
     } else if (node.type === 'NET_LABEL') {
       rawX = width; rawY = height / 2; rawNx = 1; rawNy = 0;
+    } else if (node.type === 'LED_BAR') {
+      const ys = getGridAlignedPinYs(node.inputs.length, height);
+      rawX = -20; rawY = ys[inIndex]; rawNx = -1; rawNy = 0;
     } else {
       const ys = getGridAlignedPinYs(node.inputs.length, height);
       rawX = 0; rawY = ys[inIndex]; rawNx = -1; rawNy = 0;
     }
     const flipX = !!node.properties?.flipX;
-      const flipY = !!node.properties?.flipY;
-      const rotated = applyTransform(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation, flipX, flipY);
+    const flipY = !!node.properties?.flipY;
+    const rotated = applyTransform(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation, flipX, flipY);
     return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
   }
   

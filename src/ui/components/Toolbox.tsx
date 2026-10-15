@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { NodeType } from '../../core/models/types';
-import { BoxSelect, Cpu, ToggleLeft, Lightbulb, Zap, SlidersHorizontal, Tag, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp , Trash2, X } from 'lucide-react';
-import { getNodeDefinition } from '../../core/engine/nodes';
+import { BoxSelect, Cpu, ToggleLeft, Lightbulb, Zap, SlidersHorizontal, Tag, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp, Trash2, X } from 'lucide-react';
+import { NodeRegistry, getNodeDefinition } from '../../core/engine/nodes';
 
 interface ToolItem {
   type: NodeType;
@@ -15,119 +15,85 @@ interface ToolCategory {
   subcategories?: ToolCategory[];
 }
 
-const CATEGORIES: ToolCategory[] = [
-  {
-    name: 'Power & I/O',
-    items: [
-      { type: 'VCC', icon: <Zap size={18} /> },
-      { type: 'GND', icon: <Zap size={18} /> },
-      { type: 'BUTTON', icon: <ToggleLeft size={18} /> },
-      { type: 'DIP_SWITCH', icon: <SlidersHorizontal size={18} /> },
-      { type: 'LED_BAR', icon: <Lightbulb size={18} /> },
-      { type: '7_SEG_DISPLAY', icon: <Lightbulb size={18} /> },
-      { type: 'NET_LABEL', icon: <Tag size={18} /> },
-      { type: 'BUS_BREAKOUT', icon: <Tag size={18} /> },
-      { type: 'NC', icon: <X size={18} /> },
-    ]
-  },
-  {
-    name: 'Basic Logic',
-    items: [
-      { type: 'AND', icon: <Cpu size={18} /> },
-      { type: 'NAND', icon: <Cpu size={18} /> },
-      { type: 'OR', icon: <Cpu size={18} /> },
-      { type: 'NOR', icon: <Cpu size={18} /> },
-      { type: 'XOR', icon: <Cpu size={18} /> },
-      { type: 'XNOR', icon: <Cpu size={18} /> },
-      { type: 'NOT', icon: <BoxSelect size={18} /> },
-      { type: 'BUFFER', icon: <BoxSelect size={18} /> },
-    ]
-  },
-  {
-    name: 'Integrated Circuits',
-    subcategories: [
-      {
-        name: 'Logic Gates',
-        items: [
-          { type: '74LS00', icon: <Cpu size={18} /> },
-          { type: '74LS02', icon: <Cpu size={18} /> },
-          { type: '74LS04', icon: <Cpu size={18} /> },
-          { type: '74LS08', icon: <Cpu size={18} /> },
-          { type: '74LS30', icon: <Cpu size={18} /> },
-          { type: '74LS32', icon: <Cpu size={18} /> },
-          { type: '74LS86', icon: <Cpu size={18} /> },
-        ]
-      },
-      {
-        name: 'Decoders & Multiplexers',
-        items: [
-          { type: '74LS47', icon: <Cpu size={18} /> },
-          { type: '74LS138', icon: <Cpu size={18} /> },
-          { type: '74LS154', icon: <Cpu size={18} /> },
-        ]
-      },
-      {
-        name: 'Counters & Timers',
-        items: [
-          { type: '74LS161', icon: <Cpu size={18} /> },
-          { type: '74LS191', icon: <Cpu size={18} /> },
-        ]
-      },
-      {
-        name: 'Arithmetic & ALU',
-        items: [
-          { type: '74LS283', icon: <Cpu size={18} /> },
-          { type: '74LS181', icon: <Cpu size={18} /> },
-        ]
-      },
-      {
-        name: 'Registers & Buffers',
-        items: [
-          { type: '74LS173', icon: <Cpu size={18} /> },
-          { type: '74LS175', icon: <Cpu size={18} /> },
-          { type: '74LS241', icon: <Cpu size={18} /> },
-          { type: '74LS244', icon: <Cpu size={18} /> },
-          { type: '74LS245', icon: <Cpu size={18} /> },
-          { type: '74LS273', icon: <Cpu size={18} /> },
-          { type: '74LS373', icon: <Cpu size={18} /> },
-          { type: '74LS541', icon: <Cpu size={18} /> },
-        ]
-      },
-      {
-        name: 'Memory',
-        items: [
-          { type: '27C256', icon: <Cpu size={18} /> },
-          { type: '6116', icon: <Cpu size={18} /> },
-          { type: '62256', icon: <Cpu size={18} /> },
-        ]
-      },
-      {
-        name: 'Programmable Logic',
-        items: [
-          { type: 'GAL22V10', icon: <Cpu size={18} /> },
-        ]
-      }
-    ]
+const getToolIcon = (type: NodeType, size = 18): React.ReactNode => {
+  switch (type) {
+    case 'VCC':
+    case 'GND':
+      return <Zap size={size} />;
+    case 'BUTTON':
+    case 'SUB_IN':
+      return <ToggleLeft size={size} />;
+    case 'DIP_SWITCH':
+      return <SlidersHorizontal size={size} />;
+    case 'LED_BAR':
+    case '7_SEG_DISPLAY':
+    case 'SUB_OUT':
+      return <Lightbulb size={size} />;
+    case 'NET_LABEL':
+    case 'BUS_BREAKOUT':
+    case 'SUB_IO':
+      return <Tag size={size} />;
+    case 'NC':
+      return <X size={size} />;
+    case 'NOT':
+    case 'BUFFER':
+      return <BoxSelect size={size} />;
+    default:
+      return <Cpu size={size} />;
   }
-];
+};
+
+function buildBaseCategories(): ToolCategory[] {
+  const rootMap = new Map<string, ToolCategory>();
+
+  Object.values(NodeRegistry).forEach(def => {
+    if (!def.category) return;
+    const parts = def.category.split('/');
+    const rootName = parts[0];
+
+    let rootCat = rootMap.get(rootName);
+    if (!rootCat) {
+      rootCat = { name: rootName };
+      rootMap.set(rootName, rootCat);
+    }
+
+    if (parts.length === 1) {
+      if (!rootCat.items) rootCat.items = [];
+      rootCat.items.push({ type: def.type, icon: getToolIcon(def.type) });
+    } else {
+      const subName = parts[1];
+      if (!rootCat.subcategories) rootCat.subcategories = [];
+      let subCat = rootCat.subcategories.find(s => s.name === subName);
+      if (!subCat) {
+        subCat = { name: subName, items: [] };
+        rootCat.subcategories.push(subCat);
+      }
+      subCat.items!.push({ type: def.type, icon: getToolIcon(def.type) });
+    }
+  });
+
+  return Array.from(rootMap.values());
+}
 
 export const Toolbox: React.FC = () => {
   const startPlacingNode = useSimulatorStore((state) => state.startPlacingNode);
   const appMode = useSimulatorStore((state) => state.appMode);
   const savedCircuits = useSimulatorStore((state) => state.savedCircuits);
-  const subcircuits = Object.entries(savedCircuits).map(([id, sc]) => ({id, name: sc.name}));
+  const subcircuits = Object.entries(savedCircuits).map(([id, sc]) => ({ id, name: sc.name }));
 
   const activeSubcircuitId = useSimulatorStore(state => state.activeSubcircuitId);
   const customCircuits = subcircuits.filter(sc => sc.id !== 'main');
-  const displayCategories = [...CATEGORIES];
+
+  const baseCategories = useMemo(() => buildBaseCategories(), []);
+  const displayCategories = [...baseCategories];
   
   if (activeSubcircuitId !== 'main') {
     displayCategories.unshift({
       name: 'Subcircuit Pins',
       items: [
-        { type: 'SUB_IN' as NodeType, icon: <ToggleLeft size={18} /> },
-        { type: 'SUB_OUT' as NodeType, icon: <Lightbulb size={18} /> },
-        { type: 'SUB_IO' as NodeType, icon: <Tag size={18} /> },
+        { type: 'SUB_IN', icon: getToolIcon('SUB_IN') },
+        { type: 'SUB_OUT', icon: getToolIcon('SUB_OUT') },
+        { type: 'SUB_IO', icon: getToolIcon('SUB_IO') },
       ]
     });
   }
@@ -137,7 +103,7 @@ export const Toolbox: React.FC = () => {
       name: 'Custom Components',
       items: customCircuits.map(sc => ({
         type: `SUBCIRCUIT:${sc.id}` as NodeType,
-        icon: <Cpu size={18} />
+        icon: getToolIcon(`SUBCIRCUIT:${sc.id}`)
       }))
     });
   }
@@ -151,6 +117,7 @@ export const Toolbox: React.FC = () => {
       return [];
     }
   });
+
   // Track expanded state for categories and subcategories
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({
     'Power & I/O': true,
@@ -162,6 +129,7 @@ export const Toolbox: React.FC = () => {
     'Integrated Circuits/Arithmetic & ALU': true,
     'Integrated Circuits/Registers & Buffers': true,
     'Integrated Circuits/Memory': true,
+    'Integrated Circuits/Programmable Logic': true,
   });
 
   const toggleCategory = (key: string) => {
@@ -184,7 +152,6 @@ export const Toolbox: React.FC = () => {
     setExpandedCats(newState);
   };
 
-  
   const clearRecent = () => {
     setRecentNodes([]);
     localStorage.removeItem('logica-recent-nodes');
@@ -237,7 +204,7 @@ export const Toolbox: React.FC = () => {
     const path = parentPath ? `${parentPath}/${category.name}` : category.name;
     const isExpanded = search !== '' || expandedCats[path];
 
-    let filteredItems = filterItems(category.items);
+    const filteredItems = filterItems(category.items);
     let renderedSubcategories: React.ReactNode[] = [];
     
     if (category.subcategories) {
@@ -277,7 +244,6 @@ export const Toolbox: React.FC = () => {
   if (appMode === 'hex' || appMode === 'code') {
     return null;
   }
-
 
   const renderedContent = displayCategories.map(cat => renderCategory(cat)).filter(Boolean);
 
@@ -328,20 +294,7 @@ export const Toolbox: React.FC = () => {
               </button>
             </div>
             <div className="flex flex-col gap-2">
-              {renderItems(recentNodes.map(type => {
-                let icon: React.ReactNode = <Cpu size={16} />;
-                const findIcon = (cats: ToolCategory[]) => {
-                  for (const cat of cats) {
-                    if (cat.items) {
-                      const item = cat.items.find(i => i.type === type);
-                      if (item) icon = item.icon;
-                    }
-                    if (cat.subcategories) findIcon(cat.subcategories);
-                  }
-                };
-                findIcon(displayCategories);
-                return { type, icon };
-              }))}
+              {renderItems(recentNodes.map(type => ({ type, icon: getToolIcon(type, 16) })))}
             </div>
           </div>
         )}

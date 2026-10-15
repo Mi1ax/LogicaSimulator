@@ -28,8 +28,6 @@ export const PropertiesPanel: React.FC = () => {
   const def = getNodeDefinition(node.type);
   if (!def) return null;
 
-  const isVariableInputGate = ['AND', 'OR', 'XOR', 'NAND', 'NOR', 'XNOR', 'LED_BAR'].includes(node.type);
-  const isVariableOutputGate = ['DIP_SWITCH'].includes(node.type);
   const isClock = node.type === 'CLOCK';
 
   return (
@@ -76,7 +74,7 @@ export const PropertiesPanel: React.FC = () => {
         </div>
 
         {/* Flip Controls (Schematic Only) */}
-        {appMode === 'schematic' && (
+        {appMode === 'schematic' && !def.disableTransform && (
           <div className="flex gap-4">
             <label className="flex items-center gap-2 text-xs font-medium text-gray-500 dark:text-slate-400 cursor-pointer" title="Hotkey: X">
               <input
@@ -130,14 +128,14 @@ export const PropertiesPanel: React.FC = () => {
         )}
 
         {/* Variable Inputs */}
-        {isVariableInputGate && (
+        {def.variableInputs && (
           <div>
             <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
-              {node.type === 'LED_BAR' ? 'Number of LEDs' : 'Number of Inputs'}
+              {def.variableInputs.label || 'Number of Inputs'}
             </label>
             <NumberInput
-              min={node.type === 'LED_BAR' ? 1 : 2}
-              max={node.type === 'LED_BAR' ? 32 : 8}
+              min={def.variableInputs.min}
+              max={def.variableInputs.max}
               className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
               value={node.inputs.length}
               onChangeValue={(val) => setNodeInputCount(node.id, val)}
@@ -147,14 +145,14 @@ export const PropertiesPanel: React.FC = () => {
         )}
 
         {/* Variable Outputs */}
-        {isVariableOutputGate && (
+        {def.variableOutputs && (
           <div>
             <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
-              Number of Outputs (Switches)
+              {def.variableOutputs.label || 'Number of Outputs'}
             </label>
             <NumberInput
-              min={1}
-              max={12}
+              min={def.variableOutputs.min}
+              max={def.variableOutputs.max}
               className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
               value={node.outputs.length}
               onChangeValue={(val) => setNodeOutputCount(node.id, val)}
@@ -194,7 +192,7 @@ export const PropertiesPanel: React.FC = () => {
         )}
 
         {/* Memory Editor Button */}
-        {['27C256', '62256', '6116'].includes(node.type) && (
+        {def.memorySize !== undefined && (
           <div className="mt-4">
             <button
               onClick={() => {

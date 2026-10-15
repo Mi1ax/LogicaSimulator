@@ -12,6 +12,7 @@ export interface PinDefinition {
 export interface NodeDefinition {
   type: string;
   label: string;
+  category?: string; // Toolbox category path, e.g. 'Basic Logic' or 'Integrated Circuits/Counters & Timers'
   numInputs: number; // Ignored if customPins is provided
   numOutputs: number; // Ignored if customPins is provided
   defaultProperties?: Record<string, any>;
@@ -19,6 +20,10 @@ export interface NodeDefinition {
   renderAs?: 'GATE' | 'DIP' | 'BUS';
   customPins?: PinDefinition[];
   generatePins?: (properties: Record<string, any>) => PinDefinition[];
+  variableInputs?: { min: number; max: number; label?: string };
+  variableOutputs?: { min: number; max: number; label?: string };
+  memorySize?: number; // Byte size for memory chips (enables Hex Editor view)
+  disableTransform?: boolean; // Disables rotation and flip (e.g. for JUNCTION, NC)
   /**
    * Evaluates the node logic.
    * @param inputs Array of signals corresponding to the input pins (ordered by index)
