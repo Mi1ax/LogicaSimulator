@@ -84,7 +84,11 @@ export const SchematicCanvas: React.FC = () => {
   const settings = useSimulatorStore(state => state.settings);
 
   const initializedRef = useRef(false);
+  const mainLayerRef = useRef<any>(null);
   const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wheelRafRef = useRef<number | null>(null);
+  const pendingViewRef = useRef<{ x: number; y: number; scale: number } | null>(null);
+  const isInteractingViewRef = useRef(false);
   const lastMousePosRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -211,13 +215,21 @@ export const SchematicCanvas: React.FC = () => {
         y={stagePos.y}
         scaleX={scale}
         scaleY={scale}
-        onDragMove={(e) => {
+        onDragStart={(e) => {
           if (e.target === e.target.getStage()) {
-            window.dispatchEvent(new CustomEvent('schematic-drag', { detail: { x: e.target.x(), y: e.target.y() } }));
+            if (!isInteractingViewRef.current && mainLayerRef.current) {
+              isInteractingViewRef.current = true;
+              mainLayerRef.current.listening(false);
+            }
           }
         }}
         onDragEnd={(e) => {
           if (e.target === e.target.getStage()) {
+            if (isInteractingViewRef.current && mainLayerRef.current) {
+              isInteractingViewRef.current = false;
+              mainLayerRef.current.listening(true);
+              mainLayerRef.current.drawHit();
+            }
             setStagePos({ x: e.target.x(), y: e.target.y() });
           }
         }}
@@ -228,68 +240,95 @@ export const SchematicCanvas: React.FC = () => {
           
           const { deltaX, deltaY, ctrlKey, shiftKey } = e.evt;
 
-          // Determine if we are zooming or panning based on settings and modifiers
-          const isTrackpadPinch = ctrlKey; // Browsers convert trackpad pinch to ctrlKey + wheel
+          const currentScale = pendingViewRef.current ? pendingViewRef.current.scale : stage.scaleX();
+          const currentX = pendingViewRef.current ? pendingViewRef.current.x : stage.x();
+          const currentY = pendingViewRef.current ? pendingViewRef.current.y : stage.y();
+
+          const isTrackpadPinch = ctrlKey;
           const forceZoom = isTrackpadPinch || (settings.mouseWheelBehavior === 'zoom' && !shiftKey);
           
+          let nextScale = currentScale;
+          let nextX = currentX;
+          let nextY = currentY;
+
           if (forceZoom) {
-            // Zoom logic
-            const oldScale = stage.scaleX();
             const pointer = stage.getPointerPosition();
             if (!pointer) return;
             
             const mousePointTo = {
-              x: (pointer.x - stage.x()) / oldScale,
-              y: (pointer.y - stage.y()) / oldScale,
+              x: (pointer.x - currentX) / currentScale,
+              y: (pointer.y - currentY) / currentScale,
             };
 
             let direction = deltaY > 0 ? -1 : 1;
             if (settings.invertZoom) direction = -direction;
             
             const zoomAmount = Math.max(0.01, Math.abs(deltaY) * 0.01 * settings.zoomSensitivity);
-            // Limit scaleBy to prevent extreme jumps on high-sensitivity mice
             const scaleBy = 1 + Math.min(zoomAmount, 0.5);
             
-            const newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
+            const candidateScale = direction > 0 ? currentScale * scaleBy : currentScale / scaleBy;
+            if (candidateScale < 0.2 || candidateScale > 5) return;
             
-            if (newScale < 0.2 || newScale > 5) return;
-            
-            const newX = pointer.x - mousePointTo.x * newScale;
-            const newY = pointer.y - mousePointTo.y * newScale;
-            
-            stage.scale({ x: newScale, y: newScale });
-            stage.position({ x: newX, y: newY });
-            
-            window.dispatchEvent(new CustomEvent('schematic-drag', { detail: { x: newX, y: newY, scale: newScale } }));
-            
-            if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
-            wheelTimeoutRef.current = setTimeout(() => {
-              setStagePos({ x: newX, y: newY });
-              setScale(newScale);
-            }, 100);
+            nextScale = candidateScale;
+            nextX = pointer.x - mousePointTo.x * nextScale;
+            nextY = pointer.y - mousePointTo.y * nextScale;
           } else {
-            // Pan logic
             let panX = deltaX;
             let panY = deltaY;
 
-            // If shift is held on a regular mouse, scroll horizontally
             if (shiftKey && !isTrackpadPinch) {
               panX = deltaY;
               panY = deltaX;
             }
 
-            const newX = stage.x() - panX * settings.panSpeed;
-            const newY = stage.y() - panY * settings.panSpeed;
-            
-            stage.position({ x: newX, y: newY });
-            
-            window.dispatchEvent(new CustomEvent('schematic-drag', { detail: { x: newX, y: newY, scale: stage.scaleX() } }));
-            
-            if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
-            wheelTimeoutRef.current = setTimeout(() => {
-              setStagePos({ x: newX, y: newY });
-            }, 100);
+            nextX = currentX - panX * settings.panSpeed;
+            nextY = currentY - panY * settings.panSpeed;
           }
+
+          pendingViewRef.current = { x: nextX, y: nextY, scale: nextScale };
+
+          if (!isInteractingViewRef.current && mainLayerRef.current) {
+            isInteractingViewRef.current = true;
+            mainLayerRef.current.listening(false);
+          }
+
+          if (wheelRafRef.current === null) {
+            wheelRafRef.current = requestAnimationFrame(() => {
+              wheelRafRef.current = null;
+              const pending = pendingViewRef.current;
+              if (!pending) return;
+
+              const applyTransform = () => {
+                if (stage.scaleX() !== pending.scale || stage.scaleY() !== pending.scale) {
+                  stage.scale({ x: pending.scale, y: pending.scale });
+                }
+                stage.position({ x: pending.x, y: pending.y });
+              };
+
+              if (typeof (stage as any)._batchTransformChanges === 'function') {
+                (stage as any)._batchTransformChanges(applyTransform);
+              } else {
+                applyTransform();
+              }
+            });
+          }
+
+          if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
+          wheelTimeoutRef.current = setTimeout(() => {
+            const finalView = pendingViewRef.current;
+            pendingViewRef.current = null;
+            if (isInteractingViewRef.current && mainLayerRef.current) {
+              isInteractingViewRef.current = false;
+              mainLayerRef.current.listening(true);
+              mainLayerRef.current.drawHit();
+            }
+            if (finalView) {
+              setStagePos({ x: finalView.x, y: finalView.y });
+              if (finalView.scale !== scale) {
+                setScale(finalView.scale);
+              }
+            }
+          }, 150);
         }}
         onMouseMove={(e) => {
           const store = useSimulatorStore.getState();
@@ -462,12 +501,9 @@ export const SchematicCanvas: React.FC = () => {
         <Grid 
           width={dimensions.width} 
           height={dimensions.height} 
-          scale={scale} 
-          x={stagePos.x} 
-          y={stagePos.y} 
         />
 
-        <Layer>
+        <Layer ref={mainLayerRef}>
           <WireRenderer />
           {selectionBox && (
             <Rect

@@ -920,6 +920,51 @@ export const useSimulatorStore = create<SimulatorState>()(
     {
       name: 'logica-project-storage',
       version: 1,
+      storage: (() => {
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        let pendingKey: string | null = null;
+        let pendingValue: any = null;
+
+        const flush = () => {
+          if (pendingKey !== null && pendingValue !== null) {
+            try {
+              localStorage.setItem(pendingKey, JSON.stringify(pendingValue));
+            } catch {
+              // Ignore quota or storage errors
+            }
+            pendingKey = null;
+            pendingValue = null;
+          }
+        };
+
+        if (typeof window !== 'undefined') {
+          window.addEventListener('beforeunload', flush);
+        }
+
+        return {
+          getItem: (name: string) => {
+            const str = localStorage.getItem(name);
+            if (!str) return null;
+            try {
+              return JSON.parse(str);
+            } catch {
+              return null;
+            }
+          },
+          setItem: (name: string, value: any) => {
+            pendingKey = name;
+            pendingValue = value;
+            if (timeoutId) clearTimeout(timeoutId);
+            timeoutId = setTimeout(flush, 500);
+          },
+          removeItem: (name: string) => {
+            if (timeoutId) clearTimeout(timeoutId);
+            pendingKey = null;
+            pendingValue = null;
+            localStorage.removeItem(name);
+          },
+        };
+      })(),
       migrate: (persistedState: any, version: number) => {
         if (version === 0) {
           // Future migration from unversioned (0) to 1

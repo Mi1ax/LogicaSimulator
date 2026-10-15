@@ -1,5 +1,5 @@
 import React from 'react';
-import { Group, Circle, Rect } from 'react-konva';
+import { Circle } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
 import { getCanvasTheme } from '../../theme';
@@ -9,18 +9,13 @@ interface Props {
 }
 
 export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
-  const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
   const theme = useSimulatorStore(state => state.theme);
   const isSelected = useSimulatorStore(state =>
     (state.selection?.type === 'node' && state.selection.id === node.id) ||
     state.multiSelection.includes(node.id)
   );
-  const select = useSimulatorStore(state => state.select);
-  const startWire = useSimulatorStore(state => state.startWire);
-  const completeWire = useSimulatorStore(state => state.completeWire);
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
-
   const clickTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const signal = useSimulatorStore(state =>
@@ -31,27 +26,36 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
   else if (signal === 0) color = canvasTheme.signalLow;
   else if (signal === 'X') color = '#ef4444';
   if (isSelected) color = canvasTheme.selectedNodeColor;
-  const isHigh = signal === 1;
 
   return (
-    <Group
+    <Circle
       x={node.x}
       y={node.y}
+      radius={isSelected ? 6 : 4}
+      fill={color}
+      stroke={color}
+      strokeWidth={1}
+      hitStrokeWidth={16}
+      perfectDrawEnabled={false}
+      shadowForStrokeEnabled={false}
       draggable={true}
       onClick={(e) => {
         e.cancelBubble = true;
         const store = useSimulatorStore.getState();
-        if (store.pastingNodeIds && store.pastingNodeIds.includes(node.id)) { store.finishPastingNodes(); return; }
+        if (store.pastingNodeIds && store.pastingNodeIds.includes(node.id)) {
+          store.finishPastingNodes();
+          return;
+        }
         if (store.placingNodeId === node.id) {
           store.finishPlacingNode();
           return;
         }
 
         if (store.draftWire) {
-          completeWire(node.id, node.inputs[0].id, 'input', e.evt.shiftKey);
+          store.completeWire(node.id, node.inputs[0].id, 'input', e.evt.shiftKey);
         } else {
           if (!isSelected) {
-            select({ type: 'node', id: node.id }, e.evt.shiftKey);
+            store.select({ type: 'node', id: node.id }, e.evt.shiftKey);
           } else {
             if (clickTimeout.current) clearTimeout(clickTimeout.current);
             const shiftKey = e.evt.shiftKey;
@@ -61,7 +65,7 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
               if (stage && pointer) {
                 const transform = stage.getAbsoluteTransform().copy().invert();
                 const pos = transform.point(pointer);
-                startWire(node.id, node.outputs[0].id, 'output', pos.x, pos.y, shiftKey);
+                useSimulatorStore.getState().startWire(node.id, node.outputs[0].id, 'output', pos.x, pos.y, shiftKey);
               }
             }, 250);
           }
@@ -76,20 +80,21 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
       }}
       onDragStart={(e) => {
         e.cancelBubble = true;
-        select({ type: 'node', id: node.id }, e.evt.shiftKey);
-        useSimulatorStore.getState().saveHistory();
+        const store = useSimulatorStore.getState();
+        store.select({ type: 'node', id: node.id }, e.evt.shiftKey);
+        store.saveHistory();
       }}
       onDragMove={(e) => {
         const localX = Math.round(e.target.x() / 20) * 20;
         const localY = Math.round(e.target.y() / 20) * 20;
         e.target.position({ x: localX, y: localY });
-        updateNodePosition(node.id, localX, localY);
+        useSimulatorStore.getState().updateNodePosition(node.id, localX, localY);
       }}
       onDragEnd={(e) => {
         const localX = Math.round(e.target.x() / 20) * 20;
         const localY = Math.round(e.target.y() / 20) * 20;
         e.target.position({ x: localX, y: localY });
-        updateNodePosition(node.id, localX, localY, true);
+        useSimulatorStore.getState().updateNodePosition(node.id, localX, localY, true);
       }}
       onMouseEnter={(e) => {
         const container = e.target.getStage()?.container();
@@ -99,27 +104,7 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
         const container = e.target.getStage()?.container();
         if (container) container.style.cursor = 'default';
       }}
-    >
-      {/* Invisible hit area for easier selecting/dragging */}
-      <Rect
-        x={-10} y={-10}
-        width={20} height={20}
-        fill="transparent"
-        perfectDrawEnabled={false}
-      />
-      {/* Visible Dot */}
-      <Circle
-        x={0}
-        y={0}
-        radius={isSelected ? 6 : 4}
-        fill={color}
-        perfectDrawEnabled={false}
-        listening={false}
-        shadowEnabled={isHigh}
-        shadowColor={isHigh ? canvasTheme.signalHigh : 'transparent'}
-        shadowBlur={isHigh ? 4 : 0}
-        shadowOpacity={0.8}
-      />
-    </Group>
+    />
   );
 });
+

@@ -6,53 +6,60 @@ import { getCanvasTheme } from './theme';
 interface GridProps {
   width: number;
   height: number;
-  scale: number;
-  x: number;
-  y: number;
 }
 
-export const Grid: React.FC<GridProps> = ({ width, height, scale, x, y }) => {
+function createGridPatternCanvas(step: number, color: string): HTMLCanvasElement | null {
+  const canvas = document.createElement('canvas');
+  canvas.width = step;
+  canvas.height = step;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  ctx.fillStyle = color;
+  const corners = [
+    [0, 0],
+    [step, 0],
+    [0, step],
+    [step, step],
+  ];
+  for (let i = 0; i < corners.length; i++) {
+    const [cx, cy] = corners[i];
+    ctx.fillRect(cx - 0.5, cy - 0.5, 1.5, 1.5);
+  }
+  return canvas;
+}
+
+export const Grid: React.FC<GridProps> = React.memo(({ width, height }) => {
   const theme = useSimulatorStore((state) => state.theme);
   const canvasTheme = getCanvasTheme(theme === 'dark');
 
-  const patternCanvas = useMemo(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = GRID_SIZE;
-    canvas.height = GRID_SIZE;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-
-    const drawCorners = (drawFn: (cx: number, cy: number) => void) => {
-      [[0, 0], [GRID_SIZE, 0], [0, GRID_SIZE], [GRID_SIZE, GRID_SIZE]].forEach(([cx, cy]) => drawFn(cx, cy));
+  const patterns = useMemo(() => {
+    return {
+      fine: createGridPatternCanvas(GRID_SIZE, canvasTheme.gridColor),
+      coarse: createGridPatternCanvas(GRID_SIZE * 2, canvasTheme.gridColor),
     };
-
-    ctx.fillStyle = canvasTheme.gridColor;
-    drawCorners((cx, cy) => {
-      ctx.fillRect(cx - 0.5, cy - 0.5, 1.5, 1.5);
-    });
-    return canvas;
-  }, [theme, canvasTheme.gridColor]);
+  }, [canvasTheme.gridColor]);
 
   return (
     <Layer listening={false}>
       <Shape
-        sceneFunc={(context) => {
-          let step = GRID_SIZE;
+        sceneFunc={(context, shape) => {
+          const stage = shape.getStage();
+          const scale = stage ? stage.scaleX() : 1;
+          const x = stage ? stage.x() : 0;
+          const y = stage ? stage.y() : 0;
 
-          const padXRaw = Math.ceil(width / scale);
-          const padYRaw = Math.ceil(height / scale);
-          const padX = Math.ceil(padXRaw / step) * step;
-          const padY = Math.ceil(padYRaw / step) * step;
+          const useCoarse = scale < 0.45;
+          const step = useCoarse ? GRID_SIZE * 2 : GRID_SIZE;
+          const patternCanvas = useCoarse ? patterns.coarse : patterns.fine;
 
-          const startX = Math.floor(-x / scale / step) * step - padX;
-          const endX = startX + Math.ceil(width / scale / step) * step + step + padX * 2;
+          const startX = Math.floor(-x / scale / step) * step - step;
+          const endX = startX + Math.ceil(width / scale / step) * step + step * 2;
 
-          const startY = Math.floor(-y / scale / step) * step - padY;
-          const endY = startY + Math.ceil(height / scale / step) * step + step + padY * 2;
+          const startY = Math.floor(-y / scale / step) * step - step;
+          const endY = startY + Math.ceil(height / scale / step) * step + step * 2;
 
           if (patternCanvas) {
-            // Note: Konva's context wrapper doesn't type createPattern strictly correctly for all canvases
-            // but it delegates to the native context.
             const pattern = context.createPattern(patternCanvas, 'repeat');
             if (pattern) {
               context.fillStyle = pattern;
@@ -61,18 +68,20 @@ export const Grid: React.FC<GridProps> = ({ width, height, scale, x, y }) => {
           }
 
           // Draw logical center axes (origin)
-          context.beginPath();
-          if (startX <= 0 && endX >= 0) {
-            context.moveTo(0, startY);
-            context.lineTo(0, endY);
+          if ((startX <= 0 && endX >= 0) || (startY <= 0 && endY >= 0)) {
+            context.beginPath();
+            if (startX <= 0 && endX >= 0) {
+              context.moveTo(0, startY);
+              context.lineTo(0, endY);
+            }
+            if (startY <= 0 && endY >= 0) {
+              context.moveTo(startX, 0);
+              context.lineTo(endX, 0);
+            }
+            context.strokeStyle = theme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.15)';
+            context.lineWidth = 2 / scale;
+            context.stroke();
           }
-          if (startY <= 0 && endY >= 0) {
-            context.moveTo(startX, 0);
-            context.lineTo(endX, 0);
-          }
-          context.strokeStyle = theme === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.15)';
-          context.lineWidth = 2 / scale;
-          context.stroke();
 
           // Add a distinct dot at exactly (0, 0)
           if (startX <= 0 && endX >= 0 && startY <= 0 && endY >= 0) {
@@ -82,8 +91,10 @@ export const Grid: React.FC<GridProps> = ({ width, height, scale, x, y }) => {
             context.fill();
           }
         }}
+        perfectDrawEnabled={false}
         listening={false}
       />
     </Layer>
   );
-};
+});
+

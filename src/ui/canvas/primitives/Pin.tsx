@@ -43,12 +43,8 @@ interface PinProps {
 }
 
 export const Pin: React.FC<PinProps> = React.memo(({ x, y, type, id, nodeId, opacity }) => {
-  const startWire = useSimulatorStore(state => state.startWire);
-  const completeWire = useSimulatorStore(state => state.completeWire);
-  const cancelWire = useSimulatorStore(state => state.cancelWire);
   const pinState = useSimulatorStore(state => state.simState.pinStates[id]);
   const theme = useSimulatorStore(state => state.theme);
-  const canvasTheme = getCanvasTheme(theme === 'dark');
   const isConnected = useSimulatorStore(state =>
     getPinConnectionSets(state.wires, state.nodes).connectedPinsSet.has(id)
   );
@@ -56,10 +52,16 @@ export const Pin: React.FC<PinProps> = React.memo(({ x, y, type, id, nodeId, opa
     getPinConnectionSets(state.wires, state.nodes).ncConnectedPinsSet.has(id)
   );
 
+  if (isConnectedToNC || opacity === 0) {
+    return null;
+  }
+
+  const canvasTheme = getCanvasTheme(theme === 'dark');
+
   let fill = type === 'input' ? canvasTheme.pinInputFill : canvasTheme.pinOutputFill;
   let stroke = type === 'input' ? canvasTheme.pinInputStroke : canvasTheme.pinOutputStroke;
-  let radius = 5;
-  let strokeWidth = 1;
+  const radius = 5;
+  const strokeWidth = isConnected ? 1 : 2;
 
   if (pinState === 1) {
     fill = canvasTheme.signalHigh;
@@ -72,30 +74,24 @@ export const Pin: React.FC<PinProps> = React.memo(({ x, y, type, id, nodeId, opa
     stroke = '#ef4444';
   }
 
-  // If not connected, make it hollow (transparent) so it's obvious!
-  if (!isConnected) {
-    fill = 'transparent';
-    strokeWidth = 2; // Make border a bit thicker so it's still easy to see and click
-  }
-
-  const isVisible = !isConnectedToNC && opacity !== 0;
-
   return (
     <Circle
       id={id}
       name={`pin-${type}`}
       x={x}
       y={y}
-      opacity={isVisible ? (opacity ?? 1) : 0}
+      opacity={opacity ?? 1}
       radius={radius}
       fill={fill}
+      fillEnabled={isConnected}
       stroke={stroke}
+      strokeEnabled={!isConnected || pinState === undefined}
       strokeWidth={strokeWidth}
-      hitStrokeWidth={15}
+      hitStrokeWidth={12}
       onMouseEnter={(e) => {
         const store = useSimulatorStore.getState();
         const node = store.nodes.find(n => n.id === nodeId);
-        if (node?.type === 'NC' || isConnectedToNC) return; // Don't show crosshair for NC or NC-connected pins
+        if (node?.type === 'NC') return;
         
         const container = e.target.getStage()?.container();
         if (container) container.style.cursor = 'crosshair';
@@ -104,26 +100,24 @@ export const Pin: React.FC<PinProps> = React.memo(({ x, y, type, id, nodeId, opa
       onMouseLeave={(e) => {
         const store = useSimulatorStore.getState();
         const node = store.nodes.find(n => n.id === nodeId);
-        if (node?.type === 'NC' || isConnectedToNC) return;
+        if (node?.type === 'NC') return;
         
         const container = e.target.getStage()?.container();
         if (container) container.style.cursor = 'default';
         e.target.scale({ x: 1, y: 1 });
       }}
       onClick={(e) => {
-        const store = useSimulatorStore.getState();
-        if (store.placingNodeId) return;
-
         const state = useSimulatorStore.getState();
-        const node = store.nodes.find(n => n.id === nodeId);
+        if (state.placingNodeId) return;
+
+        const node = state.nodes.find(n => n.id === nodeId);
         
-        // Prevent both starting AND completing a wire on NC or NC-connected pins
-        if (node?.type === 'NC' || isConnectedToNC) {
+        if (node?.type === 'NC') {
           if (state.draftWire) {
-             cancelWire();
+             state.cancelWire();
              e.cancelBubble = true;
           }
-          return; // Allow bubble up so the NC node or parent Node can be selected!
+          return;
         }
 
         e.cancelBubble = true;
@@ -137,13 +131,13 @@ export const Pin: React.FC<PinProps> = React.memo(({ x, y, type, id, nodeId, opa
           const transform = stage.getAbsoluteTransform().copy().invert();
           const pos = transform.point(pointer);
           
-          startWire(nodeId, id, type, pos.x, pos.y, e.evt.shiftKey);
+          state.startWire(nodeId, id, type, pos.x, pos.y, e.evt.shiftKey);
         } else {
-          completeWire(nodeId, id, type, e.evt.shiftKey);
+          state.completeWire(nodeId, id, type, e.evt.shiftKey);
         }
       }}
       perfectDrawEnabled={false}
-      listening={isVisible}
     />
   );
 });
+

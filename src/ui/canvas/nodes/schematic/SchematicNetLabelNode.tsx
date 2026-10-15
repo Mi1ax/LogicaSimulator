@@ -1,5 +1,5 @@
 import React from 'react';
-import { Group, Rect, Text, Line } from 'react-konva';
+import { Rect, Text, Line } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
 import { Pin } from '../../primitives/Pin';
@@ -24,6 +24,7 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
 
   const isInputSide = node.type === 'SUB_OUT' || (node.type === 'SUB_IO' && node.properties?.flipX);
   const name = String(node.properties?.label || (node.type === 'SUB_IN' ? 'IN' : node.type === 'SUB_OUT' ? 'OUT' : node.type === 'SUB_IO' ? 'I/O' : 'NET'));
+  const textWidth = width - 10;
 
   return (
     <SchematicNodeWrapper
@@ -43,33 +44,46 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
         }
       }}
     >
-      <Rect x={0} y={15} width={width} height={10} fill="transparent" perfectDrawEnabled={false} />
-      <Line points={isInputSide ? [0, height / 2, 10, height / 2] : [width - 10, height / 2, width, height / 2]} stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
-      
-      <Group 
-        x={isInputSide ? (width + 10) / 2 : (width - 10) / 2} 
-        y={height / 2} 
-        scaleX={node.properties?.flipX ? -1 : 1} 
-        scaleY={node.properties?.flipY ? -1 : 1}
+      <Line
+        points={isInputSide ? [0, height / 2, 10, height / 2] : [width - 10, height / 2, width, height / 2]}
+        stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
+        strokeWidth={2}
         listening={false}
-      >
-        <Text 
-          x={-(width - 10) / 2}
-          y={-10}
-          width={width - 10} 
-          height={20}
-          text={name} 
-          align={node.properties?.flipX ? (isInputSide ? 'right' : 'left') : (isInputSide ? 'left' : 'right')}
-          verticalAlign="middle"
-          fontSize={10}
-          fontFamily="sans-serif"
-          fontStyle={node.type.startsWith('SUB_') ? 'bold' : 'normal'}
-          fill={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.textColor}
-          listening={false}
-        />
-      </Group>
+        perfectDrawEnabled={false}
+      />
       
-      {isSelected && <Rect x={isInputSide ? 10 : 0} y={12} width={width - 10} height={16} stroke={canvasTheme.selectedNodeColor} strokeWidth={1} dash={[2,2]} listening={false} perfectDrawEnabled={false} />}
+      <Text 
+        x={isInputSide ? (width + 10) / 2 : (width - 10) / 2}
+        y={height / 2}
+        offsetX={textWidth / 2}
+        offsetY={10}
+        scaleX={node.properties?.flipX ? -1 : 1}
+        scaleY={node.properties?.flipY ? -1 : 1}
+        width={textWidth} 
+        height={20}
+        text={name} 
+        align={node.properties?.flipX ? (isInputSide ? 'right' : 'left') : (isInputSide ? 'left' : 'right')}
+        verticalAlign="middle"
+        fontSize={10}
+        fontFamily="sans-serif"
+        fontStyle={node.type.startsWith('SUB_') ? 'bold' : 'normal'}
+        fill={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.textColor}
+        perfectDrawEnabled={false}
+      />
+      
+      {isSelected && (
+        <Rect
+          x={isInputSide ? 10 : 0}
+          y={12}
+          width={textWidth}
+          height={16}
+          stroke={canvasTheme.selectedNodeColor}
+          strokeWidth={1}
+          dash={[2, 2]}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+      )}
       
       {pin && (
         <Pin
@@ -83,3 +97,4 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
     </SchematicNodeWrapper>
   );
 });
+
