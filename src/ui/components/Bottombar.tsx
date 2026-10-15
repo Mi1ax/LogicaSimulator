@@ -9,7 +9,7 @@ export const Bottombar: React.FC = () => {
   const resetSimulation = useSimulatorStore(state => state.resetSimulation);
   const simSpeed = useSimulatorStore(state => state.simSpeed);
   const setSimSpeed = useSimulatorStore(state => state.setSimSpeed);
-  const simState = useSimulatorStore(state => state.simState);
+  const tickCount = useSimulatorStore(state => state.simState.tickCount);
 
   const [localSpeed, setLocalSpeed] = useState(simSpeed.toString());
   useEffect(() => {
@@ -19,7 +19,7 @@ export const Bottombar: React.FC = () => {
   return (
     <div className="h-12 bg-white dark:bg-slate-800 border-t border-gray-300 dark:border-slate-700 flex items-center justify-center px-4 shadow-[0_-1px_2px_rgba(0,0,0,0.05)] z-20 relative transition-colors">
       <div className="absolute left-6 text-sm font-medium text-gray-500 dark:text-slate-400">
-        Tick: {simState.tickCount}
+        Tick: {tickCount}
       </div>
 
       <div className="flex items-center gap-2 bg-gray-100 dark:bg-slate-900/50 p-1 rounded-md border border-gray-200 dark:border-slate-600">
@@ -51,9 +51,9 @@ export const Bottombar: React.FC = () => {
 
         <button
           onClick={() => { setSimRunning(false); resetSimulation(); }}
-          disabled={!simRunning && simState.tickCount === 0}
+          disabled={!simRunning && tickCount === 0}
           className={`p-1 rounded transition-colors ${
-            (!simRunning && simState.tickCount === 0)
+            (!simRunning && tickCount === 0)
               ? 'opacity-50 cursor-not-allowed text-gray-400' 
               : 'text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30'
           }`}

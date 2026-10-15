@@ -24,7 +24,9 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
 
   const isInputSide = node.type === 'SUB_OUT' || (node.type === 'SUB_IO' && node.properties?.flipX);
   const name = String(node.properties?.label || (node.type === 'SUB_IN' ? 'IN' : node.type === 'SUB_OUT' ? 'OUT' : node.type === 'SUB_IO' ? 'I/O' : 'NET'));
-  const textWidth = width - 10;
+  const textWidth = Math.max(width - 10, name.length * 7 + 8);
+  const boxX = isInputSide ? 10 : (width - 10) - textWidth;
+  const boxCenterX = boxX + textWidth / 2;
 
   return (
     <SchematicNodeWrapper
@@ -53,7 +55,7 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
       />
       
       <Text 
-        x={isInputSide ? (width + 10) / 2 : (width - 10) / 2}
+        x={boxCenterX}
         y={height / 2}
         offsetX={textWidth / 2}
         offsetY={10}
@@ -61,7 +63,8 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
         scaleY={node.properties?.flipY ? -1 : 1}
         width={textWidth} 
         height={20}
-        text={name} 
+        text={name}
+        wrap="none"
         align={node.properties?.flipX ? (isInputSide ? 'right' : 'left') : (isInputSide ? 'left' : 'right')}
         verticalAlign="middle"
         fontSize={10}
@@ -73,7 +76,7 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
       
       {isSelected && (
         <Rect
-          x={isInputSide ? 10 : 0}
+          x={boxX}
           y={12}
           width={textWidth}
           height={16}

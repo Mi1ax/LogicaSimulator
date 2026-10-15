@@ -12,6 +12,9 @@ export const PropertiesPanel: React.FC = () => {
   const setNodeInputCount = useSimulatorStore(state => state.setNodeInputCount);
   const setNodeOutputCount = useSimulatorStore(state => state.setNodeOutputCount);
   const appMode = useSimulatorStore(state => state.appMode);
+  const simSpeed = useSimulatorStore(state => state.simSpeed);
+  const simRunning = useSimulatorStore(state => state.simRunning);
+  const toggleInputNode = useSimulatorStore(state => state.toggleInputNode);
 
   const node = selection?.type === 'node' ? nodes.find(n => n.id === selection.id) : undefined;
 
@@ -29,6 +32,7 @@ export const PropertiesPanel: React.FC = () => {
   if (!def) return null;
 
   const isClock = node.type === 'CLOCK';
+  const isClockLike = node.type === 'CLOCK' || node.type === 'NE555';
 
   return (
     <div className="w-64 bg-white dark:bg-slate-800 border-l border-gray-200 dark:border-slate-700 flex flex-col shadow-lg z-10 relative">
@@ -161,35 +165,210 @@ export const PropertiesPanel: React.FC = () => {
           </div>
         )}
 
-        {/* Clock Frequency */}
-        {isClock && (
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
-                High Ticks
-              </label>
-              <NumberInput
-                min={1}
-                className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
-                value={node.properties?.highTicks ?? node.properties?.interval ?? 5}
-                onChangeValue={(val) => updateNodeProperties(node.id, { highTicks: val })}
-                fallbackValue={node.properties?.highTicks ?? node.properties?.interval ?? 5}
-              />
+        {/* Clock / NE555 Controls */}
+        {isClockLike && (() => {
+          const highTicks = Math.max(1, node.properties?.highTicks ?? node.properties?.interval ?? 5);
+          const lowTicks = Math.max(1, node.properties?.lowTicks ?? node.properties?.interval ?? 5);
+          const periodTicks = highTicks + lowTicks;
+          const freqHz = simSpeed / periodTicks;
+          const dutyCycle = Math.round((highTicks / periodTicks) * 100);
+          const mode = node.properties?.mode || 'auto';
+          const isManual = isClock && mode === 'manual';
+
+          return (
+            <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-slate-700">
+              {isClock && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+                    Clock Mode
+                  </label>
+                  <div className="grid grid-cols-2 gap-1 bg-gray-100 dark:bg-slate-900 p-1 rounded-md">
+                    <button
+                      type="button"
+                      onClick={() => updateNodeProperties(node.id, { mode: 'auto' })}
+                      className={`py-1 text-xs font-medium rounded transition-colors ${
+                        !isManual
+                          ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                          : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      Auto (OSC)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateNodeProperties(node.id, { mode: 'manual' })}
+                      className={`py-1 text-xs font-medium rounded transition-colors ${
+                        isManual
+                          ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                          : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      Manual
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {isManual ? (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    disabled={!simRunning}
+                    onClick={() => toggleInputNode(node.id)}
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-1.5 px-3 rounded transition-colors text-xs"
+                  >
+                    Toggle Clock ({node.properties?.manualValue === 1 ? 'HIGH → LOW' : 'LOW → HIGH'})
+                  </button>
+                  <p className="text-[11px] text-gray-500 dark:text-slate-400">
+                    Tip: Click the clock directly on the canvas while simulation is running to toggle its state.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Frequency, Period & Duty Cycle Readout */}
+                  <div className="bg-gray-50 dark:bg-slate-900/70 border border-gray-200 dark:border-slate-700 rounded-md p-2.5 flex justify-between items-center text-xs">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-slate-500">Frequency</div>
+                      <div className="font-mono font-semibold text-gray-900 dark:text-slate-100">
+                        {freqHz >= 1000
+                          ? `${(freqHz / 1000).toFixed(2)} kHz`
+                          : freqHz >= 10
+                          ? `${freqHz.toFixed(1)} Hz`
+                          : `${freqHz.toFixed(2)} Hz`}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase tracking-wider text-gray-400 dark:text-slate-500">Duty / Period</div>
+                      <div className="font-mono text-gray-700 dark:text-slate-300">
+                        {dutyCycle}% (
+                        {freqHz > 0
+                          ? 1 / freqHz < 1
+                            ? `${((1000) / freqHz).toFixed(1)} ms`
+                            : `${(1 / freqHz).toFixed(2)} s`
+                          : `${periodTicks}T`}
+                        )
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Target Frequency Presets (50% Duty) */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+                      Target Frequency (50% Duty)
+                    </label>
+                    <div className="grid grid-cols-5 gap-1">
+                      {[
+                        { label: '0.5Hz', hz: 0.5, title: '0.5 Hz (2 Sec period)' },
+                        { label: '1Hz', hz: 1, title: '1 Hz (1 Sec period)' },
+                        { label: '62.5Hz', hz: 62.5, title: '62.5 Hz (16 ms period)' },
+                        { label: '100Hz', hz: 100, title: '100 Hz (10 ms period)' },
+                        { label: '1kHz', hz: 1000, title: '1 kHz (1 ms period @ 2000 Hz sim speed)' },
+                      ].map((preset) => {
+                        const isMatch = Math.abs(freqHz - preset.hz) < 0.05 && highTicks === lowTicks;
+                        return (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            title={preset.title}
+                            onClick={() => {
+                              const store = useSimulatorStore.getState();
+                              // Ensure simulation speed is high enough (2000 Hz base works cleanly for 1kHz, 62.5Hz/16ms, 100Hz, 1Hz, 0.5Hz/2s)
+                              const targetSimSpeed =
+                                store.simSpeed >= 2000 && store.simSpeed % (preset.hz * 2) === 0
+                                  ? store.simSpeed
+                                  : Math.max(store.simSpeed, 2000);
+                              const halfPeriod = Math.max(1, Math.round(targetSimSpeed / (preset.hz * 2)));
+                              const exactSpeed = Math.round(halfPeriod * 2 * preset.hz);
+                              if (store.simSpeed !== exactSpeed && (preset.hz >= 50 || store.simSpeed < exactSpeed)) {
+                                store.setSimSpeed(exactSpeed);
+                              }
+                              const finalSpeed =
+                                preset.hz >= 50 || store.simSpeed < exactSpeed ? exactSpeed : store.simSpeed;
+                              const ticks = Math.max(1, Math.round(finalSpeed / (preset.hz * 2)));
+                              updateNodeProperties(node.id, { highTicks: ticks, lowTicks: ticks });
+                            }}
+                            className={`py-1 text-[11px] font-mono rounded border transition-colors ${
+                              isMatch
+                                ? 'bg-blue-600 border-blue-600 text-white'
+                                : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 hover:border-blue-400'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Quick Ticks Presets */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+                      Quick Ticks (High / Low)
+                    </label>
+                    <div className="grid grid-cols-5 gap-1">
+                      {[1, 2, 5, 16, 100].map((t) => {
+                        const active = highTicks === t && lowTicks === t;
+                        return (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => updateNodeProperties(node.id, { highTicks: t, lowTicks: t })}
+                            className={`py-1 text-xs font-mono rounded border transition-colors ${
+                              active
+                                ? 'bg-blue-600 border-blue-600 text-white'
+                                : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 hover:border-blue-400'
+                            }`}
+                          >
+                            {t}T
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+                        High Ticks
+                      </label>
+                      <NumberInput
+                        min={1}
+                        className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
+                        value={highTicks}
+                        onChangeValue={(val) => updateNodeProperties(node.id, { highTicks: val })}
+                        fallbackValue={highTicks}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+                        Low Ticks
+                      </label>
+                      <NumberInput
+                        min={1}
+                        className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
+                        value={lowTicks}
+                        onChangeValue={(val) => updateNodeProperties(node.id, { lowTicks: val })}
+                        fallbackValue={lowTicks}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 bg-gray-50 dark:bg-slate-900"
+                        checked={node.properties?.startHigh === false}
+                        onChange={(e) => updateNodeProperties(node.id, { startHigh: !e.target.checked })}
+                      />
+                      Invert Initial Phase (Start LOW)
+                    </label>
+                  </div>
+                </>
+              )}
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
-                Low Ticks
-              </label>
-              <NumberInput
-                min={1}
-                className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
-                value={node.properties?.lowTicks ?? node.properties?.interval ?? 5}
-                onChangeValue={(val) => updateNodeProperties(node.id, { lowTicks: val })}
-                fallbackValue={node.properties?.lowTicks ?? node.properties?.interval ?? 5}
-              />
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Memory Editor Button */}
         {def.memorySize !== undefined && (
@@ -207,12 +386,22 @@ export const PropertiesPanel: React.FC = () => {
           </div>
         )}
 
-        {/* GAL22V10 JEDEC Loader */}
+        {/* GAL22V10 JEDEC Loader & Code Editor */}
         {node.type === 'GAL22V10' && (
-          <div className="mt-4">
+          <div className="mt-4 space-y-2">
             <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
-              JEDEC File
+              PLD / JEDEC Programming
             </label>
+            <button
+              onClick={() => {
+                const store = useSimulatorStore.getState();
+                store.setSelectedMemoryNodeId(node.id);
+                store.setAppMode('code');
+              }}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded transition-colors text-sm"
+            >
+              Open Code Editor (.pld)
+            </button>
             <input
               type="file"
               accept=".jed"
@@ -236,12 +425,12 @@ export const PropertiesPanel: React.FC = () => {
             />
             <button
               onClick={() => document.getElementById('jedec-upload')?.click()}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded transition-colors text-sm"
+              className="w-full bg-slate-600 hover:bg-slate-700 text-white font-medium py-1.5 px-4 rounded transition-colors text-xs"
             >
-              Load .jed File
+              Load .jed File Directly
             </button>
             {node.properties?.jedecString && (
-              <div className="mt-2 text-[10px] text-green-600 dark:text-green-400 text-center">
+              <div className="mt-1 text-[10px] text-green-600 dark:text-green-400 text-center">
                 ✓ JEDEC Loaded
               </div>
             )}
@@ -249,7 +438,7 @@ export const PropertiesPanel: React.FC = () => {
         )}
 
         {/* DIP Pinout Diagram */}
-        {(node.properties?.renderAs === 'DIP' || def.renderAs === 'DIP') && (
+        {!isClock && (node.properties?.renderAs === 'DIP' || def.renderAs === 'DIP') && (
           <div className="mt-6 pt-4 border-t border-gray-200 dark:border-slate-700">
             <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-3 text-center">
               DIP Pinout

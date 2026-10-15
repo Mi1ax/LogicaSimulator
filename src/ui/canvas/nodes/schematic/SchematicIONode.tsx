@@ -26,17 +26,19 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   const isClock = node.type === 'CLOCK';
   const isVcc = node.type === 'VCC';
   const isGnd = node.type === 'GND';
+  const isPullUp = node.type === 'PULL_UP';
+  const isPullDown = node.type === 'PULL_DOWN';
 
   const val = useSimulatorStore(state => {
     if (isInput) return node.properties?.value === 1 ? 1 : 0;
     if (isOutput) return state.simState.pinStates[node.inputs[0]?.id];
-    if (isClock) return state.simState.pinStates[node.outputs[0]?.id];
+    if (isClock || isPullUp || isPullDown) return state.simState.pinStates[node.outputs[0]?.id];
     if (isVcc) return 1;
     if (isGnd) return 0;
     return undefined;
   });
 
-  const isInputLike = isInput || isClock || isVcc || isGnd;
+  const isInputLike = isInput || isClock || isVcc || isGnd || isPullUp || isPullDown;
   let indicatorFill = canvasTheme.outputIndicator;
   if (isInputLike) indicatorFill = canvasTheme.inputIndicator;
   if (val === 1) indicatorFill = canvasTheme.signalHigh;
@@ -58,6 +60,33 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
           <Rect x={0} y={0} width={width} height={height} fill="transparent" perfectDrawEnabled={false} />
           {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} listening={false} perfectDrawEnabled={false} />}
         </>
+      ) : isPullUp ? (
+        <>
+          {/* T-bar at top + zig-zag resistor down to pin at (width/2, height) */}
+          <Line points={[10, 6, width - 10, 6]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+          <Line
+            points={[
+              width / 2, 6,
+              width / 2, 11,
+              width / 2 + 5, 13.5,
+              width / 2 - 5, 18.5,
+              width / 2 + 5, 23.5,
+              width / 2 - 5, 28.5,
+              width / 2, 31,
+              width / 2, height,
+            ]}
+            stroke={borderStroke}
+            strokeWidth={2}
+            lineJoin="round"
+            listening={false}
+            perfectDrawEnabled={false}
+          />
+          <Group x={width / 2} y={-6} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
+            <Text text="VCC" x={-width / 2} y={-6} width={width} align="center" fontSize={11} fontFamily="monospace" fill={canvasTheme.textColor} listening={false} />
+          </Group>
+          <Rect x={0} y={0} width={width} height={height} fill="transparent" perfectDrawEnabled={false} />
+          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} listening={false} perfectDrawEnabled={false} />}
+        </>
       ) : isGnd ? (
         <>
           <Line points={[width/2, 0, width/2, height - 10]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
@@ -66,6 +95,35 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
           <Line points={[18, height, width - 18, height]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
           <Group x={width / 2} y={height + 11} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
             <Text text="GND" x={-width / 2} y={-6} width={width} align="center" fontSize={12} fontFamily="monospace" fill={canvasTheme.textColor} listening={false} />
+          </Group>
+          <Rect x={0} y={0} width={width} height={height} fill="transparent" perfectDrawEnabled={false} />
+          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} listening={false} perfectDrawEnabled={false} />}
+        </>
+      ) : isPullDown ? (
+        <>
+          {/* Pin at (width/2, 0), zig-zag resistor down to GND bars */}
+          <Line
+            points={[
+              width / 2, 0,
+              width / 2, 7,
+              width / 2 + 5, 9.5,
+              width / 2 - 5, 14.5,
+              width / 2 + 5, 19.5,
+              width / 2 - 5, 24.5,
+              width / 2, 27,
+              width / 2, height - 8,
+            ]}
+            stroke={borderStroke}
+            strokeWidth={2}
+            lineJoin="round"
+            listening={false}
+            perfectDrawEnabled={false}
+          />
+          <Line points={[10, height - 8, width - 10, height - 8]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+          <Line points={[14, height - 4, width - 14, height - 4]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+          <Line points={[18, height, width - 18, height]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+          <Group x={width / 2} y={height + 11} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
+            <Text text="GND" x={-width / 2} y={-6} width={width} align="center" fontSize={11} fontFamily="monospace" fill={canvasTheme.textColor} listening={false} />
           </Group>
           <Rect x={0} y={0} width={width} height={height} fill="transparent" perfectDrawEnabled={false} />
           {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} listening={false} perfectDrawEnabled={false} />}
@@ -162,27 +220,77 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
             </Group>
           )}
           {isClock && (
-            <Group x={width / 2} y={height / 2} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
-              <Text
-                text="CLK"
-                x={-width / 2}
-                y={-height / 2}
-                width={width}
-                height={height}
-                align="center"
-                verticalAlign="middle"
-                fontSize={14}
-                fontFamily="monospace"
-                fontStyle="bold"
-                fill={canvasTheme.textColor}
-                listening={false}
+            <Group
+              x={4}
+              y={4}
+              onMouseEnter={(e) => {
+                const st = useSimulatorStore.getState();
+                if (!st.simRunning || node.properties?.mode !== 'manual') return;
+                const container = e.target.getStage()?.container();
+                if (container && !st.placingNodeId && !st.pastingNodeIds) container.style.cursor = 'pointer';
+              }}
+              onMouseLeave={(e) => {
+                const st = useSimulatorStore.getState();
+                if (!st.simRunning || node.properties?.mode !== 'manual') return;
+                const container = e.target.getStage()?.container();
+                if (container && !st.placingNodeId && !st.pastingNodeIds) container.style.cursor = 'grab';
+              }}
+              onClick={(e) => {
+                const st = useSimulatorStore.getState();
+                if (!isPlacing && st.simRunning && node.properties?.mode === 'manual') {
+                  e.cancelBubble = true;
+                  toggleInputNode(node.id);
+                }
+              }}
+            >
+              <Rect
+                x={0}
+                y={0}
+                width={width - 8}
+                height={height - 8}
+                fill={val === 1 ? '#3b82f6' : canvasTheme.nodeBg}
+                stroke={canvasTheme.nodeBorder}
+                strokeWidth={1}
+                cornerRadius={2}
+                perfectDrawEnabled={false}
               />
+              {/* Square-wave (meander) symbol, kept upright under rotation/flip */}
+              <Group
+                x={(width - 8) / 2}
+                y={(height - 8) / 2}
+                rotation={-(node.properties?.rotation || 0)}
+                scaleX={node.properties?.flipX ? -1 : 1}
+                scaleY={node.properties?.flipY ? -1 : 1}
+                listening={false}
+              >
+                <Line
+                  points={[-16, 6, -10, 6, -10, -6, 0, -6, 0, 6, 10, 6, 10, -6, 16, -6]}
+                  stroke={val === 1 ? '#ffffff' : canvasTheme.textColor}
+                  strokeWidth={2}
+                  lineCap="round"
+                  lineJoin="round"
+                  listening={false}
+                  perfectDrawEnabled={false}
+                />
+                {node.properties?.mode === 'manual' && (
+                  <Text
+                    text="M"
+                    x={12}
+                    y={2}
+                    fontSize={8}
+                    fontFamily="monospace"
+                    fontStyle="bold"
+                    fill={val === 1 ? '#ffffff' : canvasTheme.textColor}
+                    listening={false}
+                  />
+                )}
+              </Group>
             </Group>
           )}
         </>
       )}
 
-      {node.properties?.label && !isVcc && !isGnd && (
+      {node.properties?.label && !isVcc && !isGnd && !isPullUp && !isPullDown && (
         <Group x={width / 2} y={-14} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
           <Text
             text={node.properties.label}
@@ -198,7 +306,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
       )}
 
       {/* Pins */}
-      {node.inputs.map((pin) => (
+      {!isClock && node.inputs.map((pin) => (
         <Pin
           key={pin.id}
           id={pin.id}
@@ -211,8 +319,8 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
       {node.outputs.map((pin) => {
         let px = width;
         let py = height / 2;
-        if (isVcc) { px = width / 2; py = height; }
-        if (isGnd) { px = width / 2; py = 0; }
+        if (isVcc || isPullUp) { px = width / 2; py = height; }
+        if (isGnd || isPullDown) { px = width / 2; py = 0; }
         return (
           <Pin
             key={pin.id}

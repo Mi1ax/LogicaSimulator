@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { NodeType } from '../../core/models/types';
-import { BoxSelect, Cpu, ToggleLeft, Lightbulb, Zap, SlidersHorizontal, Tag, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp, Trash2, X } from 'lucide-react';
-import { NodeRegistry, getNodeDefinition } from '../../core/engine/nodes';
+import { BoxSelect, Cpu, ToggleLeft, Lightbulb, Zap, SlidersHorizontal, Tag, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp, Trash2, X, Grid3X3 } from 'lucide-react';
+import { ALL_BUILTIN_NODES, getNodeDefinition } from '../../core/engine/nodes';
 
 interface ToolItem {
   type: NodeType;
@@ -19,12 +19,19 @@ const getToolIcon = (type: NodeType, size = 18): React.ReactNode => {
   switch (type) {
     case 'VCC':
     case 'GND':
+    case 'PULL_UP':
+    case 'PULL_DOWN':
+    case 'CLOCK':
       return <Zap size={size} />;
+    case 'INPUT':
     case 'BUTTON':
     case 'SUB_IN':
       return <ToggleLeft size={size} />;
     case 'DIP_SWITCH':
       return <SlidersHorizontal size={size} />;
+    case 'KEYPAD':
+      return <Grid3X3 size={size} />;
+    case 'OUTPUT':
     case 'LED_BAR':
     case '7_SEG_DISPLAY':
     case 'SUB_OUT':
@@ -43,12 +50,19 @@ const getToolIcon = (type: NodeType, size = 18): React.ReactNode => {
   }
 };
 
+function splitCategoryPath(category: string): string[] {
+  return category
+    .replace(/I\/O/g, 'I__SLASH__O')
+    .split('/')
+    .map(part => part.replace(/I__SLASH__O/g, 'I/O'));
+}
+
 function buildBaseCategories(): ToolCategory[] {
   const rootMap = new Map<string, ToolCategory>();
 
-  Object.values(NodeRegistry).forEach(def => {
+  ALL_BUILTIN_NODES.forEach(def => {
     if (!def.category) return;
-    const parts = def.category.split('/');
+    const parts = splitCategoryPath(def.category);
     const rootName = parts[0];
 
     let rootCat = rootMap.get(rootName);
@@ -87,8 +101,9 @@ export const Toolbox: React.FC = () => {
   const baseCategories = useMemo(() => buildBaseCategories(), []);
   const displayCategories = [...baseCategories];
   
+  const extraCategories: ToolCategory[] = [];
   if (activeSubcircuitId !== 'main') {
-    displayCategories.unshift({
+    extraCategories.push({
       name: 'Subcircuit Pins',
       items: [
         { type: 'SUB_IN', icon: getToolIcon('SUB_IN') },
@@ -99,13 +114,20 @@ export const Toolbox: React.FC = () => {
   }
   
   if (customCircuits.length > 0) {
-    displayCategories.unshift({
+    extraCategories.push({
       name: 'Custom Components',
       items: customCircuits.map(sc => ({
         type: `SUBCIRCUIT:${sc.id}` as NodeType,
         icon: getToolIcon(`SUBCIRCUIT:${sc.id}`)
       }))
     });
+  }
+
+  if (extraCategories.length > 0) {
+    // Always keep 'Power & I/O' as the very first category right under Recently Used
+    const powerIdx = displayCategories.findIndex(c => c.name === 'Power & I/O');
+    const insertIdx = powerIdx >= 0 ? powerIdx + 1 : 0;
+    displayCategories.splice(insertIdx, 0, ...extraCategories);
   }
 
   const [search, setSearch] = useState('');
@@ -121,6 +143,12 @@ export const Toolbox: React.FC = () => {
   // Track expanded state for categories and subcategories
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({
     'Power & I/O': true,
+    'Power & I/O/Sources & Clock': true,
+    'Power & I/O/Inputs & Switches': true,
+    'Power & I/O/Outputs & Displays': true,
+    'Power & I/O/Wiring & Labels': true,
+    'Subcircuit Pins': true,
+    'Custom Components': true,
     'Basic Logic': true,
     'Integrated Circuits': true,
     'Integrated Circuits/Logic Gates': false,

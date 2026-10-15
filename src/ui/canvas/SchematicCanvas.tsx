@@ -17,6 +17,7 @@ import { SchematicBusNode } from './nodes/schematic/SchematicBusNode';
 import { SchematicButtonNode } from './nodes/schematic/SchematicButtonNode';
 import { SchematicLEDBarNode } from './nodes/schematic/SchematicLEDBarNode';
 import { SchematicNCNode } from './nodes/schematic/SchematicNCNode';
+import { SchematicKeypadNode } from './nodes/schematic/SchematicKeypadNode';
 import { useShallow } from 'zustand/react/shallow';
 
 
@@ -41,12 +42,15 @@ const SCHEMATIC_NODE_RENDERERS: Record<string, React.FC<{ node: LogicNode }>> = 
   '7_SEG_DISPLAY': Schematic7SegNode,
   DIP_SWITCH: SchematicDipSwitchNode,
   BUTTON: SchematicButtonNode,
+  KEYPAD: SchematicKeypadNode,
   LED_BAR: SchematicLEDBarNode,
   INPUT: SchematicIONode,
   OUTPUT: SchematicIONode,
   CLOCK: SchematicIONode,
   VCC: SchematicIONode,
   GND: SchematicIONode,
+  PULL_UP: SchematicIONode,
+  PULL_DOWN: SchematicIONode,
   JUNCTION: SchematicJunctionNode,
   NET_LABEL: SchematicNetLabelNode,
   SUB_IN: SchematicNetLabelNode,
@@ -124,9 +128,11 @@ export const SchematicCanvas: React.FC = () => {
       }
       
       const store = useSimulatorStore.getState();
+      const code = e.code;
+      const key = e.key.toLowerCase();
       
       if (e.ctrlKey || e.metaKey) {
-        if (e.key.toLowerCase() === 'z') {
+        if (code === 'KeyZ' || key === 'z') {
           e.preventDefault();
           if (e.shiftKey) {
             store.redo();
@@ -135,9 +141,20 @@ export const SchematicCanvas: React.FC = () => {
           }
           return;
         }
-        if (e.key.toLowerCase() === 'y') {
+        if (code === 'KeyY' || key === 'y') {
           e.preventDefault();
           store.redo();
+          return;
+        }
+        if (code === 'KeyC' || key === 'c') {
+          store.copySelection();
+          return;
+        }
+        if (code === 'KeyV' || key === 'v') {
+          const { x, y } = lastMousePosRef.current;
+          const gridX = Math.round(x / 20) * 20;
+          const gridY = Math.round(y / 20) * 20;
+          store.pasteClipboard(gridX, gridY);
           return;
         }
       }
@@ -150,7 +167,7 @@ export const SchematicCanvas: React.FC = () => {
         if (store.pastingNodeIds) store.cancelPastingNodes();
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         store.deleteSelection();
-      } else if (e.key.toLowerCase() === 'x') {
+      } else if ((code === 'KeyX' || key === 'x') && !e.ctrlKey && !e.metaKey) {
         const targetNodeId = store.placingNodeId || (store.selection?.type === 'node' ? store.selection.id : null);
         if (targetNodeId) {
           const node = store.nodes.find(n => n.id === targetNodeId);
@@ -159,7 +176,7 @@ export const SchematicCanvas: React.FC = () => {
             store.updateNodeProperties(node.id, { flipX: !currentFlipX });
           }
         }
-      } else if (e.key.toLowerCase() === 'y' && !e.ctrlKey && !e.metaKey) {
+      } else if ((code === 'KeyY' || key === 'y') && !e.ctrlKey && !e.metaKey) {
         const targetNodeId = store.placingNodeId || (store.selection?.type === 'node' ? store.selection.id : null);
         if (targetNodeId) {
           const node = store.nodes.find(n => n.id === targetNodeId);
@@ -168,7 +185,7 @@ export const SchematicCanvas: React.FC = () => {
             store.updateNodeProperties(node.id, { flipY: !currentFlipY });
           }
         }
-      } else if (e.key.toLowerCase() === 'r') {
+      } else if ((code === 'KeyR' || key === 'r') && !e.ctrlKey && !e.metaKey) {
         const targetNodeId = store.placingNodeId || (store.selection?.type === 'node' ? store.selection.id : null);
         if (targetNodeId) {
           const node = store.nodes.find(n => n.id === targetNodeId);
@@ -177,13 +194,31 @@ export const SchematicCanvas: React.FC = () => {
             store.updateNodeProperties(node.id, { rotation: (currentRot + 90) % 360 });
           }
         }
-      } else if (e.key.toLowerCase() === 'c' && (e.ctrlKey || e.metaKey)) {
-        store.copySelection();
-      } else if (e.key.toLowerCase() === 'v' && (e.ctrlKey || e.metaKey)) {
-        const { x, y } = lastMousePosRef.current;
-        const gridX = Math.round(x / 20) * 20;
-        const gridY = Math.round(y / 20) * 20;
-        store.pasteClipboard(gridX, gridY);
+      } else if ((code === 'KeyA' || key === 'a') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        let lastType = store.lastPlacedNodeType;
+        if (!lastType) {
+          try {
+            const stored = localStorage.getItem('logica-recent-nodes');
+            const parsed = stored ? JSON.parse(stored) : [];
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              lastType = parsed[0];
+            }
+          } catch {
+            // ignore
+          }
+        }
+        if (lastType && getNodeDefinition(lastType)) {
+          store.startPlacingNode(lastType);
+          const updatedStore = useSimulatorStore.getState();
+          if (updatedStore.placingNodeId) {
+            const newNode = updatedStore.nodes.find(n => n.id === updatedStore.placingNodeId);
+            const anchor = newNode ? getSchematicAnchor(newNode) : { x: 0, y: 0 };
+            const { x, y } = lastMousePosRef.current;
+            const gridX = Math.round((x - anchor.x) / 20) * 20;
+            const gridY = Math.round((y - anchor.y) / 20) * 20;
+            updatedStore.updatePlacingNode(gridX, gridY);
+          }
+        }
       }
     };
     const handleGlobalKeyUp = (e: KeyboardEvent) => {
