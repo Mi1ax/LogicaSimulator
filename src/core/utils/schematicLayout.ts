@@ -13,12 +13,20 @@ export const getSchematicDimensions = (node: LogicNode) => {
     return { width: 100, height: 120 };
   }
 
+  if (node.type === 'KEYPAD') {
+    return { width: 120, height: 160 };
+  }
+
   if (node.type === 'BUTTON') {
     return { width: 40, height: 40 };
   }
   
   if (node.type === 'NC') {
     return { width: 0, height: 0 };
+  }
+
+  if (node.type === 'INPUT' || node.type === 'OUTPUT' || node.type === 'CLOCK' || node.type === 'NET_LABEL') {
+    return { width: 60, height: 40 };
   }
 
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
@@ -70,10 +78,8 @@ export const getSchematicDimensions = (node: LogicNode) => {
     return { width: 40, height: (maxRow + 1) * 20 };
   }
 
-  if (node.type === "VCC" || node.type === "GND") return { width: 40, height: 40 };
-
-  if (node.type === 'INPUT' || node.type === 'OUTPUT' || node.type === 'CLOCK' || node.type === 'NET_LABEL') {
-    return { width: 60, height: 40 };
+  if (node.type === "VCC" || node.type === "GND" || node.type === "PULL_UP" || node.type === "PULL_DOWN") {
+    return { width: 40, height: 40 };
   }
   
   if (node.type === 'JUNCTION') {
@@ -102,6 +108,10 @@ export const getSchematicAnchor = (node: LogicNode): { x: number; y: number } =>
   const { width, height } = getSchematicDimensions(node);
 
   if (node.type === 'JUNCTION') return { x: 10, y: 10 };
+  if (['INPUT', 'OUTPUT', 'CLOCK', 'VCC', 'GND', 'PULL_UP', 'PULL_DOWN', 'NET_LABEL'].includes(node.type)) {
+    // IO nodes have always pivoted around (20,20); keep it so saved layouts don't shift.
+    return { x: 20, y: 20 };
+  }
   if (node.type === 'DIP_SWITCH' || node.type === '7_SEG_DISPLAY') {
     return { x: Math.round(width / 40) * 20, y: Math.round(height / 40) * 20 };
   }
@@ -110,10 +120,6 @@ export const getSchematicAnchor = (node: LogicNode): { x: number; y: number } =>
   }
   if (node.properties?.renderAs === 'BUS' || def?.renderAs === 'BUS') {
     return { x: Math.round(width / 40) * 20, y: Math.round(height / 40) * 20 };
-  }
-  if (['INPUT', 'OUTPUT', 'VCC', 'GND', 'NET_LABEL'].includes(node.type)) {
-    // IO nodes have always pivoted around (20,20); keep it so saved layouts don't shift.
-    return { x: 20, y: 20 };
   }
   // Basic gates: width is 80 and height is a multiple of 40, so the center is grid-aligned.
   return { x: width / 2, y: height / 2 };
@@ -195,8 +201,33 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
       return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
     }
   }
+
+  if (node.type === 'KEYPAD') {
+    const pinIndex = node.inputs.findIndex(p => p.id === pinId);
+    if (pinIndex !== -1) {
+      let rawX = 0, rawY = 0, rawNx = 0, rawNy = 0;
+      if (pinIndex < 4) {
+        // Row pins R1..R4 on left
+        rawX = -20;
+        rawY = 20 + pinIndex * 40;
+        rawNx = -1;
+        rawNy = 0;
+      } else {
+        // Column pins C1..C3 on top
+        const colIdx = pinIndex - 4;
+        rawX = 20 + colIdx * 40;
+        rawY = -20;
+        rawNx = 0;
+        rawNy = -1;
+      }
+      const flipX = !!node.properties?.flipX;
+      const flipY = !!node.properties?.flipY;
+      const rotated = applyTransform(rawX, rawY, rawNx, rawNy, anchorX, anchorY, rotation, flipX, flipY);
+      return { x: node.x + rotated.x, y: node.y + rotated.y, nx: rotated.nx, ny: rotated.ny };
+    }
+  }
   
-  if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
+  if (node.type !== 'CLOCK' && (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP')) {
     const allPins = Array.from(new Map([...node.inputs, ...node.outputs].map(p => [p.id, p])).values());
     const pin = allPins.find(p => p.id === pinId);
     if (pin) {
@@ -308,9 +339,9 @@ export const getSchematicPinPosition = (node: LogicNode, pinId: string) => {
   const outIndex = node.outputs.findIndex(p => p.id === pinId);
   if (outIndex !== -1) {
     let rawX, rawY, rawNx, rawNy;
-    if (node.type === 'VCC') {
+    if (node.type === 'VCC' || node.type === 'PULL_UP') {
       rawX = 20; rawY = height; rawNx = 0; rawNy = 1;
-    } else if (node.type === 'GND') {
+    } else if (node.type === 'GND' || node.type === 'PULL_DOWN') {
       rawX = 20; rawY = 0; rawNx = 0; rawNy = -1;
     } else if (node.type === 'INPUT' || node.type === 'CLOCK') {
       rawX = width; rawY = height / 2; rawNx = 1; rawNy = 0;

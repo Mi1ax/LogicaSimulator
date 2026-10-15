@@ -429,6 +429,63 @@ export const IC74LS373: NodeDefinition = {
   }
 };
 
+export const IC74LS374: NodeDefinition = {
+  type: '74LS374',
+  label: '74LS374 (Octal D Flip-Flop 3-State)',
+  category: 'Integrated Circuits/Registers & Buffers',
+  tags: ["register", "flip-flop", "dff", "memory", "3-state", "tri-state"],
+  renderAs: 'DIP',
+  numInputs: 0,
+  numOutputs: 0,
+  customPins: [
+    { name: '!OE', type: 'input', pinNumber: 1, schematicSide: 'left', schematicRow: 11 },
+    { name: '1D', type: 'input', pinNumber: 3, schematicSide: 'left', schematicRow: 1 },
+    { name: '2D', type: 'input', pinNumber: 4, schematicSide: 'left', schematicRow: 2 },
+    { name: '3D', type: 'input', pinNumber: 7, schematicSide: 'left', schematicRow: 3 },
+    { name: '4D', type: 'input', pinNumber: 8, schematicSide: 'left', schematicRow: 4 },
+    { name: '5D', type: 'input', pinNumber: 13, schematicSide: 'left', schematicRow: 5 },
+    { name: '6D', type: 'input', pinNumber: 14, schematicSide: 'left', schematicRow: 6 },
+    { name: '7D', type: 'input', pinNumber: 17, schematicSide: 'left', schematicRow: 7 },
+    { name: '8D', type: 'input', pinNumber: 18, schematicSide: 'left', schematicRow: 8 },
+    { name: 'CLK', type: 'input', pinNumber: 11, schematicSide: 'left', schematicRow: 10 },
+
+    { name: '1Q', type: 'output', pinNumber: 2, schematicSide: 'right', schematicRow: 1 },
+    { name: '2Q', type: 'output', pinNumber: 5, schematicSide: 'right', schematicRow: 2 },
+    { name: '3Q', type: 'output', pinNumber: 6, schematicSide: 'right', schematicRow: 3 },
+    { name: '4Q', type: 'output', pinNumber: 9, schematicSide: 'right', schematicRow: 4 },
+    { name: '5Q', type: 'output', pinNumber: 12, schematicSide: 'right', schematicRow: 5 },
+    { name: '6Q', type: 'output', pinNumber: 15, schematicSide: 'right', schematicRow: 6 },
+    { name: '7Q', type: 'output', pinNumber: 16, schematicSide: 'right', schematicRow: 7 },
+    { name: '8Q', type: 'output', pinNumber: 19, schematicSide: 'right', schematicRow: 8 },
+
+    { name: 'GND', type: 'input', pinNumber: 10 },
+    { name: 'VCC', type: 'input', pinNumber: 20 }
+  ],
+  evaluate: (inputs, _, __, internal, prevInputs) => {
+    if (!internal) return Array(8).fill(undefined);
+    if (!internal.data) internal.data = Array(8).fill(0);
+
+    const pInputs = prevInputs || inputs;
+    const oe_n = inputs[0] ?? 1;
+    const clk = inputs[9] === 1 ? 1 : 0;
+
+    if (internal.lastClk === undefined) internal.lastClk = clk;
+
+    if (clk === 1 && internal.lastClk === 0) {
+      for (let i = 0; i < 8; i++) {
+        internal.data[i] = pInputs[i + 1] === 1 ? 1 : 0;
+      }
+    }
+    internal.lastClk = clk;
+
+    if (oe_n === 1) {
+      return Array(8).fill(undefined);
+    }
+
+    return [...internal.data];
+  }
+};
+
 export const IC74LS541: NodeDefinition = {
   type: '74LS541',
   label: '74LS541 (Octal Buffer/Line Driver)',

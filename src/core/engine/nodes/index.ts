@@ -5,27 +5,39 @@ import {
   NorNode, NandNode, XnorNode, BufferNode, NcNode,
   InputNode, OutputNode,
   SubInNode, SubOutNode, SubIoNode, ClockNode,
-  VccNode, GndNode, JunctionNode,
-  DipSwitchNode, SevenSegNode, NetLabelNode, BusBreakoutNode, PushButtonNode, LedBarNode
+  VccNode, GndNode, PullUpNode, PullDownNode, JunctionNode,
+  DipSwitchNode, SevenSegNode, NetLabelNode, BusBreakoutNode, PushButtonNode, LedBarNode, KeypadNode
 } from './basicNodes';
 import {
   IC74LS00, IC74LS02, IC74LS04, IC74LS08, IC74LS30, IC74LS32, IC74LS86,
-  IC74LS47, IC74LS138, IC74LS154,
-  IC74LS161, IC74LS191,
+  IC74LS47, IC74LS138, IC74LS139, IC74LS154,
+  IC_NE555, IC74LS161, IC74LS191,
   IC_74LS283, IC74LS181,
-  IC74LS173, IC74LS175, IC74LS241, IC74LS244, IC_74LS245, IC74LS273, IC74LS373, IC74LS541,
+  IC74LS173, IC74LS175, IC74LS241, IC74LS244, IC_74LS245, IC74LS273, IC74LS373, IC74LS374, IC74LS541,
   ROM_27C256, IC6116, SRAM_62256,
   IC_GAL22V10
 } from './ics';
 
-const ALL_BUILTIN_NODES: NodeDefinition[] = [
-  // Power & I/O
+export const ALL_BUILTIN_NODES: NodeDefinition[] = [
+  // Power & I/O: Sources & Clock
   VccNode,
   GndNode,
+  PullUpNode,
+  PullDownNode,
+  ClockNode,
+
+  // Power & I/O: Inputs & Switches
+  InputNode,
   PushButtonNode,
   DipSwitchNode,
+  KeypadNode,
+
+  // Power & I/O: Outputs & Displays
+  OutputNode,
   LedBarNode,
   SevenSegNode,
+
+  // Power & I/O: Wiring & Labels
   NetLabelNode,
   BusBreakoutNode,
   NcNode,
@@ -40,13 +52,10 @@ const ALL_BUILTIN_NODES: NodeDefinition[] = [
   NotNode,
   BufferNode,
 
-  // Internal / Subcircuit / Legacy
-  InputNode,
-  OutputNode,
+  // Internal / Subcircuit
   SubInNode,
   SubOutNode,
   SubIoNode,
-  ClockNode,
   JunctionNode,
 
   // Integrated Circuits: Logic Gates
@@ -61,9 +70,11 @@ const ALL_BUILTIN_NODES: NodeDefinition[] = [
   // Integrated Circuits: Decoders & Multiplexers
   IC74LS47,
   IC74LS138,
+  IC74LS139,
   IC74LS154,
 
   // Integrated Circuits: Counters & Timers
+  IC_NE555,
   IC74LS161,
   IC74LS191,
 
@@ -79,6 +90,7 @@ const ALL_BUILTIN_NODES: NodeDefinition[] = [
   IC_74LS245,
   IC74LS273,
   IC74LS373,
+  IC74LS374,
   IC74LS541,
 
   // Integrated Circuits: Memory

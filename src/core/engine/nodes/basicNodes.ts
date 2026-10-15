@@ -108,7 +108,8 @@ export const BufferNode: NodeDefinition = {
 export const NcNode: NodeDefinition = {
   type: 'NC',
   label: 'No Connect (X)',
-  category: 'Power & I/O',
+  category: 'Power & I/O/Wiring & Labels',
+  tags: ['nc', 'no connect', 'unused', 'pin'],
   numInputs: 1,
   numOutputs: 0,
   disableTransform: true,
@@ -118,6 +119,8 @@ export const NcNode: NodeDefinition = {
 export const InputNode: NodeDefinition = {
   type: 'INPUT',
   label: 'Input Switch',
+  category: 'Power & I/O/Inputs & Switches',
+  tags: ['input', 'switch', 'toggle', 'bit'],
   numInputs: 0,
   numOutputs: 1,
   defaultProperties: { value: 0 },
@@ -127,6 +130,8 @@ export const InputNode: NodeDefinition = {
 export const OutputNode: NodeDefinition = {
   type: 'OUTPUT',
   label: 'Output LED',
+  category: 'Power & I/O/Outputs & Displays',
+  tags: ['output', 'led', 'light', 'indicator'],
   numInputs: 1,
   numOutputs: 0,
   evaluate: () => []
@@ -164,35 +169,37 @@ export const SubIoNode: NodeDefinition = {
 
 export const ClockNode: NodeDefinition = {
   type: 'CLOCK',
-  label: '555 OSC',
-  numInputs: 3,
+  label: 'Clock Generator',
+  category: 'Power & I/O/Sources & Clock',
+  tags: ['clock', 'oscillator', '555', 'timer', 'pulse', 'clk'],
+  numInputs: 0,
   numOutputs: 1,
-  renderAs: 'DIP',
   customPins: [
-    { type: 'input', name: 'GND', pinNumber: 1 },
-    { type: 'output', name: 'OUT', pinNumber: 3 }, // 555 OUT pin
-    { type: 'input', name: 'EN', pinNumber: 4 }, // Acting like RESET on a 555
-    { type: 'input', name: 'VCC', pinNumber: 8 },
+    { type: 'output', name: 'OUT', pinNumber: 3 },
   ],
-  defaultProperties: { highTicks: 5, lowTicks: 5, label: '555 CLK' },
+  defaultProperties: { highTicks: 5, lowTicks: 5, mode: 'auto', manualValue: 0, startHigh: true, label: 'CLK' },
   evaluate: (inputs, props, tickCount) => {
-    // Legacy nodes have 1 input (EN). New nodes have 3 (GND, EN, VCC).
-    const isLegacy = inputs.length === 1;
-    const en = isLegacy ? (inputs[0] ?? 1) : (inputs[1] ?? 1);
-    
-    if (en === 0) {
-      return [0];
+    // Support legacy saved nodes that had an EN input
+    if (inputs.length > 0) {
+      const en = inputs.length === 1 ? (inputs[0] ?? 1) : (inputs[1] ?? 1);
+      if (en === 0) return [0];
     }
 
-    const highTicks = props?.highTicks ?? props?.interval ?? 5; // fallback to interval for backwards compatibility
-    const lowTicks = props?.lowTicks ?? props?.interval ?? 5;
-    
+    if (props?.mode === 'manual') {
+      return [props?.manualValue === 1 ? 1 : 0];
+    }
+
+    const highTicks = Math.max(1, props?.highTicks ?? props?.interval ?? 5);
+    const lowTicks = Math.max(1, props?.lowTicks ?? props?.interval ?? 5);
     const cycleLength = highTicks + lowTicks;
-    if (cycleLength <= 0) return [0]; // safeguard
+    if (cycleLength <= 0) return [0];
 
     const currentTick = (tickCount ?? 0) % cycleLength;
-    const val = currentTick < highTicks ? 1 : 0;
-    
+    const startHigh = props?.startHigh !== false;
+    const val = startHigh
+      ? (currentTick < highTicks ? 1 : 0)
+      : (currentTick < lowTicks ? 0 : 1);
+
     return [val];
   }
 };
@@ -200,7 +207,8 @@ export const ClockNode: NodeDefinition = {
 export const VccNode: NodeDefinition = {
   type: 'VCC',
   label: 'Power (VCC)',
-  category: 'Power & I/O',
+  category: 'Power & I/O/Sources & Clock',
+  tags: ['vcc', 'power', '5v', 'high', '1'],
   numInputs: 0,
   numOutputs: 1,
   evaluate: () => [1] // Always outputs 1
@@ -209,10 +217,31 @@ export const VccNode: NodeDefinition = {
 export const GndNode: NodeDefinition = {
   type: 'GND',
   label: 'Ground (GND)',
-  category: 'Power & I/O',
+  category: 'Power & I/O/Sources & Clock',
+  tags: ['gnd', 'ground', '0v', 'low', '0'],
   numInputs: 0,
   numOutputs: 1,
   evaluate: () => [0] // Always outputs 0
+};
+
+export const PullUpNode: NodeDefinition = {
+  type: 'PULL_UP',
+  label: 'Pull-Up Resistor',
+  category: 'Power & I/O/Sources & Clock',
+  tags: ['pullup', 'pull-up', 'resistor', 'weak', 'vcc', 'high', '1'],
+  numInputs: 0,
+  numOutputs: 1,
+  evaluate: () => [1] // Weak 1 (overridden by any strong 0/1 driver on the net)
+};
+
+export const PullDownNode: NodeDefinition = {
+  type: 'PULL_DOWN',
+  label: 'Pull-Down Resistor',
+  category: 'Power & I/O/Sources & Clock',
+  tags: ['pulldown', 'pull-down', 'resistor', 'weak', 'gnd', 'low', '0'],
+  numInputs: 0,
+  numOutputs: 1,
+  evaluate: () => [0] // Weak 0 (overridden by any strong 0/1 driver on the net)
 };
 
 export const JunctionNode: NodeDefinition = {
@@ -227,7 +256,8 @@ export const JunctionNode: NodeDefinition = {
 export const DipSwitchNode: NodeDefinition = {
   type: 'DIP_SWITCH',
   label: 'DIP Switch',
-  category: 'Power & I/O',
+  category: 'Power & I/O/Inputs & Switches',
+  tags: ['dip', 'switch', 'input', 'multi'],
   numInputs: 0,
   numOutputs: 4,
   variableOutputs: { min: 1, max: 12, label: 'Number of Outputs (Switches)' },
@@ -242,7 +272,8 @@ export const DipSwitchNode: NodeDefinition = {
 export const SevenSegNode: NodeDefinition = {
   type: '7_SEG_DISPLAY',
   label: '7-Segment Display',
-  category: 'Power & I/O',
+  category: 'Power & I/O/Outputs & Displays',
+  tags: ['7seg', 'display', 'seven segment', 'hex', 'digit'],
   numInputs: 8,
   numOutputs: 0,
   customPins: [
@@ -261,7 +292,8 @@ export const SevenSegNode: NodeDefinition = {
 export const NetLabelNode: NodeDefinition = {
   type: 'NET_LABEL',
   label: 'Net Label',
-  category: 'Power & I/O',
+  category: 'Power & I/O/Wiring & Labels',
+  tags: ['net', 'label', 'tunnel', 'wire', 'name'],
   numInputs: 1, // Will be mapped to a bidir pin
   numOutputs: 1,
   customPins: [
@@ -273,7 +305,8 @@ export const NetLabelNode: NodeDefinition = {
 export const BusBreakoutNode: NodeDefinition = {
   type: 'BUS_BREAKOUT',
   label: 'Bus Breakout',
-  category: 'Power & I/O',
+  category: 'Power & I/O/Wiring & Labels',
+  tags: ['bus', 'breakout', 'splitter', 'bundle'],
   numInputs: 0,
   numOutputs: 0,
   renderAs: 'BUS',
@@ -303,7 +336,8 @@ export const BusBreakoutNode: NodeDefinition = {
 export const PushButtonNode: NodeDefinition = {
   type: 'BUTTON',
   label: 'Push Button',
-  category: 'Power & I/O',
+  category: 'Power & I/O/Inputs & Switches',
+  tags: ['button', 'push', 'momentary', 'reset', 'input'],
   numInputs: 0,
   numOutputs: 1,
   defaultProperties: { pressed: false, activeLow: false },
@@ -317,9 +351,32 @@ export const PushButtonNode: NodeDefinition = {
 export const LedBarNode: NodeDefinition = {
   type: 'LED_BAR',
   label: 'LED Bar (8-bit)',
-  category: 'Power & I/O',
+  category: 'Power & I/O/Outputs & Displays',
+  tags: ['led', 'bar', 'array', 'light', 'output'],
   numInputs: 8,
   numOutputs: 0,
   variableInputs: { min: 1, max: 32, label: 'Number of LEDs' },
   evaluate: () => []
 };
+
+export const KeypadNode: NodeDefinition = {
+  type: 'KEYPAD',
+  label: 'Matrix Keypad (4x3)',
+  category: 'Power & I/O/Inputs & Switches',
+  tags: ['keypad', 'matrix', 'keyboard', 'buttons', 'input', '4x3'],
+  numInputs: 0,
+  numOutputs: 0,
+  customPins: [
+    { name: 'R1', type: 'bidir', pinNumber: 1, schematicSide: 'left', schematicRow: 1 },
+    { name: 'R2', type: 'bidir', pinNumber: 2, schematicSide: 'left', schematicRow: 2 },
+    { name: 'R3', type: 'bidir', pinNumber: 3, schematicSide: 'left', schematicRow: 3 },
+    { name: 'R4', type: 'bidir', pinNumber: 4, schematicSide: 'left', schematicRow: 4 },
+    { name: 'C1', type: 'bidir', pinNumber: 5, schematicSide: 'top', schematicRow: 1 },
+    { name: 'C2', type: 'bidir', pinNumber: 6, schematicSide: 'top', schematicRow: 2 },
+    { name: 'C3', type: 'bidir', pinNumber: 7, schematicSide: 'top', schematicRow: 3 },
+  ],
+  defaultProperties: { pressedKey: null, latched: false },
+  evaluate: () => Array(7).fill(undefined),
+};
+
+
