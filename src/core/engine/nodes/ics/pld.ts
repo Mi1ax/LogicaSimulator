@@ -39,11 +39,76 @@ const GAL22V10_OLMC_MAP = [
   { pinIndex: 22, s0Fuse: 5808, s1Fuse: 5809, startRow: 1, size: 9 },    // Pin 23
 ];
 
+interface CompiledJedec {
+  /** null means row is permanently 0 (contradiction / unprogrammed row); number[] is list of connected columns */
+  rows: (number[] | null)[];
+  olmcActiveRows: number[][];
+  s0: number[];
+  s1: number[];
+}
+
+const jedecCache = new Map<string, CompiledJedec>();
+
+function getCompiledJedec(jedecString: string): CompiledJedec {
+  const cached = jedecCache.get(jedecString);
+  if (cached) return cached;
+
+  const fuses = jedecString ? parseJedec(jedecString, 5828) : new Array<boolean>(5828).fill(false);
+  const rows: (number[] | null)[] = new Array(132);
+
+  for (let r = 0; r < 132; r++) {
+    const rowStart = r * 44;
+    let contradiction = false;
+    for (let c = 0; c < 44; c += 2) {
+      if (!fuses[rowStart + c] && !fuses[rowStart + c + 1]) {
+        contradiction = true;
+        break;
+      }
+    }
+    if (contradiction) {
+      rows[r] = null;
+    } else {
+      const activeCols: number[] = [];
+      for (let c = 0; c < 44; c++) {
+        if (!fuses[rowStart + c]) {
+          activeCols.push(c);
+        }
+      }
+      rows[r] = activeCols;
+    }
+  }
+
+  const olmcActiveRows: number[][] = new Array(10);
+  const s0: number[] = new Array(10);
+  const s1: number[] = new Array(10);
+
+  for (let i = 0; i < 10; i++) {
+    const olmc = GAL22V10_OLMC_MAP[i];
+    s0[i] = fuses[olmc.s0Fuse] ? 1 : 0;
+    s1[i] = fuses[olmc.s1Fuse] ? 1 : 0;
+    const active: number[] = [];
+    for (let r = 1; r < olmc.size; r++) {
+      const rowIdx = olmc.startRow + r;
+      if (rows[rowIdx] !== null) {
+        active.push(rowIdx);
+      }
+    }
+    olmcActiveRows[i] = active;
+  }
+
+  const compiled: CompiledJedec = { rows, olmcActiveRows, s0, s1 };
+  if (jedecCache.size > 64) {
+    jedecCache.clear();
+  }
+  jedecCache.set(jedecString, compiled);
+  return compiled;
+}
+
 export const IC_GAL22V10: NodeDefinition = {
   type: 'GAL22V10',
   label: 'GAL22V10 (Programmable Logic Device)',
   category: 'Integrated Circuits/Programmable Logic',
-  tags: ["pld", "gal", "programmable", "logic"],
+  tags: ['pld', 'gal', 'programmable', 'logic'],
   renderAs: 'DIP',
   numInputs: 0,
   numOutputs: 0,
@@ -61,7 +126,7 @@ export const IC_GAL22V10: NodeDefinition = {
     { name: 'I11', type: 'input', pinNumber: 11, schematicSide: 'left', schematicRow: 12 },
     { name: 'GND', type: 'input', pinNumber: 12 },
     { name: 'I13', type: 'input', pinNumber: 13, schematicSide: 'left', schematicRow: 13 },
-    
+
     { name: 'IO14', type: 'bidir', pinNumber: 14, schematicSide: 'right', schematicRow: 1 },
     { name: 'IO15', type: 'bidir', pinNumber: 15, schematicSide: 'right', schematicRow: 2 },
     { name: 'IO16', type: 'bidir', pinNumber: 16, schematicSide: 'right', schematicRow: 3 },
@@ -72,47 +137,35 @@ export const IC_GAL22V10: NodeDefinition = {
     { name: 'IO21', type: 'bidir', pinNumber: 21, schematicSide: 'right', schematicRow: 8 },
     { name: 'IO22', type: 'bidir', pinNumber: 22, schematicSide: 'right', schematicRow: 9 },
     { name: 'IO23', type: 'bidir', pinNumber: 23, schematicSide: 'right', schematicRow: 10 },
-    { name: 'VCC', type: 'input', pinNumber: 24 }
+    { name: 'VCC', type: 'input', pinNumber: 24 },
   ],
   evaluate: (inputs, properties, _, internal, prevInputs) => {
-    if (!internal!.registers) internal!.registers = Array(10).fill(0);
+    if (!internal!.registers) internal!.registers = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     const clk = inputs[0] === 1 ? 1 : 0;
     if (internal!.lastClk === undefined) internal!.lastClk = clk;
     const isRisingEdge = clk === 1 && internal!.lastClk === 0;
     internal!.lastClk = clk;
-    
-    let fuses;
-    if (properties?.jedecString) {
-      if (!internal!.fuses || internal!.lastJedec !== properties.jedecString) {
-        internal!.fuses = parseJedec(properties.jedecString, 5828);
-        internal!.lastJedec = properties.jedecString;
-      }
-      fuses = internal!.fuses;
-    } else {
-      if (!internal!.fuses || internal!.lastJedec !== '') {
-        internal!.fuses = Array(5828).fill(false);
-        internal!.lastJedec = '';
-      }
-      fuses = internal!.fuses;
-    }
+
+    const compiled = getCompiledJedec(properties?.jedecString || '');
+    const { rows, olmcActiveRows, s0, s1 } = compiled;
+    const regs = internal!.registers;
+
     const buildColStates = (sourceInputs: any[]) => {
-      const colStates = Array(44).fill(0);
-      for (const mapping of GAL22V10_COL_MAP) {
+      const colStates = new Array<number>(44);
+      for (let m = 0; m < GAL22V10_COL_MAP.length; m++) {
+        const mapping = GAL22V10_COL_MAP[m];
         let val = 0;
         if (mapping.pin >= 13 && mapping.pin <= 22) {
           const olmcIndex = mapping.pin - 13;
-          const olmcMap = GAL22V10_OLMC_MAP[olmcIndex];
-          const s1 = fuses[olmcMap.s1Fuse] ? 1 : 0;
-          
-          if (s1 === 0) {
-             val = internal!.registers[olmcIndex] === 1 ? 0 : 1;
+          if (s1[olmcIndex] === 0) {
+            val = regs[olmcIndex] === 1 ? 0 : 1;
           } else {
-             val = sourceInputs[mapping.pin] === 1 ? 1 : 0;
+            val = sourceInputs[mapping.pin] === 1 ? 1 : 0;
           }
         } else {
           val = sourceInputs[mapping.pin] === 1 ? 1 : 0;
         }
-        
+
         colStates[mapping.trueCol] = val;
         colStates[mapping.trueCol + 1] = val === 1 ? 0 : 1;
       }
@@ -122,78 +175,66 @@ export const IC_GAL22V10: NodeDefinition = {
     const colStates = buildColStates(inputs);
     const prevColStates = isRisingEdge && prevInputs ? buildColStates(prevInputs) : colStates;
 
-    const evaluateRow = (rowIdx: number, states = colStates) => {
-      let result = 1;
-      const rowStart = rowIdx * 44;
-      for (let c = 0; c < 44; c++) {
-        if (!fuses[rowStart + c]) {
-          if (states[c] === 0) {
-            result = 0;
-            break;
-          }
-        }
+    const evaluateRow = (rowIdx: number, states: number[]) => {
+      const activeCols = rows[rowIdx];
+      if (activeCols === null) return 0;
+      for (let i = 0; i < activeCols.length; i++) {
+        if (states[activeCols[i]] === 0) return 0;
       }
-      return result;
+      return 1;
     };
 
-    const ar = evaluateRow(0);
+    const ar = evaluateRow(0, colStates);
     const arPrev = isRisingEdge && prevInputs ? evaluateRow(0, prevColStates) : ar;
-    const spPrev = isRisingEdge && prevInputs ? evaluateRow(131, prevColStates) : evaluateRow(131);
+    const spPrev = isRisingEdge && prevInputs ? evaluateRow(131, prevColStates) : evaluateRow(131, colStates);
 
-    let dInputsPrev = Array(10).fill(0);
-    let returnOutputs = Array(10).fill(undefined);
+    const dInputsPrev = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    const orResults = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    const oes = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    const returnOutputs = new Array(10);
 
     for (let i = 0; i < 10; i++) {
-       const olmc = GAL22V10_OLMC_MAP[i];
-       const oe = evaluateRow(olmc.startRow);
-       
-       let orResult = 0;
-       let orResultPrev = 0;
-       for (let r = 1; r < olmc.size; r++) {
-         if (evaluateRow(olmc.startRow + r) === 1) {
-           orResult = 1;
-         }
-         if (isRisingEdge && prevInputs && evaluateRow(olmc.startRow + r, prevColStates) === 1) {
-           orResultPrev = 1;
-         }
-       }
-       if (!isRisingEdge || !prevInputs) orResultPrev = orResult;
-       
-       dInputsPrev[i] = orResultPrev;
-       
-       const s0 = fuses[olmc.s0Fuse] ? 1 : 0;
-       const s1 = fuses[olmc.s1Fuse] ? 1 : 0;
-       
-       let pinOutputValue;
-       if (s1 === 0) {
-         pinOutputValue = internal!.registers[i];
-       } else {
-         pinOutputValue = orResult;
-       }
-       
-       if (s0 === 0) {
-         pinOutputValue = pinOutputValue === 1 ? 0 : 1;
-       }
-       
-       if (oe === 1) {
-         returnOutputs[i] = pinOutputValue;
-       } else {
-         returnOutputs[i] = undefined;
-       }
-    }
+      const olmc = GAL22V10_OLMC_MAP[i];
+      oes[i] = evaluateRow(olmc.startRow, colStates);
 
-    if (arPrev === 1) {
-      internal!.registers.fill(0);
-    } else if (isRisingEdge) {
-      if (spPrev === 1) {
-        internal!.registers.fill(1);
-      } else {
-        for (let i = 0; i < 10; i++) {
-          internal!.registers[i] = dInputsPrev[i];
+      let orResult = 0;
+      let orResultPrev = 0;
+      const activeRows = olmcActiveRows[i];
+      for (let r = 0; r < activeRows.length; r++) {
+        const rowIdx = activeRows[r];
+        if (orResult === 0 && evaluateRow(rowIdx, colStates) === 1) {
+          orResult = 1;
+        }
+        if (isRisingEdge && prevInputs && orResultPrev === 0 && evaluateRow(rowIdx, prevColStates) === 1) {
+          orResultPrev = 1;
         }
       }
+      if (!isRisingEdge || !prevInputs) orResultPrev = orResult;
+
+      orResults[i] = orResult;
+      dInputsPrev[i] = orResultPrev;
+    }
+
+    if (ar === 1 || arPrev === 1) {
+      regs.fill(0);
+    } else if (isRisingEdge) {
+      if (spPrev === 1) {
+        regs.fill(1);
+      } else {
+        for (let i = 0; i < 10; i++) {
+          regs[i] = dInputsPrev[i];
+        }
+      }
+    }
+
+    for (let i = 0; i < 10; i++) {
+      let pinOutputValue = s1[i] === 0 ? regs[i] : orResults[i];
+      if (s0[i] === 0) {
+        pinOutputValue = pinOutputValue === 1 ? 0 : 1;
+      }
+      returnOutputs[i] = oes[i] === 1 ? pinOutputValue : undefined;
     }
 
     return returnOutputs as any;
-  }
+  },
 };

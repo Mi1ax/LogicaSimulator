@@ -4,7 +4,7 @@ import { persist } from 'zustand/middleware';
 import { LogicNode, NodeType, Wire, DraftWire } from '../core/models/types';
 import * as circuit from '../core/engine/circuit';
 import { syncSubcircuitInstances } from '../core/engine/circuit';
-import { computeNextState } from '../core/engine/simulation';
+import { computeNextState, computeNextStateBatch } from '../core/engine/simulation';
 import { getSchematicPinPosition } from '../core/utils/schematicLayout';
 import { computeManhattanElbow } from '../core/engine/routing';
 import { generateId } from '../core/utils/id';
@@ -70,6 +70,7 @@ interface SimulatorState {
 
   // UI state for node placement
   placingNodeId: string | null;
+  lastPlacedNodeType: NodeType | null;
   pastingNodeIds: string[] | null;
   pastingBasePoint: { x: number, y: number } | null;
   updatePastingNodes: (x: number, y: number) => void;
@@ -404,14 +405,21 @@ export const useSimulatorStore = create<SimulatorState>()(
   }),
 
   placingNodeId: null,
+  lastPlacedNodeType: null,
   pastingNodeIds: null,
   pastingBasePoint: null,
   clipboard: null,
   
   startPlacingNode: (type) => set((state) => {
-    const nextState = circuit.addNode(state, type, 0, 0);
+    let baseState: SimulatorState = state;
+    let historyToUse = pushHistory(state);
+    if (state.placingNodeId) {
+      baseState = { ...state, ...circuit.deleteNode(state, state.placingNodeId), placingNodeId: null };
+      historyToUse = { history: state.history, future: [] };
+    }
+    const nextState = circuit.addNode(baseState, type, 0, 0);
     const newNode = nextState.nodes[nextState.nodes.length - 1];
-    return { ...nextState, placingNodeId: newNode.id, ...pushHistory(state) };
+    return { ...nextState, placingNodeId: newNode.id, lastPlacedNodeType: type, ...historyToUse };
   }),
 
   updatePlacingNode: (x, y) => set((state) => {
@@ -603,10 +611,13 @@ export const useSimulatorStore = create<SimulatorState>()(
   })),
 
   stepSimulationBatch: (ticks) => set((state) => {
-    let nextSimState = state.simState;
-    for (let i = 0; i < ticks; i++) {
-      nextSimState = computeNextState(state.nodes, state.wires, nextSimState, state.savedCircuits);
-    }
+    const { state: nextSimState } = computeNextStateBatch(
+      state.nodes,
+      state.wires,
+      state.simState,
+      state.savedCircuits,
+      ticks
+    );
     return { simState: nextSimState };
   }),
 
@@ -615,9 +626,17 @@ export const useSimulatorStore = create<SimulatorState>()(
 
   toggleInputNode: (id) => set((state) => {
     const node = state.nodes.find(n => n.id === id);
-    if (!node || node.type !== 'INPUT') return state;
-    const currentVal = node.properties?.value === 1 ? 0 : 1;
-    return circuit.updateNodeProperties(state, id, { value: currentVal });
+    if (!node) return state;
+    if (node.type === 'INPUT') {
+      const currentVal = node.properties?.value === 1 ? 0 : 1;
+      return circuit.updateNodeProperties(state, id, { value: currentVal });
+    }
+    if (node.type === 'CLOCK') {
+      if (!state.simRunning || node.properties?.mode !== 'manual') return state;
+      const currentVal = node.properties?.manualValue === 1 ? 0 : 1;
+      return circuit.updateNodeProperties(state, id, { manualValue: currentVal });
+    }
+    return state;
   }),
 
   startWire: (nodeId, pinId, pinType, x, y, manhattan = false) => set({
@@ -924,6 +943,17 @@ export const useSimulatorStore = create<SimulatorState>()(
         let timeoutId: ReturnType<typeof setTimeout> | null = null;
         let pendingKey: string | null = null;
         let pendingValue: any = null;
+        let lastStateSnapshot: Record<string, any> | null = null;
+
+        const isSameSnapshot = (a: Record<string, any> | null, b: Record<string, any> | null) => {
+          if (!a || !b) return false;
+          const keys = Object.keys(b);
+          for (let i = 0; i < keys.length; i++) {
+            const k = keys[i];
+            if (a[k] !== b[k]) return false;
+          }
+          return true;
+        };
 
         const flush = () => {
           if (pendingKey !== null && pendingValue !== null) {
@@ -946,12 +976,20 @@ export const useSimulatorStore = create<SimulatorState>()(
             const str = localStorage.getItem(name);
             if (!str) return null;
             try {
-              return JSON.parse(str);
+              const parsed = JSON.parse(str);
+              if (parsed?.state) lastStateSnapshot = { ...parsed.state };
+              return parsed;
             } catch {
               return null;
             }
           },
           setItem: (name: string, value: any) => {
+            if (value?.state && isSameSnapshot(lastStateSnapshot, value.state)) {
+              return;
+            }
+            if (value?.state) {
+              lastStateSnapshot = { ...value.state };
+            }
             pendingKey = name;
             pendingValue = value;
             if (timeoutId) clearTimeout(timeoutId);
@@ -961,6 +999,7 @@ export const useSimulatorStore = create<SimulatorState>()(
             if (timeoutId) clearTimeout(timeoutId);
             pendingKey = null;
             pendingValue = null;
+            lastStateSnapshot = null;
             localStorage.removeItem(name);
           },
         };

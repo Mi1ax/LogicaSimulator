@@ -63,7 +63,8 @@ export const IC74LS161: NodeDefinition = {
     const qb = (st.counter & 2) ? 1 : 0;
     const qc = (st.counter & 4) ? 1 : 0;
     const qd = (st.counter & 8) ? 1 : 0;
-    const rco = (st.counter === 15 && safeEnt === 1) ? 1 : 0;
+    const currentEnt = inputs[9] ?? 1;
+    const rco = (st.counter === 15 && currentEnt === 1) ? 1 : 0;
 
     return [qd, qc, qb, qa, rco];
   }
@@ -154,3 +155,47 @@ export const IC74LS191: NodeDefinition = {
     return [qb, qa, qc, qd, maxMin, rcoN] as any;
   }
 };
+
+export const IC_NE555: NodeDefinition = {
+  type: 'NE555',
+  label: 'NE555 (Timer / Oscillator)',
+  category: 'Integrated Circuits/Counters & Timers',
+  tags: ['555', 'ne555', 'timer', 'oscillator', 'clock', 'astable'],
+  renderAs: 'DIP',
+  numInputs: 0,
+  numOutputs: 0,
+  customPins: [
+    { name: 'GND', type: 'input', pinNumber: 1 },
+    { name: 'TRIG\'', type: 'input', pinNumber: 2, schematicSide: 'left', schematicRow: 1 },
+    { name: 'OUT', type: 'output', pinNumber: 3, schematicSide: 'right', schematicRow: 1 },
+    { name: 'RST\'', type: 'input', pinNumber: 4, schematicSide: 'left', schematicRow: 3 },
+    { name: 'VCC', type: 'input', pinNumber: 8 },
+  ],
+  defaultProperties: { highTicks: 5, lowTicks: 5, startHigh: true },
+  evaluate: (inputs, props, tickCount) => {
+    // inputs: 0 = GND, 1 = TRIG', 2 = RST', 3 = VCC
+    const trigN = inputs[1] ?? 1;
+    const rstN = inputs[2] ?? 1;
+
+    if (rstN === 0) {
+      return [0];
+    }
+    if (trigN === 0) {
+      return [1];
+    }
+
+    const highTicks = Math.max(1, props?.highTicks ?? props?.interval ?? 5);
+    const lowTicks = Math.max(1, props?.lowTicks ?? props?.interval ?? 5);
+    const cycleLength = highTicks + lowTicks;
+    if (cycleLength <= 0) return [0];
+
+    const currentTick = (tickCount ?? 0) % cycleLength;
+    const startHigh = props?.startHigh !== false;
+    const val = startHigh
+      ? (currentTick < highTicks ? 1 : 0)
+      : (currentTick < lowTicks ? 0 : 1);
+
+    return [val];
+  }
+};
+

@@ -26,6 +26,30 @@ vi.mock('../nodes', () => {
           evaluate: (_inputs: any[], props: any) => [props?.active ? 1 : 0]
         };
       }
+      if (type === 'PULL_UP') {
+        return {
+          type: 'PULL_UP',
+          numInputs: 0,
+          numOutputs: 1,
+          evaluate: () => [1]
+        };
+      }
+      if (type === 'PULL_DOWN') {
+        return {
+          type: 'PULL_DOWN',
+          numInputs: 0,
+          numOutputs: 1,
+          evaluate: () => [0]
+        };
+      }
+      if (type === 'KEYPAD') {
+        return {
+          type: 'KEYPAD',
+          numInputs: 7,
+          numOutputs: 0,
+          evaluate: () => []
+        };
+      }
       return null;
     })
   };
@@ -165,5 +189,56 @@ describe('Simulation Engine', () => {
     });
 
     expect(state.pinStates['busB-0']).toBe(1);
+  });
+
+  it('should resolve weak PULL_UP/PULL_DOWN signals and connect KEYPAD rows and columns on key press', () => {
+    const colDriver: LogicNode = {
+      id: 'col1', type: 'SWITCH', x: 0, y: 0,
+      inputs: [],
+      outputs: [{ id: 'col1-out', nodeId: 'col1', type: 'output', index: 0 }],
+      properties: { active: false } // Drives active-low 0 onto C1
+    };
+
+    const rowPullUp: LogicNode = {
+      id: 'pu1', type: 'PULL_UP', x: 0, y: 0,
+      inputs: [],
+      outputs: [{ id: 'pu1-out', nodeId: 'pu1', type: 'output', index: 0 }],
+      properties: {}
+    };
+
+    const keypad: LogicNode = {
+      id: 'kp1', type: 'KEYPAD', x: 0, y: 0,
+      inputs: [
+        { id: 'kp-r1', nodeId: 'kp1', type: 'bidir', index: 0, name: 'R1' },
+        { id: 'kp-r2', nodeId: 'kp1', type: 'bidir', index: 1, name: 'R2' },
+        { id: 'kp-r3', nodeId: 'kp1', type: 'bidir', index: 2, name: 'R3' },
+        { id: 'kp-r4', nodeId: 'kp1', type: 'bidir', index: 3, name: 'R4' },
+        { id: 'kp-c1', nodeId: 'kp1', type: 'bidir', index: 4, name: 'C1' },
+        { id: 'kp-c2', nodeId: 'kp1', type: 'bidir', index: 5, name: 'C2' },
+        { id: 'kp-c3', nodeId: 'kp1', type: 'bidir', index: 6, name: 'C3' },
+      ],
+      outputs: [],
+      properties: { pressedKeys: [] }
+    };
+
+    const wires: Wire[] = [
+      { id: 'w-r1', sourceNodeId: 'pu1', sourcePinId: 'pu1-out', targetNodeId: 'kp1', targetPinId: 'kp-r1' },
+      { id: 'w-c1', sourceNodeId: 'col1', sourcePinId: 'col1-out', targetNodeId: 'kp1', targetPinId: 'kp-c1' },
+    ];
+
+    // Unpressed: R1 is weakly pulled HIGH (1), C1 is strongly driven LOW (0)
+    const stateUnpressed = computeNextState([colDriver, rowPullUp, keypad], wires, {
+      tickCount: 0,
+      pinStates: {},
+      wireStates: {}
+    });
+    expect(stateUnpressed.pinStates['kp-r1']).toBe(1);
+    expect(stateUnpressed.pinStates['kp-c1']).toBe(0);
+
+    // Press key '1' (index 0: Row 0, Col 0 -> R1 shorted to C1): strong 0 overrides weak PULL_UP without 'X' collision
+    keypad.properties = { pressedKey: 0 };
+    const statePressed = computeNextState([colDriver, rowPullUp, keypad], wires, stateUnpressed);
+    expect(statePressed.pinStates['kp-r1']).toBe(0);
+    expect(statePressed.pinStates['kp-c1']).toBe(0);
   });
 });

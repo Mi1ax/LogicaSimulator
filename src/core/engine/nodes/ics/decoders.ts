@@ -127,6 +127,66 @@ export const IC74LS138: NodeDefinition = {
   }
 };
 
+export const IC74LS139: NodeDefinition = {
+  type: '74LS139',
+  label: '74LS139 (Dual 2-to-4 Decoder)',
+  category: 'Integrated Circuits/Decoders & Multiplexers',
+  tags: ["decoder", "demux", "multiplexer", "dual"],
+  numInputs: 0,
+  numOutputs: 0,
+  renderAs: 'DIP',
+  customPins: [
+    // Unit 1 (rows 1..4)
+    { type: 'input', name: '1G\'', pinNumber: 1, schematicSide: 'left', schematicRow: 4 },
+    { type: 'input', name: '1A', pinNumber: 2, schematicSide: 'left', schematicRow: 1 },
+    { type: 'input', name: '1B', pinNumber: 3, schematicSide: 'left', schematicRow: 2 },
+    { type: 'output', name: '1Y0\'', pinNumber: 4, schematicSide: 'right', schematicRow: 1 },
+    { type: 'output', name: '1Y1\'', pinNumber: 5, schematicSide: 'right', schematicRow: 2 },
+    { type: 'output', name: '1Y2\'', pinNumber: 6, schematicSide: 'right', schematicRow: 3 },
+    { type: 'output', name: '1Y3\'', pinNumber: 7, schematicSide: 'right', schematicRow: 4 },
+    { type: 'input', name: 'GND', pinNumber: 8 },
+    // Unit 2 (rows 6..9)
+    { type: 'output', name: '2Y3\'', pinNumber: 9, schematicSide: 'right', schematicRow: 9 },
+    { type: 'output', name: '2Y2\'', pinNumber: 10, schematicSide: 'right', schematicRow: 8 },
+    { type: 'output', name: '2Y1\'', pinNumber: 11, schematicSide: 'right', schematicRow: 7 },
+    { type: 'output', name: '2Y0\'', pinNumber: 12, schematicSide: 'right', schematicRow: 6 },
+    { type: 'input', name: '2B', pinNumber: 13, schematicSide: 'left', schematicRow: 7 },
+    { type: 'input', name: '2A', pinNumber: 14, schematicSide: 'left', schematicRow: 6 },
+    { type: 'input', name: '2G\'', pinNumber: 15, schematicSide: 'left', schematicRow: 9 },
+    { type: 'input', name: 'VCC', pinNumber: 16 },
+  ],
+  evaluate: (inputs): Signal[] => {
+    // Inputs in customPins order (excluding outputs):
+    // 0: 1G', 1: 1A, 2: 1B, 3: GND, 4: 2B, 5: 2A, 6: 2G', 7: VCC
+    const G1_n = inputs[0] ?? 1;
+    const A1 = inputs[1] ?? 0;
+    const B1 = inputs[2] ?? 0;
+    // inputs[3] is GND
+    const B2 = inputs[4] ?? 0;
+    const A2 = inputs[5] ?? 0;
+    const G2_n = inputs[6] ?? 1;
+
+    const y1: Signal[] = [1, 1, 1, 1];
+    if (G1_n === 0) {
+      const val1 = ((B1 as number) << 1) | (A1 as number);
+      if (val1 >= 0 && val1 <= 3) y1[val1] = 0;
+    }
+
+    const y2: Signal[] = [1, 1, 1, 1];
+    if (G2_n === 0) {
+      const val2 = ((B2 as number) << 1) | (A2 as number);
+      if (val2 >= 0 && val2 <= 3) y2[val2] = 0;
+    }
+
+    // Outputs in customPins order:
+    // 1Y0', 1Y1', 1Y2', 1Y3', 2Y3', 2Y2', 2Y1', 2Y0'
+    return [
+      y1[0], y1[1], y1[2], y1[3],
+      y2[3], y2[2], y2[1], y2[0],
+    ];
+  }
+};
+
 export const IC74LS154: NodeDefinition = {
   type: '74LS154',
   label: '74LS154 (4-to-16 Decoder)',
