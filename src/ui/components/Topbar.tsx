@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
-import {  Trash2, Sun, Moon, Settings, Save, FolderOpen, Library , Menu as MenuIcon, ChevronRight } from 'lucide-react';
+import { Trash2, Sun, Moon, Settings, Save, FolderOpen, Library, Menu as MenuIcon, ChevronRight } from 'lucide-react';
+import { serializeCircuit, deserializeCircuit } from '../../core/utils/serialization';
 
 export const Topbar: React.FC = () => {
   const [showMenu, setShowMenu] = useState(false);
@@ -17,13 +18,31 @@ export const Topbar: React.FC = () => {
   const appMode = useSimulatorStore(state => state.appMode);
   const setAppMode = useSimulatorStore(state => state.setAppMode);
 
+  const applyLoadedCircuit = (rawData: any) => {
+    const { nodes, wires, subcircuits } = deserializeCircuit(rawData);
+    useSimulatorStore.setState(() => ({
+      nodes,
+      wires,
+      ...(subcircuits
+        ? {
+            savedCircuits: {
+              main: { name: 'Main', nodes, wires, history: [], future: [] },
+              ...subcircuits,
+            },
+            activeSubcircuitId: 'main',
+          }
+        : {}),
+      history: [],
+      future: [],
+      selection: null,
+      multiSelection: [],
+      simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} },
+    }));
+  };
+
   const handleSave = async () => {
     const store = useSimulatorStore.getState();
-    const data = {
-      nodes: store.nodes,
-      wires: store.wires,
-    };
-    const json = JSON.stringify(data, null, 2);
+    const json = serializeCircuit(store.nodes, store.wires, store.savedCircuits);
     
     if ('showSaveFilePicker' in window) {
       try {
@@ -62,13 +81,7 @@ export const Topbar: React.FC = () => {
       try {
         const json = event.target?.result as string;
         const data = JSON.parse(json);
-        useSimulatorStore.setState({
-          nodes: data.nodes || [],
-          wires: data.wires || [],
-          history: [],
-          future: [],
-          simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} }
-        });
+        applyLoadedCircuit(data);
       } catch (err) {
         console.error('Failed to load circuit file:', err);
         alert('Invalid circuit file.');
@@ -80,16 +93,10 @@ export const Topbar: React.FC = () => {
 
   const loadExample = async (filename: string) => {
     try {
-      const response = await fetch(`/examples/${filename}`);
+      const response = await fetch(`${import.meta.env.BASE_URL}examples/${filename}`);
       if (!response.ok) throw new Error('Failed to load example');
       const data = await response.json();
-      useSimulatorStore.setState({
-        nodes: data.nodes || [],
-        wires: data.wires || [],
-        history: [],
-        future: [],
-        simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} }
-      });
+      applyLoadedCircuit(data);
       setShowExamplesSub(false); setShowMenu(false);
     } catch (err) {
       console.error(err);
@@ -204,6 +211,7 @@ export const Topbar: React.FC = () => {
                       <button onClick={() => loadExample('04_62256_sram.logica')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700">04. 62256 SRAM Chip</button>
                       <button onClick={() => loadExample('05_74LS273_register.logica')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700">05. 74LS273 Octal Register</button>
                       <button onClick={() => loadExample('06_74LS08_quad_and.logica')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700">06. 74LS08 Quad AND Gate</button>
+                      <button onClick={() => loadExample('mqc.logica')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700">07. MQC CPU Computer</button>
                     </div>
                   )}
                 </div>

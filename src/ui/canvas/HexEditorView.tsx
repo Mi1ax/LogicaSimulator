@@ -1,21 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
+import { getNodeDefinition } from '../../core/engine/nodes';
 
-const MEM_SIZE = 32768;
 const PAGE_SIZE = 1024; // Bytes per page (64 rows of 16)
 
 export const HexEditorView: React.FC = () => {
   const nodes = useSimulatorStore(state => state.nodes);
   const updateNodeProperties = useSimulatorStore(state => state.updateNodeProperties);
-  const memoryNodes = nodes.filter(n => ['27C256', '62256', '6116'].includes(n.type));
+  const memoryNodes = nodes.filter(n => getNodeDefinition(n.type)?.memorySize !== undefined);
   
   const selectedNodeId = useSimulatorStore(state => state.selectedMemoryNodeId);
   const setSelectedNodeId = useSimulatorStore(state => state.setSelectedMemoryNodeId);
 
   const selectedNode = nodes.find(n => n.id === selectedNodeId);
+  const memSize = (selectedNode && getNodeDefinition(selectedNode.type)?.memorySize) || 32768;
 
   // Local copy of memory for editing
-  const [memory, setMemory] = useState<Uint8Array>(new Uint8Array(MEM_SIZE));
+  const [memory, setMemory] = useState<Uint8Array>(new Uint8Array(memSize));
   const liveMemory = useSimulatorStore(state => state.simState.nodeStates?.[selectedNode?.id || '']?.memory);
   const displayMemory = liveMemory || memory;
   const [editingAddr, setEditingAddr] = useState<number | null>(null);
@@ -29,7 +30,7 @@ export const HexEditorView: React.FC = () => {
     if (e) e.preventDefault();
     let addr = parseInt(jumpAddressInput, 16);
     if (isNaN(addr)) return;
-    addr = Math.max(0, Math.min(addr, MEM_SIZE - 1));
+    addr = Math.max(0, Math.min(addr, memSize - 1));
     const targetPage = Math.floor(addr / PAGE_SIZE);
     setCurrentPage(targetPage);
     
@@ -57,10 +58,11 @@ export const HexEditorView: React.FC = () => {
 
   useEffect(() => {
     if (selectedNode) {
+      const size = getNodeDefinition(selectedNode.type)?.memorySize || 32768;
       const data = selectedNode.properties?.data;
-      const newMem = new Uint8Array(MEM_SIZE);
+      const newMem = new Uint8Array(size);
       if (Array.isArray(data)) {
-        for (let i = 0; i < Math.min(data.length, MEM_SIZE); i++) {
+        for (let i = 0; i < Math.min(data.length, size); i++) {
           newMem[i] = data[i] || 0;
         }
       }
@@ -72,7 +74,7 @@ export const HexEditorView: React.FC = () => {
 
   
   const focusCell = (targetAddr: number) => {
-    if (targetAddr < 0 || targetAddr >= MEM_SIZE) return;
+    if (targetAddr < 0 || targetAddr >= memSize) return;
     const targetPage = Math.floor(targetAddr / PAGE_SIZE);
     if (targetPage !== currentPage) {
       setCurrentPage(targetPage);
@@ -108,8 +110,11 @@ export const HexEditorView: React.FC = () => {
 
   const handleSave = () => {
     if (selectedNode) {
-      // Convert typed array back to normal array for store (since we serialize to JSON)
-      const dataArray = Array.from(memory);
+      let lastNonZero = memory.length - 1;
+      while (lastNonZero >= 0 && memory[lastNonZero] === 0) {
+        lastNonZero--;
+      }
+      const dataArray = lastNonZero < 0 ? [] : Array.from(memory.subarray(0, lastNonZero + 1));
       updateNodeProperties(selectedNode.id, { data: dataArray });
       setIsDirty(false);
     }
@@ -125,8 +130,8 @@ export const HexEditorView: React.FC = () => {
         const file = await fileHandle.getFile();
         const buffer = await file.arrayBuffer();
         const importedMem = new Uint8Array(buffer);
-        const newMem = new Uint8Array(MEM_SIZE);
-        newMem.set(importedMem.slice(0, MEM_SIZE));
+        const newMem = new Uint8Array(memSize);
+        newMem.set(importedMem.slice(0, memSize));
         setMemory(newMem);
         setIsDirty(true);
       } catch (err: any) {
@@ -141,9 +146,10 @@ export const HexEditorView: React.FC = () => {
         if (file) {
           const buffer = await file.arrayBuffer();
           const importedMem = new Uint8Array(buffer);
-          const newMem = new Uint8Array(MEM_SIZE);
-          newMem.set(importedMem.slice(0, MEM_SIZE));
+          const newMem = new Uint8Array(memSize);
+          newMem.set(importedMem.slice(0, memSize));
           setMemory(newMem);
+          setIsDirty(true);
         }
       };
       input.click();
@@ -173,9 +179,9 @@ export const HexEditorView: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [memory, selectedNode]);
 
-  const numPages = Math.ceil(MEM_SIZE / PAGE_SIZE);
+  const numPages = Math.ceil(memSize / PAGE_SIZE);
   const startAddr = currentPage * PAGE_SIZE;
-  const endAddr = Math.min(startAddr + PAGE_SIZE, MEM_SIZE);
+  const endAddr = Math.min(startAddr + PAGE_SIZE, memSize);
   const pageBytes = displayMemory.slice(startAddr, endAddr);
   const rows = Math.ceil(pageBytes.length / 16);
 
@@ -317,7 +323,7 @@ export const HexEditorView: React.FC = () => {
                     <div className="flex gap-2 text-gray-800 dark:text-[#d4d4d4]">
                       {[...Array(16)].map((_, colIndex) => {
                         const addr = rowStartAddr + colIndex;
-                        if (addr >= MEM_SIZE) return <span key={colIndex} className="w-4" />;
+                        if (addr >= memSize) return <span key={colIndex} className="w-4" />;
                         
                         const byteVal = displayMemory[addr];
                         const hexStr = byteVal.toString(16).padStart(2, '0').toUpperCase();
@@ -349,7 +355,7 @@ export const HexEditorView: React.FC = () => {
                     <div className="ml-8 text-gray-400 dark:text-[#6A9955] whitespace-pre py-0.5">
                       {[...Array(16)].map((_, colIndex) => {
                         const addr = rowStartAddr + colIndex;
-                        if (addr >= MEM_SIZE) return ' ';
+                        if (addr >= memSize) return ' ';
                         const byteVal = displayMemory[addr];
                         return (byteVal >= 32 && byteVal <= 126) ? String.fromCharCode(byteVal) : '.';
                       }).join('')}

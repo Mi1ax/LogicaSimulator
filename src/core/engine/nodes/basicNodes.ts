@@ -3,8 +3,10 @@ import { NodeDefinition } from './NodeDefinition';
 export const AndNode: NodeDefinition = {
   type: 'AND',
   label: 'AND Gate',
+  category: 'Basic Logic',
   numInputs: 2,
   numOutputs: 1,
+  variableInputs: { min: 2, max: 8 },
   evaluate: (inputs) => {
     if (inputs.includes(undefined)) return [undefined];
     return [inputs.every(i => i === 1) ? 1 : 0];
@@ -14,8 +16,10 @@ export const AndNode: NodeDefinition = {
 export const OrNode: NodeDefinition = {
   type: 'OR',
   label: 'OR Gate',
+  category: 'Basic Logic',
   numInputs: 2,
   numOutputs: 1,
+  variableInputs: { min: 2, max: 8 },
   evaluate: (inputs) => {
     if (inputs.includes(undefined)) return [undefined];
     return [inputs.some(i => i === 1) ? 1 : 0];
@@ -25,8 +29,10 @@ export const OrNode: NodeDefinition = {
 export const NorNode: NodeDefinition = {
   type: 'NOR',
   label: 'NOR Gate',
+  category: 'Basic Logic',
   numInputs: 2,
   numOutputs: 1,
+  variableInputs: { min: 2, max: 8 },
   evaluate: (inputs) => {
     if (inputs.includes(undefined)) return [undefined];
     return [inputs.every(i => i === 0) ? 1 : 0];
@@ -36,6 +42,7 @@ export const NorNode: NodeDefinition = {
 export const NotNode: NodeDefinition = {
   type: 'NOT',
   label: 'NOT Gate',
+  category: 'Basic Logic',
   numInputs: 1,
   numOutputs: 1,
   evaluate: (inputs) => {
@@ -47,8 +54,10 @@ export const NotNode: NodeDefinition = {
 export const XorNode: NodeDefinition = {
   type: 'XOR',
   label: 'XOR Gate',
+  category: 'Basic Logic',
   numInputs: 2,
   numOutputs: 1,
+  variableInputs: { min: 2, max: 8 },
   evaluate: (inputs) => {
     if (inputs.includes(undefined)) return [undefined];
     // XOR is true if the inputs are different (or if an odd number of inputs are 1)
@@ -60,8 +69,10 @@ export const XorNode: NodeDefinition = {
 export const NandNode: NodeDefinition = {
   type: 'NAND',
   label: 'NAND Gate',
+  category: 'Basic Logic',
   numInputs: 2,
   numOutputs: 1,
+  variableInputs: { min: 2, max: 8 },
   evaluate: (inputs) => {
     if (inputs.includes(undefined)) return [undefined];
     return [inputs.every(i => i === 1) ? 0 : 1];
@@ -71,8 +82,10 @@ export const NandNode: NodeDefinition = {
 export const XnorNode: NodeDefinition = {
   type: 'XNOR',
   label: 'XNOR Gate',
+  category: 'Basic Logic',
   numInputs: 2,
   numOutputs: 1,
+  variableInputs: { min: 2, max: 8 },
   evaluate: (inputs) => {
     if (inputs.includes(undefined)) return [undefined];
     const count = inputs.filter(i => i === 1).length;
@@ -83,6 +96,7 @@ export const XnorNode: NodeDefinition = {
 export const BufferNode: NodeDefinition = {
   type: 'BUFFER',
   label: 'Buffer',
+  category: 'Basic Logic',
   numInputs: 1,
   numOutputs: 1,
   evaluate: (inputs) => {
@@ -94,6 +108,25 @@ export const BufferNode: NodeDefinition = {
 export const NcNode: NodeDefinition = {
   type: 'NC',
   label: 'No Connect (X)',
+  category: 'Power & I/O',
+  numInputs: 1,
+  numOutputs: 0,
+  disableTransform: true,
+  evaluate: () => []
+};
+
+export const InputNode: NodeDefinition = {
+  type: 'INPUT',
+  label: 'Input Switch',
+  numInputs: 0,
+  numOutputs: 1,
+  defaultProperties: { value: 0 },
+  evaluate: (_, props) => [props?.value === 1 ? 1 : 0]
+};
+
+export const OutputNode: NodeDefinition = {
+  type: 'OUTPUT',
+  label: 'Output LED',
   numInputs: 1,
   numOutputs: 0,
   evaluate: () => []
@@ -167,6 +200,7 @@ export const ClockNode: NodeDefinition = {
 export const VccNode: NodeDefinition = {
   type: 'VCC',
   label: 'Power (VCC)',
+  category: 'Power & I/O',
   numInputs: 0,
   numOutputs: 1,
   evaluate: () => [1] // Always outputs 1
@@ -175,6 +209,7 @@ export const VccNode: NodeDefinition = {
 export const GndNode: NodeDefinition = {
   type: 'GND',
   label: 'Ground (GND)',
+  category: 'Power & I/O',
   numInputs: 0,
   numOutputs: 1,
   evaluate: () => [0] // Always outputs 0
@@ -185,14 +220,17 @@ export const JunctionNode: NodeDefinition = {
   label: 'Junction',
   numInputs: 1,
   numOutputs: 1,
+  disableTransform: true,
   evaluate: () => [undefined] // Evaluated purely via net union, should not drive on its own!
 };
 
 export const DipSwitchNode: NodeDefinition = {
   type: 'DIP_SWITCH',
   label: 'DIP Switch',
+  category: 'Power & I/O',
   numInputs: 0,
   numOutputs: 4,
+  variableOutputs: { min: 1, max: 12, label: 'Number of Outputs (Switches)' },
   defaultProperties: { switches: [0, 0, 0, 0] },
   evaluate: (_, props) => {
     const numOutputs = props?.numOutputs || 4;
@@ -204,6 +242,7 @@ export const DipSwitchNode: NodeDefinition = {
 export const SevenSegNode: NodeDefinition = {
   type: '7_SEG_DISPLAY',
   label: '7-Segment Display',
+  category: 'Power & I/O',
   numInputs: 8,
   numOutputs: 0,
   customPins: [
@@ -222,6 +261,7 @@ export const SevenSegNode: NodeDefinition = {
 export const NetLabelNode: NodeDefinition = {
   type: 'NET_LABEL',
   label: 'Net Label',
+  category: 'Power & I/O',
   numInputs: 1, // Will be mapped to a bidir pin
   numOutputs: 1,
   customPins: [
@@ -233,6 +273,7 @@ export const NetLabelNode: NodeDefinition = {
 export const BusBreakoutNode: NodeDefinition = {
   type: 'BUS_BREAKOUT',
   label: 'Bus Breakout',
+  category: 'Power & I/O',
   numInputs: 0,
   numOutputs: 0,
   renderAs: 'BUS',
@@ -241,9 +282,6 @@ export const BusBreakoutNode: NodeDefinition = {
     let bits = props?.bits;
     if (typeof bits !== 'number' || bits < 1) bits = 8;
     
-    // Check if label contains [7..0] or similar to extract bits dynamically if we want,
-    // but the user wants to be able to change bits. We can let them change `bits` property.
-    // Or we parse it from label. "DB[3..0]" -> bits = 4.
     const match = String(props?.label || '').match(/\[(\d+)\.\.(\d+)\]/);
     if (match) {
       const high = parseInt(match[1], 10);
@@ -265,6 +303,7 @@ export const BusBreakoutNode: NodeDefinition = {
 export const PushButtonNode: NodeDefinition = {
   type: 'BUTTON',
   label: 'Push Button',
+  category: 'Power & I/O',
   numInputs: 0,
   numOutputs: 1,
   defaultProperties: { pressed: false, activeLow: false },
@@ -278,7 +317,9 @@ export const PushButtonNode: NodeDefinition = {
 export const LedBarNode: NodeDefinition = {
   type: 'LED_BAR',
   label: 'LED Bar (8-bit)',
+  category: 'Power & I/O',
   numInputs: 8,
   numOutputs: 0,
+  variableInputs: { min: 1, max: 32, label: 'Number of LEDs' },
   evaluate: () => []
 };
