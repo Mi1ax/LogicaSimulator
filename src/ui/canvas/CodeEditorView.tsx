@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { compilePldToJedec, PldCompileResult } from '../../core/utils/pldCompiler';
+import { FsmDiagramView } from '../components/FsmDiagramView';
 
 interface PldTemplate {
   id: string;
@@ -130,6 +131,69 @@ Q0.ar = CLR;
 Q1.ar = CLR;
 Q2.ar = CLR;
 Q3.ar = CLR;
+`,
+  },
+  {
+    id: 'fsm-controller',
+    title: 'Finite State Machine (FSM Controller)',
+    subtitle: '6-state keypad debounce & display timer controller (S0..S5)',
+    code: `Name     NikoYuri ;
+PartNo   00 ;
+Date     9/8/2026 ;
+Revision 01 ;
+Designer Engineer ;
+Company  LaSalle ;
+Assembly None ;
+Location  ;
+Device   g22v10 ;
+
+/* ************************* INPUT PINS **************/
+PIN 1 = T;
+PIN 2 = CS0;
+PIN 3 = CS1;
+PIN 4 = CS2;
+PIN 5 = Key;
+PIN 6 = 16Ms;
+PIN 7 = 2Sec;
+
+/* *********************** OUTPUT PINS ***************/
+PIN 14 = 2Sec_Load;
+PIN 15 = 2Sec_Enable;
+PIN 16 = SaveValue;
+PIN 17 = Key_Pressed;
+PIN 18 = Bounce;
+PIN 19 = NS2;
+PIN 20 = NS1;
+PIN 21 = NS0;
+PIN 22 = Show_Value;
+
+/* ********************** CODIFICATIONS ***************/
+S0 = !CS2 & !CS1 & !CS0;
+S1 = !CS2 & !CS1 & CS0;
+S2 = !CS2 & CS1 & !CS0;
+S3 = !CS2 & CS1 & CS0;
+S4 = CS2 & !CS1 & !CS0;
+S5 = CS2 & !CS1 & CS0;
+
+/* ****************** STATE EQUATIONS ****************/
+CondS0 = (S0 & !Key) # (S1 & !Key) # (S5 & 2Sec);
+CondS1 = (S0 & Key) # (S1 & Key & !16Ms) # (S5 & Key & !2Sec);
+CondS2 = (S1 & Key & 16Ms) # (S2 & Key) # (S3 & Key);
+CondS3 = (S2 & !Key) # (S3 & !Key & !16Ms);
+CondS4 = S3 & !Key & 16Ms;
+CondS5 = S4 # (S5 & !Key & !2Sec);
+
+NS2 = CondS4 # CondS5;
+NS1 = CondS2 # CondS3;
+NS0 = CondS1 # CondS3 # CondS5;
+
+/* ******************** OUTPUTS **************/
+Bounce = S1 # S3;
+Key_Pressed = S4 & !T;
+SaveValue = S0 # S2 # S5;
+!2Sec_Load = S4;
+2Sec_Enable = S4 # S5;
+Show_Value = S0 # S1 # S4;
 `,
   },
 ];
@@ -343,7 +407,9 @@ export const CodeEditorView: React.FC = () => {
   const nodes = useSimulatorStore((state) => state.nodes);
   const selectedMemoryNodeId = useSimulatorStore((state) => state.selectedMemoryNodeId);
   const setSelectedMemoryNodeId = useSimulatorStore((state) => state.setSelectedMemoryNodeId);
+  const setAppMode = useSimulatorStore((state) => state.setAppMode);
   const updateNodeProperties = useSimulatorStore((state) => state.updateNodeProperties);
+  const [editorLayout, setEditorLayout] = useState<'code' | 'split' | 'fsm'>('code');
 
   const galNodes = useMemo(
     () => nodes.filter((n) => n.type === 'GAL22V10'),
@@ -911,8 +977,45 @@ export const CodeEditorView: React.FC = () => {
           </div>
         </div>
 
-        {/* Right: Strict Compile Button & Collapsible Panel Toggle */}
+        {/* Right: View Layout Switcher, Compile Button & Collapsible Panel Toggle */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Code / Split / FSM Diagram Switcher */}
+          <div className="flex bg-gray-100 dark:bg-slate-900 p-0.5 rounded-md border border-gray-200 dark:border-slate-700">
+            <button
+              onClick={() => setEditorLayout('code')}
+              className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                editorLayout === 'code'
+                  ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 shadow-xs'
+                  : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
+              }`}
+              title="Show CUPL Code Editor only"
+            >
+              Code
+            </button>
+            <button
+              onClick={() => setEditorLayout('split')}
+              className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                editorLayout === 'split'
+                  ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-xs'
+                  : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
+              }`}
+              title="Split view: CUPL Code + Read-Only UML FSM Diagram"
+            >
+              Code + Diagram
+            </button>
+            <button
+              onClick={() => setEditorLayout('fsm')}
+              className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                editorLayout === 'fsm'
+                  ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-xs'
+                  : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
+              }`}
+              title="Full UML FSM State Diagram"
+            >
+              FSM Diagram
+            </button>
+          </div>
+
           <button
             onClick={handleCompileAndFlash}
             className="px-3 py-1 bg-slate-800 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 text-white dark:text-slate-100 border border-slate-700 dark:border-slate-600 text-xs font-medium rounded transition-colors"
@@ -956,10 +1059,11 @@ export const CodeEditorView: React.FC = () => {
         </div>
       )}
 
-      {/* Main Split Area: Editor + Optional Collapsible Right Panel */}
+      {/* Main Split Area: Editor + FSM Diagram + Optional Collapsible Right Panel */}
       <div className="flex-1 flex overflow-hidden">
         {/* Syntax-Highlighted Code Editor */}
-        <div className="flex-1 flex flex-col bg-white dark:bg-slate-950 overflow-hidden">
+        {editorLayout !== 'fsm' && (
+        <div className={`${editorLayout === 'split' ? 'w-1/2 border-r border-gray-200 dark:border-slate-800' : 'flex-1'} flex flex-col bg-white dark:bg-slate-950 overflow-hidden`}>
           <div
             className="flex-1 flex relative overflow-hidden font-mono text-sm"
             style={{ fontVariantLigatures: 'none' }}
@@ -1129,6 +1233,37 @@ export const CodeEditorView: React.FC = () => {
             )}
           </div>
         </div>
+        )}
+
+        {/* UML FSM State Diagram Panel */}
+        {editorLayout !== 'code' && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <FsmDiagramView
+              pldSource={normalizedCode}
+              targetNodeId={activeGalNode?.id || null}
+              readOnly={editorLayout === 'split'}
+              onPlaceOnSchematic={() => {
+                if (activeGalNode) {
+                  const res = compilePldToJedec(normalizedCode);
+                  updateNodeProperties(activeGalNode.id, {
+                    pldSource: normalizedCode,
+                    ...(res.success && res.jedec ? { jedecString: res.jedec } : {}),
+                  });
+                }
+                const store = useSimulatorStore.getState();
+                store.startPlacingNode('FSM_DIAGRAM');
+                const newId = useSimulatorStore.getState().placingNodeId;
+                if (newId && activeGalNode) {
+                  store.updateNodeProperties(newId, {
+                    targetNodeId: activeGalNode.id,
+                    label: `FSM State Machine — ${activeGalNode.properties?.label || 'GAL22V10'}`,
+                  });
+                }
+                setAppMode('schematic');
+              }}
+            />
+          </div>
+        )}
 
         {/* Collapsible Right Panel: OLMC Summary / JEDEC Fuse Preview / Guide */}
         {isRightPanelOpen && (

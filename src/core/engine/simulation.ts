@@ -253,7 +253,7 @@ export const compileCircuit = (
 
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
-    if (n.type === 'REGION_BOX' || n.type === 'TEXT_LABEL' || n.type === 'STICKY_NOTE') {
+    if (n.type === 'REGION_BOX' || n.type === 'TEXT_LABEL' || n.type === 'STICKY_NOTE' || n.type === 'FSM_DIAGRAM') {
       continue;
     }
     const isWeak = n.type === 'PULL_UP' || n.type === 'PULL_DOWN';

@@ -1,10 +1,18 @@
-import React, { useRef } from 'react';
-import { Group, Rect, Text, Line } from 'react-konva';
+import React, { useRef, useMemo } from 'react';
+import { Group, Rect, Text, Line, Path, Circle } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
 import { getSchematicDimensions, getSchematicAnchor } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
 import { SchematicNodeWrapper } from './SchematicNodeWrapper';
+import { extractFsmFromPld, getLiveFsmStatus } from '../../../../core/utils/fsmExtractor';
+import {
+  customPositionsCache,
+  FSM_CARD_WIDTH,
+  getFsmCardHeight,
+  getRectBorderPoint,
+  computeDefaultFsmPositions,
+} from '../../../components/FsmDiagramView';
 
 interface Props {
   node: LogicNode;
@@ -643,3 +651,655 @@ export const SchematicStickyNoteNode: React.FC<Props> = React.memo(({ node }) =>
     </SchematicNodeWrapper>
   );
 });
+
+export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) => {
+  const theme = useSimulatorStore(state => state.theme);
+  const nodes = useSimulatorStore(state => state.nodes);
+  const pinStates = useSimulatorStore(state => state.simState.pinStates);
+  const isSelected = useSimulatorStore(state =>
+    (state.selection?.type === 'node' && state.selection.id === node.id) ||
+    state.multiSelection.includes(node.id)
+  );
+  const isPlacing = useSimulatorStore(
+    state => state.placingNodeId === node.id || Boolean(state.pastingNodeIds && state.pastingNodeIds.includes(node.id))
+  );
+
+  const isDark = theme === 'dark';
+  const canvasTheme = getCanvasTheme(isDark);
+  const { width, height } = getSchematicDimensions(node);
+
+  const colorKey = node.properties?.color || 'slate';
+  const palette = ANNOTATION_COLORS[colorKey] || ANNOTATION_COLORS.slate;
+  const headerH = 26;
+
+  // Find target GAL22V10 node on the schematic
+  const galNode = useMemo(() => {
+    const targetId = node.properties?.targetNodeId;
+    if (targetId) {
+      const found = nodes.find(n => n.id === targetId && n.type === 'GAL22V10');
+      if (found) return found;
+    }
+    return nodes.find(n => n.type === 'GAL22V10') || null;
+  }, [nodes, node.properties?.targetNodeId]);
+
+  const pldSource = galNode?.properties?.pldSource || '';
+  const fsm = useMemo(() => extractFsmFromPld(pldSource), [pldSource]);
+
+  const liveStatus = useMemo(() => {
+    if (!galNode || !fsm.hasFsm) {
+      return { currentStateName: null, currentStateCode: '', nextStateName: null, nextStateCode: '', liveInputs: {} };
+    }
+    return getLiveFsmStatus(fsm, galNode.id, pinStates);
+  }, [fsm, galNode, pinStates]);
+
+  const positions = useMemo(() => {
+    const defaults = computeDefaultFsmPositions(fsm.states);
+    const cached = (galNode && customPositionsCache.get(galNode.id)) || {};
+    return { ...defaults, ...cached };
+  }, [fsm.states, galNode]);
+
+  // Compute bounding box of the FSM diagram to auto-fit inside the card body
+  const layoutFit = useMemo(() => {
+    if (!fsm.hasFsm || fsm.states.length === 0) {
+      return { scale: 1, offsetX: 0, offsetY: 0 };
+    }
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    fsm.states.forEach((st, idx) => {
+      const pos = positions[st.name] || { x: 300, y: 200 };
+      const cardH = getFsmCardHeight(st, false);
+      const left = pos.x - FSM_CARD_WIDTH / 2 - (idx === 0 ? 54 : 16);
+      const right = pos.x + FSM_CARD_WIDTH / 2 + 16;
+      const top = pos.y - cardH / 2 - 58; // Extra top room for self-loops
+      const bottom = pos.y + cardH / 2 + 24;
+      if (left < minX) minX = left;
+      if (right > maxX) maxX = right;
+      if (top < minY) minY = top;
+      if (bottom > maxY) maxY = bottom;
+    });
+
+    const contentW = Math.max(100, maxX - minX);
+    const contentH = Math.max(100, maxY - minY);
+    const availW = Math.max(60, width - 24);
+    const availH = Math.max(60, height - headerH - 24);
+
+    const scale = Math.min(1.15, availW / contentW, availH / contentH);
+    const offsetX = 12 + (availW - contentW * scale) / 2 - minX * scale;
+    const offsetY = headerH + 12 + (availH - contentH * scale) / 2 - minY * scale;
+
+    return { scale, offsetX, offsetY };
+  }, [fsm, positions, width, height]);
+
+  const pairCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    fsm.transitions.forEach(t => {
+      if (!t.isSelfLoop) {
+        const key = [t.from, t.to].sort().join('--');
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
+    });
+    return counts;
+  }, [fsm.transitions]);
+
+  const titleText =
+    node.properties?.label ||
+    (fsm.deviceName ? `FSM State Machine — ${fsm.deviceName}` : 'FSM State Machine');
+
+  const statusText = liveStatus.currentStateName
+    ? `● ACTIVE: ${liveStatus.currentStateName} (${liveStatus.currentStateCode})${
+        liveStatus.nextStateName ? `  →  NEXT: ${liveStatus.nextStateName}` : ''
+      }`
+    : '';
+
+  const getArrowPoints = (ex: number, ey: number, tx: number, ty: number, len = 8.5, halfW = 4.2) => {
+    const dx = ex - tx;
+    const dy = ey - ty;
+    const dist = Math.hypot(dx, dy) || 1;
+    const ux = dx / dist;
+    const uy = dy / dist;
+    return [
+      ex,
+      ey,
+      ex - ux * len - uy * halfW,
+      ey - uy * len + ux * halfW,
+      ex - ux * len + uy * halfW,
+      ey - uy * len - ux * halfW,
+    ];
+  };
+
+  return (
+    <SchematicNodeWrapper node={node}>
+      {/* Background Card Body */}
+      <Rect
+        x={0}
+        y={0}
+        width={width}
+        height={height}
+        fill={isDark ? palette.cardBgDark : palette.cardBgLight}
+        opacity={0.92}
+        stroke={isSelected ? canvasTheme.selectedNodeColor : palette.stroke}
+        strokeWidth={isSelected ? 2.5 : 1.5}
+        cornerRadius={8}
+        perfectDrawEnabled={false}
+      />
+
+      {/* Sticky-Note Header Strip */}
+      <Rect
+        x={0}
+        y={0}
+        width={width}
+        height={headerH}
+        fill={isDark ? palette.headerBgDark : palette.headerBgLight}
+        cornerRadius={[8, 8, 0, 0]}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+
+      <Line
+        points={[0, headerH, width, headerH]}
+        stroke={palette.stroke}
+        strokeWidth={1}
+        opacity={0.5}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+
+      {/* Header Title */}
+      <Text
+        text={titleText}
+        x={12}
+        y={7}
+        width={Math.max(40, width - (statusText ? 220 : 24))}
+        fontSize={12}
+        fontStyle="bold"
+        fontFamily="sans-serif"
+        fill={isDark ? palette.textDark : palette.textLight}
+        wrap="none"
+        ellipsis={true}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+
+      {/* Live Status Indicator in Header */}
+      {statusText && width > 320 && (
+        <Text
+          text={statusText}
+          x={width - 215}
+          y={8}
+          width={203}
+          align="right"
+          fontSize={10}
+          fontStyle="bold"
+          fontFamily="monospace"
+          fill={isDark ? '#34d399' : '#047857'}
+          wrap="none"
+          ellipsis={true}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+      )}
+
+      {/* Purely Informative Clipped Diagram Interior */}
+      <Group
+        clipX={2}
+        clipY={headerH + 1}
+        clipWidth={Math.max(10, width - 4)}
+        clipHeight={Math.max(10, height - headerH - 3)}
+        listening={false}
+      >
+        {!fsm.hasFsm ? (
+          <Text
+            text={
+              galNode
+                ? fsm.reason || 'No FSM state machine found in GAL22V10 equations.'
+                : 'No GAL22V10 chip found on schematic.'
+            }
+            x={20}
+            y={headerH + Math.max(20, (height - headerH) / 2 - 10)}
+            width={Math.max(40, width - 40)}
+            align="center"
+            fontSize={12}
+            fontFamily="sans-serif"
+            fill={isDark ? '#94a3b8' : '#64748b'}
+            listening={false}
+            perfectDrawEnabled={false}
+          />
+        ) : (
+          <Group
+            x={layoutFit.offsetX}
+            y={layoutFit.offsetY}
+            scaleX={layoutFit.scale}
+            scaleY={layoutFit.scale}
+            listening={false}
+          >
+            {/* Transitions */}
+            {fsm.transitions.map((t, idx) => {
+              const fromState = fsm.states.find(s => s.name === t.from);
+              const toState = fsm.states.find(s => s.name === t.to);
+              if (!fromState || !toState) return null;
+
+              const p1 = positions[t.from];
+              const p2 = positions[t.to];
+              if (!p1 || !p2) return null;
+
+              const h1 = getFsmCardHeight(fromState, false);
+              const h2 = getFsmCardHeight(toState, false);
+
+              const isLiveTransition =
+                liveStatus.currentStateName === t.from && liveStatus.nextStateName === t.to;
+
+              const strokeColor = isLiveTransition
+                ? '#10b981'
+                : isDark
+                ? '#64748b'
+                : '#94a3b8';
+              const strokeWidth = isLiveTransition ? 2.6 : 1.6;
+
+              if (t.isSelfLoop) {
+                const topY = p1.y - h1 / 2;
+                const sx = p1.x - 28;
+                const sy = topY;
+                const ex = p1.x + 28;
+                const ey = topY;
+                const c1x = p1.x - 55;
+                const c1y = topY - 52;
+                const c2x = p1.x + 55;
+                const c2y = topY - 52;
+                const pathD = `M ${sx} ${sy} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${ex} ${ey}`;
+                const labelX = p1.x;
+                const labelY = topY - 44;
+                const labelStr =
+                  t.guard.length > 22 ? t.guard.slice(0, 20) + '…' : t.guard;
+                const pillW = Math.max(36, labelStr.length * 6.4 + 14);
+                const arrowPts = getArrowPoints(ex, ey, c2x, c2y);
+
+                return (
+                  <Group key={`${t.from}->${t.to}-${idx}`}>
+                    <Path
+                      data={pathD}
+                      stroke={strokeColor}
+                      strokeWidth={strokeWidth}
+                      dash={[4, 3]}
+                      perfectDrawEnabled={false}
+                    />
+                    <Line
+                      points={arrowPts}
+                      fill={strokeColor}
+                      closed={true}
+                      perfectDrawEnabled={false}
+                    />
+                    <Rect
+                      x={labelX - pillW / 2}
+                      y={labelY - 10}
+                      width={pillW}
+                      height={19}
+                      cornerRadius={5}
+                      fill={isDark ? '#0f172a' : '#ffffff'}
+                      stroke={isLiveTransition ? '#10b981' : isDark ? '#334155' : '#cbd5e1'}
+                      strokeWidth={1}
+                      perfectDrawEnabled={false}
+                    />
+                    <Text
+                      text={labelStr}
+                      x={labelX - pillW / 2}
+                      y={labelY - 5}
+                      width={pillW}
+                      align="center"
+                      fontSize={9.5}
+                      fontFamily="monospace"
+                      fontStyle={isLiveTransition ? 'bold' : 'normal'}
+                      fill={
+                        isLiveTransition
+                          ? isDark
+                            ? '#34d399'
+                            : '#047857'
+                          : isDark
+                          ? '#94a3b8'
+                          : '#475569'
+                      }
+                      perfectDrawEnabled={false}
+                    />
+                  </Group>
+                );
+              }
+
+              const pairKey = [t.from, t.to].sort().join('--');
+              const hasReverse = (pairCounts.get(pairKey) || 0) > 1;
+              const dx = p2.x - p1.x;
+              const dy = p2.y - p1.y;
+              const dist = Math.hypot(dx, dy) || 1;
+              const nx = -dy / dist;
+              const ny = dx / dist;
+
+              const curveOffset = hasReverse ? 42 : 18;
+              const midX = (p1.x + p2.x) / 2 + nx * curveOffset;
+              const midY = (p1.y + p2.y) / 2 + ny * curveOffset;
+
+              const startPt = getRectBorderPoint(p1.x, p1.y, FSM_CARD_WIDTH, h1, midX, midY, 2);
+              const endPt = getRectBorderPoint(p2.x, p2.y, FSM_CARD_WIDTH, h2, midX, midY, 6);
+
+              const pathD = `M ${startPt.x} ${startPt.y} Q ${midX} ${midY} ${endPt.x} ${endPt.y}`;
+              const labelX = 0.25 * startPt.x + 0.5 * midX + 0.25 * endPt.x;
+              const labelY = 0.25 * startPt.y + 0.5 * midY + 0.25 * endPt.y;
+
+              const labelStr =
+                t.guard === '1'
+                  ? '1 (always)'
+                  : t.guard.length > 26
+                  ? t.guard.slice(0, 24) + '…'
+                  : t.guard;
+              const pillW = Math.max(42, labelStr.length * 6.4 + 14);
+              const arrowPts = getArrowPoints(endPt.x, endPt.y, midX, midY);
+
+              return (
+                <Group key={`${t.from}->${t.to}-${idx}`}>
+                  <Path
+                    data={pathD}
+                    stroke={strokeColor}
+                    strokeWidth={strokeWidth}
+                    perfectDrawEnabled={false}
+                  />
+                  <Line
+                    points={arrowPts}
+                    fill={strokeColor}
+                    closed={true}
+                    perfectDrawEnabled={false}
+                  />
+                  <Rect
+                    x={labelX - pillW / 2}
+                    y={labelY - 10}
+                    width={pillW}
+                    height={19}
+                    cornerRadius={5}
+                    fill={
+                      isLiveTransition
+                        ? isDark
+                          ? '#064e3b'
+                          : '#ecfdf5'
+                        : isDark
+                        ? '#0f172a'
+                        : '#ffffff'
+                    }
+                    stroke={isLiveTransition ? '#10b981' : isDark ? '#334155' : '#cbd5e1'}
+                    strokeWidth={isLiveTransition ? 1.5 : 1}
+                    perfectDrawEnabled={false}
+                  />
+                  <Text
+                    text={labelStr}
+                    x={labelX - pillW / 2}
+                    y={labelY - 5}
+                    width={pillW}
+                    align="center"
+                    fontSize={9.5}
+                    fontFamily="monospace"
+                    fontStyle="bold"
+                    fill={
+                      isLiveTransition
+                        ? isDark
+                          ? '#34d399'
+                          : '#047857'
+                        : isDark
+                        ? '#cbd5e1'
+                        : '#334155'
+                    }
+                    perfectDrawEnabled={false}
+                  />
+                </Group>
+              );
+            })}
+
+            {/* Initial State Reset Marker */}
+            {fsm.states.length > 0 && positions[fsm.states[0].name] && (() => {
+              const first = fsm.states[0];
+              const p = positions[first.name];
+              const h = getFsmCardHeight(first, false);
+              const targetX = p.x - FSM_CARD_WIDTH / 2 - 4;
+              const targetY = p.y - h / 2 + 16;
+              const startX = targetX - 34;
+              const startY = targetY - 18;
+              const initColor = isDark ? '#94a3b8' : '#475569';
+              const arrowPts = getArrowPoints(targetX, targetY, startX, startY);
+              return (
+                <Group>
+                  <Circle
+                    x={startX}
+                    y={startY}
+                    radius={5.5}
+                    fill={initColor}
+                    perfectDrawEnabled={false}
+                  />
+                  <Line
+                    points={[startX, startY, targetX, targetY]}
+                    stroke={initColor}
+                    strokeWidth={2}
+                    perfectDrawEnabled={false}
+                  />
+                  <Line
+                    points={arrowPts}
+                    fill={initColor}
+                    closed={true}
+                    perfectDrawEnabled={false}
+                  />
+                </Group>
+              );
+            })()}
+
+            {/* UML State Nodes */}
+            {fsm.states.map(st => {
+              const pos = positions[st.name];
+              if (!pos) return null;
+
+              const cardH = getFsmCardHeight(st, false);
+              const cardX = pos.x - FSM_CARD_WIDTH / 2;
+              const cardY = pos.y - cardH / 2;
+              const isCurrent = liveStatus.currentStateName === st.name;
+              const isNext =
+                liveStatus.nextStateName === st.name && liveStatus.currentStateName !== st.name;
+
+              const visibleOutputs = st.outputs.filter(o => o.isActive || o.differsFromDefault);
+
+              const cardStroke = isCurrent
+                ? '#10b981'
+                : isNext
+                ? '#f59e0b'
+                : isDark
+                ? '#475569'
+                : '#cbd5e1';
+
+              const cardHeaderBg = isCurrent
+                ? isDark
+                  ? '#064e3b'
+                  : '#d1fae5'
+                : isDark
+                ? '#1e293b'
+                : '#f1f5f9';
+
+              return (
+                <Group key={st.name} x={cardX} y={cardY}>
+                  {/* Active Glow Ring */}
+                  {isCurrent && (
+                    <Rect
+                      x={-4}
+                      y={-4}
+                      width={FSM_CARD_WIDTH + 8}
+                      height={cardH + 8}
+                      cornerRadius={14}
+                      fill="rgba(16, 185, 129, 0.16)"
+                      perfectDrawEnabled={false}
+                    />
+                  )}
+
+                  {/* State Card Frame */}
+                  <Rect
+                    x={0}
+                    y={0}
+                    width={FSM_CARD_WIDTH}
+                    height={cardH}
+                    cornerRadius={10}
+                    fill={isDark ? '#0f172a' : '#ffffff'}
+                    stroke={cardStroke}
+                    strokeWidth={isCurrent ? 2.5 : 1.5}
+                    dash={isNext ? [5, 3] : undefined}
+                    perfectDrawEnabled={false}
+                  />
+
+                  {/* State Card Header */}
+                  <Rect
+                    x={0}
+                    y={0}
+                    width={FSM_CARD_WIDTH}
+                    height={32}
+                    cornerRadius={[10, 10, 0, 0]}
+                    fill={cardHeaderBg}
+                    perfectDrawEnabled={false}
+                  />
+
+                  <Line
+                    points={[0, 32, FSM_CARD_WIDTH, 32]}
+                    stroke={cardStroke}
+                    strokeWidth={1}
+                    opacity={0.6}
+                    perfectDrawEnabled={false}
+                  />
+
+                  {/* Active Dot + State Name */}
+                  {isCurrent && (
+                    <Circle
+                      x={13}
+                      y={16}
+                      radius={4}
+                      fill="#10b981"
+                      perfectDrawEnabled={false}
+                    />
+                  )}
+                  <Text
+                    text={st.name}
+                    x={isCurrent ? 22 : 12}
+                    y={9}
+                    width={FSM_CARD_WIDTH - 75}
+                    fontSize={13}
+                    fontStyle="bold"
+                    fontFamily="sans-serif"
+                    fill={
+                      isCurrent
+                        ? isDark
+                          ? '#34d399'
+                          : '#065f46'
+                        : isDark
+                        ? '#f1f5f9'
+                        : '#1e293b'
+                    }
+                    wrap="none"
+                    ellipsis={true}
+                    perfectDrawEnabled={false}
+                  />
+
+                  {/* Bit Encoding Badge */}
+                  <Rect
+                    x={FSM_CARD_WIDTH - 48}
+                    y={7}
+                    width={38}
+                    height={18}
+                    cornerRadius={4}
+                    fill={isDark ? '#090d16' : '#ffffff'}
+                    stroke={isDark ? '#334155' : '#cbd5e1'}
+                    strokeWidth={1}
+                    perfectDrawEnabled={false}
+                  />
+                  <Text
+                    text={st.code}
+                    x={FSM_CARD_WIDTH - 48}
+                    y={11}
+                    width={38}
+                    align="center"
+                    fontSize={10}
+                    fontFamily="monospace"
+                    fill={isDark ? '#94a3b8' : '#64748b'}
+                    perfectDrawEnabled={false}
+                  />
+
+                  {/* Output Compartment Rows */}
+                  {visibleOutputs.length === 0 ? (
+                    <Text
+                      text="all outputs = 0"
+                      x={12}
+                      y={42}
+                      width={FSM_CARD_WIDTH - 24}
+                      fontSize={10.5}
+                      fontStyle="italic"
+                      fontFamily="sans-serif"
+                      fill={isDark ? '#64748b' : '#94a3b8'}
+                      perfectDrawEnabled={false}
+                    />
+                  ) : (
+                    visibleOutputs.map((out, rIdx) => {
+                      const rowY = 40 + rIdx * 22;
+                      const valColor =
+                        out.value === '1'
+                          ? isDark
+                            ? '#34d399'
+                            : '#047857'
+                          : out.value === '0'
+                          ? isDark
+                            ? '#fb7185'
+                            : '#be123c'
+                          : isDark
+                          ? '#fbbf24'
+                          : '#b45309';
+                      return (
+                        <Group key={out.name} y={rowY}>
+                          <Text
+                            text={out.name}
+                            x={12}
+                            y={2}
+                            width={FSM_CARD_WIDTH - 76}
+                            fontSize={11}
+                            fontStyle="bold"
+                            fontFamily="monospace"
+                            fill={isDark ? '#cbd5e1' : '#334155'}
+                            wrap="none"
+                            ellipsis={true}
+                            perfectDrawEnabled={false}
+                          />
+                          <Text
+                            text={`= ${out.value}`}
+                            x={FSM_CARD_WIDTH - 64}
+                            y={2}
+                            width={52}
+                            align="right"
+                            fontSize={10.5}
+                            fontStyle="bold"
+                            fontFamily="monospace"
+                            fill={valColor}
+                            wrap="none"
+                            ellipsis={true}
+                            perfectDrawEnabled={false}
+                          />
+                        </Group>
+                      );
+                    })
+                  )}
+                </Group>
+              );
+            })}
+          </Group>
+        )}
+      </Group>
+
+      {isSelected && !isPlacing && (
+        <ResizeHandles
+          node={node}
+          width={width}
+          height={height}
+          minW={260}
+          minH={200}
+          accentColor={canvasTheme.selectedNodeColor}
+        />
+      )}
+    </SchematicNodeWrapper>
+  );
+});
+

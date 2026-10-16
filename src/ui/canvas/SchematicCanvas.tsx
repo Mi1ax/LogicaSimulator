@@ -22,6 +22,7 @@ import {
   SchematicRegionBoxNode,
   SchematicTextLabelNode,
   SchematicStickyNoteNode,
+  SchematicFsmDiagramNode,
 } from './nodes/schematic/SchematicAnnotationNodes';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -64,6 +65,7 @@ const SCHEMATIC_NODE_RENDERERS: Record<string, React.FC<{ node: LogicNode }>> = 
   REGION_BOX: SchematicRegionBoxNode,
   TEXT_LABEL: SchematicTextLabelNode,
   STICKY_NOTE: SchematicStickyNoteNode,
+  FSM_DIAGRAM: SchematicFsmDiagramNode,
 };
 
 const ConnectedNode = React.memo(({ id }: { id: string }) => {
@@ -89,8 +91,8 @@ export const SchematicCanvas: React.FC = () => {
   const setScale = useSimulatorStore(state => state.setSchematicScale);
   const setCanvasOffset = useSimulatorStore(state => state.setCanvasOffset);
   
-  const backgroundNodeIds = useSimulatorStore(useShallow(state => state.nodes.filter(n => n.type === 'REGION_BOX').map(n => n.id)));
-  const foregroundNodeIds = useSimulatorStore(useShallow(state => state.nodes.filter(n => n.type !== 'REGION_BOX').map(n => n.id)));
+  const backgroundNodeIds = useSimulatorStore(useShallow(state => state.nodes.filter(n => n.type === 'REGION_BOX' || n.type === 'FSM_DIAGRAM').map(n => n.id)));
+  const foregroundNodeIds = useSimulatorStore(useShallow(state => state.nodes.filter(n => n.type !== 'REGION_BOX' && n.type !== 'FSM_DIAGRAM').map(n => n.id)));
   const isDrawingWire = useSimulatorStore(state => Boolean(state.draftWire));
   const updateDraftWire = useSimulatorStore(state => state.updateDraftWire);
   const select = useSimulatorStore(state => state.select);
@@ -452,8 +454,8 @@ export const SchematicCanvas: React.FC = () => {
               const minY = Math.min(p1.y, p2.y, p3.y, p4.y);
               const maxY = Math.max(p1.y, p2.y, p3.y, p4.y);
 
-              if (node.type === 'REGION_BOX') {
-                // Only select a Region Box via marquee if the marquee encloses the entire box
+              if (node.type === 'REGION_BOX' || node.type === 'FSM_DIAGRAM') {
+                // Only select a Region Box / FSM Diagram via marquee if the marquee encloses the entire box
                 if (minX >= x1 && maxX <= x2 && minY >= y1 && maxY <= y2) {
                   selectedIds.push(node.id);
                 }

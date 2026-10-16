@@ -437,3 +437,22 @@ export const StickyNoteNode: NodeDefinition = {
   },
   evaluate: () => [],
 };
+
+export const FsmDiagramNode: NodeDefinition = {
+  type: 'FSM_DIAGRAM',
+  label: 'FSM State Diagram',
+  category: 'Annotations',
+  tags: ['fsm', 'state', 'machine', 'diagram', 'uml', 'chart', 'gal', 'pld', 'annotation'],
+  numInputs: 0,
+  numOutputs: 0,
+  disableTransform: true,
+  defaultProperties: {
+    label: 'FSM State Machine',
+    width: 640,
+    height: 440,
+    color: 'slate',
+    targetNodeId: '',
+  },
+  evaluate: () => [],
+};
+

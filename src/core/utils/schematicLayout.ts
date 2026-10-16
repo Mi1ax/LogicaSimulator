@@ -39,6 +39,13 @@ export const getSchematicDimensions = (node: LogicNode) => {
     };
   }
 
+  if (node.type === 'FSM_DIAGRAM') {
+    return {
+      width: Math.max(260, Number(node.properties?.width) || 640),
+      height: Math.max(200, Number(node.properties?.height) || 440),
+    };
+  }
+
   if (node.type === 'TEXT_LABEL') {
     const fontSize = Math.max(10, Number(node.properties?.fontSize) || 20);
     const text = String(node.properties?.label || 'Text');

@@ -101,8 +101,8 @@ export const PropertiesPanel: React.FC = () => {
           </div>
         )}
 
-        {/* Annotation Controls (Region Box / Text Label / Sticky Note) */}
-        {(node.type === 'REGION_BOX' || node.type === 'TEXT_LABEL' || node.type === 'STICKY_NOTE') && (() => {
+        {/* Annotation Controls (Region Box / Text Label / Sticky Note / FSM Diagram) */}
+        {(node.type === 'REGION_BOX' || node.type === 'TEXT_LABEL' || node.type === 'STICKY_NOTE' || node.type === 'FSM_DIAGRAM') && (() => {
           const colorSwatches = [
             ...(node.type === 'TEXT_LABEL' ? [{ id: 'default', label: 'Default', hex: '#94a3b8' }] : []),
             { id: 'blue', label: 'Blue', hex: '#3b82f6' },
@@ -113,10 +113,40 @@ export const PropertiesPanel: React.FC = () => {
             { id: 'cyan', label: 'Cyan', hex: '#06b6d4' },
             { id: 'slate', label: 'Slate', hex: '#64748b' },
           ];
-          const activeColor = node.properties?.color || (node.type === 'STICKY_NOTE' ? 'amber' : node.type === 'REGION_BOX' ? 'blue' : 'default');
+          const activeColor =
+            node.properties?.color ||
+            (node.type === 'STICKY_NOTE'
+              ? 'amber'
+              : node.type === 'REGION_BOX'
+              ? 'blue'
+              : node.type === 'FSM_DIAGRAM'
+              ? 'slate'
+              : 'default');
+          const galNodes = nodes.filter(n => n.type === 'GAL22V10');
 
           return (
             <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-slate-700">
+              {/* Target GAL22V10 selector for FSM_DIAGRAM */}
+              {node.type === 'FSM_DIAGRAM' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+                    Source GAL22V10 Chip
+                  </label>
+                  <select
+                    value={node.properties?.targetNodeId || ''}
+                    onChange={(e) => updateNodeProperties(node.id, { targetNodeId: e.target.value })}
+                    className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
+                  >
+                    <option value="">Auto (First GAL22V10 on schematic)</option>
+                    {galNodes.map(g => (
+                      <option key={g.id} value={g.id}>
+                        {g.properties?.label || 'GAL22V10'} (#{g.id.slice(0, 5)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Color Picker */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">
@@ -140,21 +170,21 @@ export const PropertiesPanel: React.FC = () => {
                 </div>
               </div>
 
-              {/* Dimensions for Region Box & Sticky Note */}
-              {(node.type === 'REGION_BOX' || node.type === 'STICKY_NOTE') && (
+              {/* Dimensions for Region Box, Sticky Note & FSM Diagram */}
+              {(node.type === 'REGION_BOX' || node.type === 'STICKY_NOTE' || node.type === 'FSM_DIAGRAM') && (
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
                       Width (px)
                     </label>
                     <NumberInput
-                      min={node.type === 'STICKY_NOTE' ? 100 : 60}
+                      min={node.type === 'FSM_DIAGRAM' ? 260 : node.type === 'STICKY_NOTE' ? 100 : 60}
                       max={4000}
                       step={20}
                       className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
-                      value={Number(node.properties?.width) || 240}
+                      value={Number(node.properties?.width) || (node.type === 'FSM_DIAGRAM' ? 640 : 240)}
                       onChangeValue={(val) => updateNodeProperties(node.id, { width: Math.round(val / 20) * 20 })}
-                      fallbackValue={240}
+                      fallbackValue={node.type === 'FSM_DIAGRAM' ? 640 : 240}
                     />
                   </div>
                   <div>
@@ -162,13 +192,13 @@ export const PropertiesPanel: React.FC = () => {
                       Height (px)
                     </label>
                     <NumberInput
-                      min={60}
+                      min={node.type === 'FSM_DIAGRAM' ? 200 : 60}
                       max={4000}
                       step={20}
                       className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
-                      value={Number(node.properties?.height) || 160}
+                      value={Number(node.properties?.height) || (node.type === 'FSM_DIAGRAM' ? 440 : 160)}
                       onChangeValue={(val) => updateNodeProperties(node.id, { height: Math.round(val / 20) * 20 })}
-                      fallbackValue={160}
+                      fallbackValue={node.type === 'FSM_DIAGRAM' ? 440 : 160}
                     />
                   </div>
                 </div>
@@ -630,6 +660,22 @@ export const PropertiesPanel: React.FC = () => {
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded transition-colors text-sm"
             >
               Open Code Editor (.pld)
+            </button>
+            <button
+              onClick={() => {
+                const store = useSimulatorStore.getState();
+                store.startPlacingNode('FSM_DIAGRAM');
+                const newId = useSimulatorStore.getState().placingNodeId;
+                if (newId) {
+                  store.updateNodeProperties(newId, {
+                    targetNodeId: node.id,
+                    label: `FSM State Machine — ${node.properties?.label || 'GAL22V10'}`,
+                  });
+                }
+              }}
+              className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-1.5 px-4 rounded transition-colors text-xs"
+            >
+              Place FSM Diagram on Schematic
             </button>
             <input
               type="file"
