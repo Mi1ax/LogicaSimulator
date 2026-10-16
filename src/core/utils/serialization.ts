@@ -5,6 +5,7 @@ import { updateSubcircuitRegistry } from '../engine/subcircuitRegistry';
 
 export interface SerializedCircuit {
   version?: number;
+  simSpeed?: number;
   nodes: any[];
   wires: any[];
   subcircuits?: Record<string, { name: string; nodes: any[]; wires: any[] }>;
@@ -140,7 +141,8 @@ function serializeNodesAndWires(nodes: LogicNode[], wires: Wire[]) {
 export function serializeCircuit(
   nodes: LogicNode[],
   wires: Wire[],
-  savedCircuits?: Record<string, { name: string; nodes: LogicNode[]; wires: Wire[] }>
+  savedCircuits?: Record<string, { name: string; nodes: LogicNode[]; wires: Wire[] }>,
+  simSpeed?: number
 ): string {
   const main = serializeNodesAndWires(nodes, wires);
 
@@ -160,6 +162,10 @@ export function serializeCircuit(
   const lines: string[] = [];
   lines.push('{');
   lines.push('  "version": 2,');
+
+  if (typeof simSpeed === 'number' && Number.isFinite(simSpeed) && simSpeed > 0) {
+    lines.push(`  "simSpeed": ${simSpeed},`);
+  }
 
   if (Object.keys(subcircuitsOut).length > 0) {
     lines.push(`  "subcircuits": ${JSON.stringify(subcircuitsOut)},`);
@@ -237,6 +243,7 @@ export function deserializeCircuit(rawData: any): {
   nodes: LogicNode[];
   wires: Wire[];
   subcircuits?: Record<string, { name: string; nodes: LogicNode[]; wires: Wire[]; history: any[]; future: any[] }>;
+  simSpeed?: number;
 } {
   let hydratedSubcircuits:
     | Record<string, { name: string; nodes: LogicNode[]; wires: Wire[]; history: any[]; future: any[] }>
@@ -257,6 +264,11 @@ export function deserializeCircuit(rawData: any): {
     }
   }
 
+  const simSpeed =
+    typeof rawData?.simSpeed === 'number' && Number.isFinite(rawData.simSpeed) && rawData.simSpeed > 0
+      ? rawData.simSpeed
+      : undefined;
+
   const { nodes, wires } = hydrateNodesAndWires(rawData?.nodes || [], rawData?.wires || []);
-  return { nodes, wires, subcircuits: hydratedSubcircuits };
+  return { nodes, wires, subcircuits: hydratedSubcircuits, simSpeed };
 }

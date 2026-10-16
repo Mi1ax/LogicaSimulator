@@ -93,7 +93,7 @@ interface SimulatorState {
   // View State
 
   addNode: (type: NodeType, x: number, y: number) => void;
-  updateNodePosition: (id: string, x: number, y: number, finalize?: boolean) => void;
+  updateNodePosition: (id: string, x: number, y: number, finalize?: boolean, extraIds?: string[]) => void;
   updateNodeProperties: (id: string, props: Record<string, any>) => void;
   clearNodes: () => void;
 
@@ -569,9 +569,12 @@ export const useSimulatorStore = create<SimulatorState>()(
   }),
 
   addNode: (type, x, y) => set((state) => ({ ...circuit.addNode(state, type, x, y), ...pushHistory(state) })),
-  updateNodePosition: (id, x, y, finalize) => set((state) => {
+  updateNodePosition: (id, x, y, finalize, extraIds) => set((state) => {
     const isMulti = state.multiSelection.includes(id);
-    const ids = isMulti ? state.multiSelection : [id];
+    const baseIds = isMulti ? state.multiSelection : [id];
+    const ids = extraIds && extraIds.length > 0
+      ? Array.from(new Set([...baseIds, ...extraIds]))
+      : baseIds;
     let nextState = { ...state, ...circuit.moveSelection(state, ids, id, x, y) };
     
     if (finalize) {
@@ -1013,7 +1016,7 @@ export const useSimulatorStore = create<SimulatorState>()(
       partialize: (state) => ({
         nodes: state.nodes,
         wires: state.wires,
-        
+        simSpeed: state.simSpeed,
         settings: state.settings,
         theme: state.theme,
         appMode: state.appMode,

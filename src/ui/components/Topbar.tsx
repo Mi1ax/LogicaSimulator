@@ -1,13 +1,16 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
-import { Trash2, Sun, Moon, Settings, Save, FolderOpen, Library, Menu as MenuIcon, ChevronRight } from 'lucide-react';
+import { Trash2, Sun, Moon, Settings, Save, FolderOpen, Library, Menu as MenuIcon, ChevronRight, X } from 'lucide-react';
 import { serializeCircuit, deserializeCircuit } from '../../core/utils/serialization';
 
 export const Topbar: React.FC = () => {
   const [showMenu, setShowMenu] = useState(false);
   const [showSettingsSub, setShowSettingsSub] = useState(false);
   const [showExamplesSub, setShowExamplesSub] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [fileName, setFileName] = useState('circuit');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const saveInputRef = useRef<HTMLInputElement>(null);
   
   const clearNodes = useSimulatorStore(state => state.clearNodes);
   const theme = useSimulatorStore(state => state.theme);
@@ -18,11 +21,17 @@ export const Topbar: React.FC = () => {
   const appMode = useSimulatorStore(state => state.appMode);
   const setAppMode = useSimulatorStore(state => state.setAppMode);
 
-  const applyLoadedCircuit = (rawData: any) => {
-    const { nodes, wires, subcircuits } = deserializeCircuit(rawData);
+  const stripExtension = (name: string) => name.replace(/\.(logica|json)$/i, '') || 'circuit';
+
+  const applyLoadedCircuit = (rawData: any, loadedFileName?: string) => {
+    const { nodes, wires, subcircuits, simSpeed } = deserializeCircuit(rawData);
+    if (loadedFileName) {
+      setFileName(stripExtension(loadedFileName));
+    }
     useSimulatorStore.setState(() => ({
       nodes,
       wires,
+      ...(typeof simSpeed === 'number' ? { simSpeed } : {}),
       ...(subcircuits
         ? {
             savedCircuits: {
@@ -40,38 +49,88 @@ export const Topbar: React.FC = () => {
     }));
   };
 
+  const triggerBrowserDownload = (json: string, targetName: string) => {
+    const cleanBase = stripExtension(targetName.trim());
+    const finalFileName = `${cleanBase}.logica`;
+    setFileName(cleanBase);
+    const blob = new Blob([json], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = finalFileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleSave = async () => {
     const store = useSimulatorStore.getState();
-    const json = serializeCircuit(store.nodes, store.wires, store.savedCircuits);
+    const json = serializeCircuit(store.nodes, store.wires, store.savedCircuits, store.simSpeed);
+    const suggested = `${stripExtension(fileName)}.logica`;
     
-    if ('showSaveFilePicker' in window) {
+    if (typeof (window as any).showSaveFilePicker === 'function') {
       try {
-        // @ts-ignore
-        const handle = await window.showSaveFilePicker({
-          suggestedName: 'circuit.logica',
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: suggested,
           types: [{
-            description: 'Logica Circuit File',
-            accept: { 'application/json': ['.logica'] },
+            description: 'Logica Circuit File (.logica)',
+            accept: {
+              'application/json': ['.logica', '.json'],
+            },
           }],
         });
+        if (handle?.name) {
+          setFileName(stripExtension(handle.name));
+        }
         const writable = await handle.createWritable();
         await writable.write(json);
         await writable.close();
+        return;
       } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          console.error('Failed to save file:', err);
+        if (err?.name === 'AbortError') {
+          return;
         }
+        // If browser blocked showSaveFilePicker (e.g. Brave shields) or threw an error, fall through to modal dialog
       }
-    } else {
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'circuit.logica';
-      a.click();
-      URL.revokeObjectURL(url);
     }
+
+    setShowSaveModal(true);
   };
+
+  const handleConfirmModalSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const store = useSimulatorStore.getState();
+    const json = serializeCircuit(store.nodes, store.wires, store.savedCircuits, store.simSpeed);
+    setShowSaveModal(false);
+    triggerBrowserDownload(json, fileName);
+  };
+
+  useEffect(() => {
+    if (showSaveModal) {
+      setTimeout(() => {
+        saveInputRef.current?.focus();
+        saveInputRef.current?.select();
+      }, 20);
+    }
+  }, [showSaveModal]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showSaveModal) {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowSaveModal(false);
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [fileName, showSaveModal]);
 
   const handleLoad = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -81,7 +140,7 @@ export const Topbar: React.FC = () => {
       try {
         const json = event.target?.result as string;
         const data = JSON.parse(json);
-        applyLoadedCircuit(data);
+        applyLoadedCircuit(data, file.name);
       } catch (err) {
         console.error('Failed to load circuit file:', err);
         alert('Invalid circuit file.');
@@ -96,7 +155,7 @@ export const Topbar: React.FC = () => {
       const response = await fetch(`${import.meta.env.BASE_URL}examples/${filename}`);
       if (!response.ok) throw new Error('Failed to load example');
       const data = await response.json();
-      applyLoadedCircuit(data);
+      applyLoadedCircuit(data, filename);
       setShowExamplesSub(false); setShowMenu(false);
     } catch (err) {
       console.error(err);
@@ -106,9 +165,14 @@ export const Topbar: React.FC = () => {
 
   return (
     <div className="h-14 bg-white dark:bg-slate-800 border-b border-gray-300 dark:border-slate-700 flex items-center justify-between px-6 shadow-sm z-10 relative transition-colors">
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 bg-blue-600 dark:bg-blue-500 rounded flex items-center justify-center text-white font-bold text-xl">
-          L
+      <div className="flex items-center gap-2.5">
+        <div className="w-8 h-8 bg-blue-600 dark:bg-blue-500 rounded flex items-center justify-center shrink-0">
+          <svg viewBox="0 0 32 32" fill="none" className="w-7 h-7 text-white">
+            <path d="M4 11.5H9.5M4 20.5H9.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+            <path d="M25 16H28" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+            <path d="M8.5 7.5Q13.5 16 8.5 24.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+            <path d="M12.2 7.5C18 7.5 22.4 10.7 25 16C22.4 21.3 18 24.5 12.2 24.5Q17.2 16 12.2 7.5Z" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
+          </svg>
         </div>
         <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100 mr-4">Logica Simulator</h1>
         
@@ -311,6 +375,69 @@ export const Topbar: React.FC = () => {
           )}
         </div>
       </div>
+
+      {showSaveModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs"
+          onClick={() => setShowSaveModal(false)}
+        >
+          <div
+            className="w-full max-w-md bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-gray-200 dark:border-slate-700 p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 text-gray-800 dark:text-slate-100 font-semibold text-base">
+                <Save size={18} className="text-blue-600 dark:text-blue-400" />
+                Save Circuit
+              </div>
+              <button
+                onClick={() => setShowSaveModal(false)}
+                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 rounded transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmModalSave} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-slate-300 mb-1.5">
+                  File Name
+                </label>
+                <div className="flex items-center rounded-md border border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-900 focus-within:ring-2 focus-within:ring-blue-500 overflow-hidden">
+                  <input
+                    ref={saveInputRef}
+                    type="text"
+                    value={fileName}
+                    onChange={(e) => setFileName(e.target.value)}
+                    placeholder="circuit"
+                    className="flex-1 bg-transparent px-3 py-2 text-sm text-gray-900 dark:text-slate-100 focus:outline-none"
+                  />
+                  <span className="px-3 py-2 text-xs font-mono text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 border-l border-gray-300 dark:border-slate-600 select-none">
+                    .logica
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowSaveModal(false)}
+                  className="px-4 py-1.5 text-xs font-medium text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-md transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow-xs transition-colors flex items-center gap-1.5"
+                >
+                  <Save size={14} />
+                  Save File
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
