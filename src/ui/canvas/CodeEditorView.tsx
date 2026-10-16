@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { compilePldToJedec, PldCompileResult } from '../../core/utils/pldCompiler';
 
@@ -136,9 +136,12 @@ Q3.ar = CLR;
 
 const HEADER_KW_REGEX = /^(Name|PartNo|Date|Revision|Rev|Designer|Company|Assembly|Location|Device|Format)\b/i;
 
+// Preserve uncompiled draft code across tab switches (Schematic <-> Code Editor)
+const editorDraftCache = new Map<string, { code: string; isDirty: boolean; result: PldCompileResult }>();
+
 /**
  * Tokenizes WinCUPL .pld source code into syntax-highlighted React spans
- * while preserving exact character widths and newlines for overlay alignment.
+ * while preserving exact character widths and newlines for 1:1 overlay alignment.
  */
 function highlightPldCode(source: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
@@ -352,20 +355,26 @@ export const CodeEditorView: React.FC = () => {
     [galNodes, selectedMemoryNodeId]
   );
 
+  const cacheKey = activeGalNode?.id || '__global__';
+
   const [code, setCode] = useState<string>(() => {
+    const cached = editorDraftCache.get(cacheKey);
+    if (cached) return cached.code;
     if (activeGalNode?.properties?.pldSource) {
       return activeGalNode.properties.pldSource;
     }
     return PLD_TEMPLATES[0].code;
   });
 
-  const [lastSyncedNodeId, setLastSyncedNodeId] = useState<string | null>(
-    activeGalNode?.id ?? null
-  );
-  const [compileResult, setCompileResult] = useState<PldCompileResult>(() =>
-    compilePldToJedec(code)
-  );
-  const [isDirty, setIsDirty] = useState<boolean>(false);
+  const [lastSyncedKey, setLastSyncedKey] = useState<string>(cacheKey);
+  const [compileResult, setCompileResult] = useState<PldCompileResult>(() => {
+    const cached = editorDraftCache.get(cacheKey);
+    return cached ? cached.result : compilePldToJedec(code);
+  });
+  const [isDirty, setIsDirty] = useState<boolean>(() => {
+    const cached = editorDraftCache.get(cacheKey);
+    return cached ? cached.isDirty : false;
+  });
   const [isRightPanelOpen, setIsRightPanelOpen] = useState<boolean>(false);
   const [rightTab, setRightTab] = useState<'summary' | 'jedec' | 'reference'>('summary');
   const [openMenu, setOpenMenu] = useState<'file' | 'templates' | null>(null);
@@ -378,21 +387,33 @@ export const CodeEditorView: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const jedInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const preRef = useRef<HTMLPreElement>(null);
-  const gutterRef = useRef<HTMLDivElement>(null);
+  const backdropLayerRef = useRef<HTMLDivElement>(null);
+  const gutterInnerRef = useRef<HTMLDivElement>(null);
   const menuContainerRef = useRef<HTMLDivElement>(null);
+  const [cursorPos, setCursorPos] = useState<{ line: number; col: number }>({ line: 1, col: 1 });
 
-  // Sync editor source when user switches to a different GAL22V10 node that has saved PLD source
+  // Keep draft cache updated so switching Schematic <-> Code Editor never loses work
   useEffect(() => {
-    if (activeGalNode && activeGalNode.id !== lastSyncedNodeId) {
-      setLastSyncedNodeId(activeGalNode.id);
-      if (typeof activeGalNode.properties?.pldSource === 'string') {
-        setCode(activeGalNode.properties.pldSource);
-        setCompileResult(compilePldToJedec(activeGalNode.properties.pldSource));
+    editorDraftCache.set(cacheKey, { code, isDirty, result: compileResult });
+  }, [cacheKey, code, isDirty, compileResult]);
+
+  // Sync editor source when user switches to a different GAL22V10 node
+  useEffect(() => {
+    if (cacheKey !== lastSyncedKey) {
+      setLastSyncedKey(cacheKey);
+      const cached = editorDraftCache.get(cacheKey);
+      if (cached) {
+        setCode(cached.code);
+        setCompileResult(cached.result);
+        setIsDirty(cached.isDirty);
+      } else if (typeof activeGalNode?.properties?.pldSource === 'string') {
+        const src = activeGalNode.properties.pldSource;
+        setCode(src);
+        setCompileResult(compilePldToJedec(src));
         setIsDirty(false);
       }
     }
-  }, [activeGalNode, lastSyncedNodeId]);
+  }, [cacheKey, lastSyncedKey, activeGalNode]);
 
   // Close dropdown menus on outside click
   useEffect(() => {
@@ -411,9 +432,11 @@ export const CodeEditorView: React.FC = () => {
     [compileResult.pinSummaries]
   );
 
-  const highlightedCode = useMemo(() => highlightPldCode(code), [code]);
+  // Normalize CRLF -> LF if any so character offsets and newlines match 1:1
+  const normalizedCode = useMemo(() => (code.includes('\r') ? code.replace(/\r\n?/g, '\n') : code), [code]);
+  const highlightedCode = useMemo(() => highlightPldCode(normalizedCode), [normalizedCode]);
 
-  const lineCount = useMemo(() => Math.max(1, code.split('\n').length), [code]);
+  const lineCount = useMemo(() => Math.max(1, normalizedCode.split('\n').length), [normalizedCode]);
   const errorLines = useMemo(() => {
     const map = new Map<number, string>();
     for (const err of compileResult.errors) {
@@ -424,42 +447,185 @@ export const CodeEditorView: React.FC = () => {
     return map;
   }, [compileResult.errors]);
 
-  const handleScroll = () => {
-    if (!textareaRef.current) return;
-    const { scrollTop, scrollLeft } = textareaRef.current;
-    if (gutterRef.current) {
-      gutterRef.current.scrollTop = scrollTop;
+  /**
+   * Synchronizes the <pre> backdrop and line-number gutter directly via CSS transform
+   * (`translate3d`). Unlike `pre.scrollTop = scrollTop`, `translate3d` is NEVER clamped
+   * by differences in scrollbar thickness or box height, so the highlighted text,
+   * caret, and selection highlight stay 100% locked at all scroll positions and boundaries.
+   */
+  const syncScroll = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const top = ta.scrollTop;
+    const left = ta.scrollLeft;
+    if (backdropLayerRef.current) {
+      backdropLayerRef.current.style.transform = `translate3d(${-left}px, ${-top}px, 0)`;
     }
-    if (preRef.current) {
-      preRef.current.scrollTop = scrollTop;
-      preRef.current.scrollLeft = scrollLeft;
+    if (gutterInnerRef.current) {
+      gutterInnerRef.current.style.transform = `translate3d(0, ${-top}px, 0)`;
     }
+  }, []);
+
+  useEffect(() => {
+    syncScroll();
+  }, [normalizedCode, isRightPanelOpen, showExpandedConsoleSafe(isConsoleExpanded, compileResult.errors.length), syncScroll]);
+
+  const updateCursorInfo = useCallback(
+    (ta: HTMLTextAreaElement) => {
+      const pos = ta.selectionStart ?? 0;
+      const before = ta.value.slice(0, pos);
+      let line = 1;
+      let lastNl = -1;
+      for (let i = 0; i < before.length; i++) {
+        if (before.charCodeAt(i) === 10) {
+          line++;
+          lastNl = i;
+        }
+      }
+      const col = pos - lastNl;
+      setCursorPos((prev) => (prev.line === line && prev.col === col ? prev : { line, col }));
+      syncScroll();
+    },
+    [syncScroll]
+  );
+
+  const jumpToLine = (lineNo: number) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const lines = normalizedCode.split('\n');
+    const targetIdx = Math.max(0, Math.min(lines.length - 1, lineNo - 1));
+    let charOffset = 0;
+    for (let i = 0; i < targetIdx; i++) {
+      charOffset += lines[i].length + 1;
+    }
+    const lineEnd = charOffset + lines[targetIdx].length;
+    ta.focus();
+    ta.setSelectionRange(charOffset, lineEnd);
+    const targetScrollTop = Math.max(0, targetIdx * 24 - ta.clientHeight / 3);
+    ta.scrollTop = targetScrollTop;
+    updateCursorInfo(ta);
+  };
+
+  const applyCodeEdit = (
+    nextCode: string,
+    nextSelectionStart: number,
+    nextSelectionEnd: number = nextSelectionStart
+  ) => {
+    setCode(nextCode);
+    setIsDirty(true);
+    requestAnimationFrame(() => {
+      const ta = textareaRef.current;
+      if (ta) {
+        ta.focus();
+        ta.setSelectionRange(nextSelectionStart, nextSelectionEnd);
+        updateCursorInfo(ta);
+      }
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const ta = e.currentTarget;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+
+    // Ctrl+Enter / Cmd+Enter -> Compile & Flash
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       handleCompileAndFlash();
       return;
     }
+
+    // Ctrl+/ or Cmd+/ -> Toggle Comment /* ... */
+    if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+      e.preventDefault();
+      const lineStart = normalizedCode.lastIndexOf('\n', start - 1) + 1;
+      const lineEndIdx = normalizedCode.indexOf('\n', end);
+      const lineEnd = lineEndIdx === -1 ? normalizedCode.length : lineEndIdx;
+      const selectedBlock = normalizedCode.slice(lineStart, lineEnd);
+      const trimmed = selectedBlock.trim();
+
+      if (trimmed.startsWith('/*') && trimmed.endsWith('*/')) {
+        const uncommented = selectedBlock
+          .replace(/^\s*\/\*\s?/, (m) => m.replace(/\/\*\s?/, ''))
+          .replace(/\s?\*\/\s*$/, (m) => m.replace(/\s?\*\//, ''));
+        const nextCode =
+          normalizedCode.slice(0, lineStart) + uncommented + normalizedCode.slice(lineEnd);
+        applyCodeEdit(nextCode, lineStart, lineStart + uncommented.length);
+      } else {
+        const commented = `/* ${selectedBlock} */`;
+        const nextCode =
+          normalizedCode.slice(0, lineStart) + commented + normalizedCode.slice(lineEnd);
+        applyCodeEdit(nextCode, lineStart, lineStart + commented.length);
+      }
+      return;
+    }
+
+    // Tab / Shift+Tab -> Indent / Outdent
     if (e.key === 'Tab') {
       e.preventDefault();
-      const target = e.currentTarget;
-      const start = target.selectionStart;
-      const end = target.selectionEnd;
-      const nextCode = code.substring(0, start) + '  ' + code.substring(end);
-      setCode(nextCode);
-      setIsDirty(true);
-      requestAnimationFrame(() => {
-        if (textareaRef.current) {
-          textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 2;
+      const hasMultiLineSelection =
+        start !== end && normalizedCode.slice(start, end).includes('\n');
+
+      if (!e.shiftKey && !hasMultiLineSelection) {
+        const nextCode =
+          normalizedCode.substring(0, start) + '  ' + normalizedCode.substring(end);
+        applyCodeEdit(nextCode, start + 2);
+        return;
+      }
+
+      const lineStart = normalizedCode.lastIndexOf('\n', start - 1) + 1;
+      const lineEndIdx = normalizedCode.indexOf('\n', Math.max(start, end - 1));
+      const lineEnd = lineEndIdx === -1 ? normalizedCode.length : lineEndIdx;
+      const block = normalizedCode.slice(lineStart, lineEnd);
+      const blockLines = block.split('\n');
+
+      let deltaFirst = 0;
+      let deltaTotal = 0;
+      const transformedLines = blockLines.map((line, idx) => {
+        if (e.shiftKey) {
+          if (line.startsWith('  ')) {
+            if (idx === 0) deltaFirst = -2;
+            deltaTotal -= 2;
+            return line.slice(2);
+          } else if (line.startsWith(' ') || line.startsWith('\t')) {
+            if (idx === 0) deltaFirst = -1;
+            deltaTotal -= 1;
+            return line.slice(1);
+          }
+          return line;
+        } else {
+          if (idx === 0) deltaFirst = 2;
+          deltaTotal += 2;
+          return '  ' + line;
         }
       });
+
+      const joined = transformedLines.join('\n');
+      const nextCode =
+        normalizedCode.slice(0, lineStart) + joined + normalizedCode.slice(lineEnd);
+      const newStart = Math.max(lineStart, start + deltaFirst);
+      const newEnd = Math.max(newStart, end + deltaTotal);
+      applyCodeEdit(nextCode, newStart, start === end ? newStart : newEnd);
+      return;
+    }
+
+    // Enter -> Auto-preserve current line indentation
+    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      const lineStart = normalizedCode.lastIndexOf('\n', start - 1) + 1;
+      const currentLineBeforeCursor = normalizedCode.slice(lineStart, start);
+      const indentMatch = currentLineBeforeCursor.match(/^[ \t]+/);
+      const indent = indentMatch ? indentMatch[0] : '';
+      const insertStr = '\n' + indent;
+      const nextCode =
+        normalizedCode.substring(0, start) + insertStr + normalizedCode.substring(end);
+      applyCodeEdit(nextCode, start + insertStr.length);
+      return;
     }
   };
 
   const handleCompileAndFlash = () => {
-    const res = compilePldToJedec(code);
+    const res = compilePldToJedec(normalizedCode);
     setCompileResult(res);
     setIsDirty(false);
 
@@ -467,7 +633,7 @@ export const CodeEditorView: React.FC = () => {
       setIsConsoleExpanded(true);
       setStatusBanner({
         type: 'error',
-        text: `Compilation failed with ${res.errors.length} error(s).`,
+        text: `Compilation failed with ${res.errors.length} error(s). Click an error below to jump to its line.`,
       });
       return;
     }
@@ -484,7 +650,7 @@ export const CodeEditorView: React.FC = () => {
 
     updateNodeProperties(activeGalNode.id, {
       jedecString: res.jedec,
-      pldSource: code,
+      pldSource: normalizedCode,
     });
 
     const nodeLabel = activeGalNode.properties?.label || `GAL22V10 (#${activeGalNode.id.slice(0, 6)})`;
@@ -501,8 +667,9 @@ export const CodeEditorView: React.FC = () => {
     reader.onload = (ev) => {
       const content = ev.target?.result;
       if (typeof content === 'string') {
-        setCode(content);
-        const res = compilePldToJedec(content);
+        const clean = content.replace(/\r\n?/g, '\n');
+        setCode(clean);
+        const res = compilePldToJedec(clean);
         setCompileResult(res);
         setIsDirty(false);
         const olmcCount = res.pinSummaries.filter((p) => p.mode !== 'input').length;
@@ -547,9 +714,9 @@ export const CodeEditorView: React.FC = () => {
   };
 
   const handleExportPld = () => {
-    const nameMatch = code.match(/Name\s+([^;\r\n]+)\s*;/i);
+    const nameMatch = normalizedCode.match(/Name\s+([^;\r\n]+)\s*;/i);
     const baseName = nameMatch ? nameMatch[1].trim().replace(/\s+/g, '_') : 'gal22v10_logic';
-    const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob([normalizedCode], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -559,7 +726,7 @@ export const CodeEditorView: React.FC = () => {
   };
 
   const handleExportJed = () => {
-    const res = compilePldToJedec(code);
+    const res = compilePldToJedec(normalizedCode);
     setCompileResult(res);
     setIsDirty(false);
     if (!res.success || !res.jedec) {
@@ -570,7 +737,7 @@ export const CodeEditorView: React.FC = () => {
       });
       return;
     }
-    const nameMatch = code.match(/Name\s+([^;\r\n]+)\s*;/i);
+    const nameMatch = normalizedCode.match(/Name\s+([^;\r\n]+)\s*;/i);
     const baseName = nameMatch ? nameMatch[1].trim().replace(/\s+/g, '_') : 'gal22v10_logic';
     const blob = new Blob([res.jedec], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -585,7 +752,7 @@ export const CodeEditorView: React.FC = () => {
     });
   };
 
-  const showExpandedConsole = isConsoleExpanded || compileResult.errors.length > 0;
+  const showExpandedConsole = showExpandedConsoleSafe(isConsoleExpanded, compileResult.errors.length);
 
   return (
     <div className="flex-1 flex flex-col h-full bg-gray-100 dark:bg-slate-900 overflow-hidden select-none">
@@ -686,6 +853,10 @@ export const CodeEditorView: React.FC = () => {
                       setCompileResult(compilePldToJedec(tpl.code));
                       setIsDirty(false);
                       setOpenMenu(null);
+                      if (textareaRef.current) {
+                        textareaRef.current.scrollTop = 0;
+                        textareaRef.current.scrollLeft = 0;
+                      }
                       setStatusBanner({
                         type: 'info',
                         text: `Loaded template: "${tpl.title}"`,
@@ -726,12 +897,6 @@ export const CodeEditorView: React.FC = () => {
                 onChange={(e) => {
                   const id = e.target.value;
                   setSelectedMemoryNodeId(id);
-                  const target = galNodes.find((n) => n.id === id);
-                  if (target && typeof target.properties?.pldSource === 'string') {
-                    setCode(target.properties.pldSource);
-                    setCompileResult(compilePldToJedec(target.properties.pldSource));
-                    setIsDirty(false);
-                  }
                 }}
                 className="bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-200 text-xs font-medium rounded px-2 py-1 border border-gray-200 dark:border-slate-600 focus:outline-none focus:border-slate-400"
               >
@@ -795,59 +960,100 @@ export const CodeEditorView: React.FC = () => {
       <div className="flex-1 flex overflow-hidden">
         {/* Syntax-Highlighted Code Editor */}
         <div className="flex-1 flex flex-col bg-white dark:bg-slate-950 overflow-hidden">
-          <div className="flex-1 flex relative overflow-hidden font-mono text-sm">
-            {/* Line Numbers Gutter */}
-            <div
-              ref={gutterRef}
-              className="w-12 py-4 bg-gray-50 dark:bg-slate-900/80 border-r border-gray-200 dark:border-slate-800 text-right pr-3 select-none overflow-hidden text-xs leading-6 text-gray-400 dark:text-slate-600 shrink-0"
-            >
-              {Array.from({ length: lineCount }, (_, idx) => {
-                const lineNo = idx + 1;
-                const errMsg = !isDirty ? errorLines.get(lineNo) : undefined;
-                return (
-                  <div
-                    key={lineNo}
-                    title={errMsg}
-                    className={`leading-6 ${
-                      errMsg
-                        ? 'text-rose-600 dark:text-rose-400 font-bold bg-rose-100/70 dark:bg-rose-950/70 -mr-3 pr-3'
-                        : ''
-                    }`}
-                  >
-                    {lineNo}
-                  </div>
-                );
-              })}
+          <div
+            className="flex-1 flex relative overflow-hidden font-mono text-sm"
+            style={{ fontVariantLigatures: 'none' }}
+          >
+            {/* Line Numbers Gutter (translated via translate3d to match textarea.scrollTop 1:1) */}
+            <div className="w-12 bg-gray-50 dark:bg-slate-900/80 border-r border-gray-200 dark:border-slate-800 text-right select-none overflow-hidden text-xs leading-6 text-gray-400 dark:text-slate-600 shrink-0 relative">
+              <div ref={gutterInnerRef} className="py-4 pr-3 will-change-transform">
+                {Array.from({ length: lineCount }, (_, idx) => {
+                  const lineNo = idx + 1;
+                  const errMsg = !isDirty ? errorLines.get(lineNo) : undefined;
+                  const isActiveLine = cursorPos.line === lineNo;
+                  return (
+                    <div
+                      key={lineNo}
+                      title={errMsg}
+                      onClick={() => jumpToLine(lineNo)}
+                      className={`h-6 leading-6 cursor-pointer ${
+                        errMsg
+                          ? 'text-rose-600 dark:text-rose-400 font-bold bg-rose-100/70 dark:bg-rose-950/70 -mr-3 pr-3'
+                          : isActiveLine
+                          ? 'text-gray-900 dark:text-slate-100 font-bold'
+                          : 'hover:text-gray-600 dark:hover:text-slate-400'
+                      }`}
+                    >
+                      {lineNo}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Overlay Container for Highlighted Pre + Transparent Textarea */}
+            {/* Viewport Container for Transformed Highlight Backdrop + Native Scrollable Textarea */}
             <div className="flex-1 relative overflow-hidden">
-              {/* Syntax Highlight Backdrop */}
-              <pre
-                ref={preRef}
+              {/* Transform-synced Backdrop (Active Line Highlight + Error Line Stripes + Syntax Pre) */}
+              <div
+                ref={backdropLayerRef}
                 aria-hidden="true"
-                className="absolute inset-0 m-0 p-4 font-mono text-sm leading-6 whitespace-pre overflow-hidden pointer-events-none select-none"
+                className="absolute top-0 left-0 min-w-full pointer-events-none select-none will-change-transform"
               >
-                {highlightedCode}
-                {'\n'}
-              </pre>
+                {/* Active Line Highlight Stripe */}
+                <div
+                  style={{ top: `${16 + (cursorPos.line - 1) * 24}px`, height: '24px' }}
+                  className="absolute left-0 right-0 bg-slate-100/80 dark:bg-slate-800/40"
+                />
 
-              {/* Interactive Textarea */}
+                {/* Error Line Highlight Stripes */}
+                {!isDirty &&
+                  Array.from(errorLines.keys()).map((errLine) => (
+                    <div
+                      key={`err-stripe-${errLine}`}
+                      style={{ top: `${16 + (errLine - 1) * 24}px`, height: '24px' }}
+                      className="absolute left-0 right-0 bg-rose-500/10 dark:bg-rose-500/15"
+                    />
+                  ))}
+
+                {/* Syntax Highlighted Code */}
+                <pre
+                  style={{ tabSize: 2, fontVariantLigatures: 'none' }}
+                  className="relative m-0 p-4 border-0 font-mono text-sm leading-6 whitespace-pre pointer-events-none select-none"
+                >
+                  {highlightedCode}
+                  {normalizedCode.endsWith('\n') || normalizedCode.length === 0 ? ' ' : ''}
+                </pre>
+              </div>
+
+              {/* Native Scrollable Textarea (covers 100% of viewport and all lines, overscroll disabled) */}
               <textarea
                 ref={textareaRef}
-                value={code}
+                value={normalizedCode}
+                style={{
+                  tabSize: 2,
+                  fontVariantLigatures: 'none',
+                  overscrollBehavior: 'none',
+                }}
                 onChange={(e) => {
                   setCode(e.target.value);
                   setIsDirty(true);
+                  updateCursorInfo(e.currentTarget);
                 }}
-                onScroll={handleScroll}
+                onScroll={syncScroll}
                 onKeyDown={handleKeyDown}
+                onKeyUp={(e) => updateCursorInfo(e.currentTarget)}
+                onMouseDown={(e) => {
+                  const ta = e.currentTarget;
+                  requestAnimationFrame(() => updateCursorInfo(ta));
+                }}
+                onClick={(e) => updateCursorInfo(e.currentTarget)}
+                onSelect={(e) => updateCursorInfo(e.currentTarget)}
                 wrap="off"
                 spellCheck={false}
                 autoCapitalize="off"
                 autoComplete="off"
                 autoCorrect="off"
-                className="absolute inset-0 w-full h-full m-0 p-4 bg-transparent text-transparent caret-gray-900 dark:caret-white selection:bg-indigo-500/25 font-mono text-sm leading-6 whitespace-pre focus:outline-none resize-none overflow-auto select-text"
+                className="absolute inset-0 w-full h-full m-0 p-4 border-0 bg-transparent text-transparent caret-gray-900 dark:caret-white selection:bg-indigo-500/25 font-mono text-sm leading-6 whitespace-pre focus:outline-none resize-none overflow-auto overscroll-none select-text"
                 placeholder="Write your WinCUPL .pld logic equations here..."
               />
             </div>
@@ -879,9 +1085,12 @@ export const CodeEditorView: React.FC = () => {
                   </span>
                 )}
               </div>
-              <span className="text-[11px] text-gray-400 dark:text-slate-500 font-mono">
-                {showExpandedConsole ? 'Hide Output ▾' : 'Output ▴'}
-              </span>
+              <div className="flex items-center gap-4 text-[11px] text-gray-400 dark:text-slate-500 font-mono">
+                <span>
+                  Ln {cursorPos.line}, Col {cursorPos.col}
+                </span>
+                <span>{showExpandedConsole ? 'Hide Output ▾' : 'Output ▴'}</span>
+              </div>
             </button>
 
             {showExpandedConsole && (
@@ -901,15 +1110,20 @@ export const CodeEditorView: React.FC = () => {
                   </div>
                 ))}
                 {compileResult.errors.map((err, i) => (
-                  <div
+                  <button
                     key={`e-${i}`}
-                    className="text-rose-600 dark:text-rose-400 flex items-start gap-2"
+                    type="button"
+                    onClick={() => {
+                      if (err.line) jumpToLine(err.line);
+                    }}
+                    className="w-full text-left text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 rounded px-1 py-0.5 flex items-start gap-2 transition-colors"
+                    title={err.line ? `Click to jump to Line ${err.line}` : undefined}
                   >
-                    <span className="font-bold shrink-0">
+                    <span className="font-bold shrink-0 underline decoration-dotted">
                       {err.line ? `[Line ${err.line}]` : '[Error]'}
                     </span>
                     <span>{err.message}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -1095,6 +1309,20 @@ export const CodeEditorView: React.FC = () => {
 
                   <div>
                     <h4 className="font-bold text-gray-800 dark:text-slate-100 mb-1">
+                      Editor Shortcuts
+                    </h4>
+                    <div className="grid grid-cols-2 gap-1 font-mono text-[11px] bg-gray-50 dark:bg-slate-900 p-2 rounded">
+                      <span>Ctrl + Enter</span>
+                      <span className="text-gray-400">Compile &amp; Load</span>
+                      <span>Ctrl + /</span>
+                      <span className="text-gray-400">Toggle Comment</span>
+                      <span>Tab / Shift+Tab</span>
+                      <span className="text-gray-400">Indent / Outdent</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-bold text-gray-800 dark:text-slate-100 mb-1">
                       GAL22V10 Pins
                     </h4>
                     <ul className="list-disc pl-4 space-y-0.5 font-mono text-[11px]">
@@ -1145,3 +1373,7 @@ export const CodeEditorView: React.FC = () => {
     </div>
   );
 };
+
+function showExpandedConsoleSafe(isExpanded: boolean, errorCount: number): boolean {
+  return isExpanded || errorCount > 0;
+}
