@@ -151,7 +151,8 @@ export const SRAM_62256: NodeDefinition = {
         if (inputs[15 + i] === 1) dataIn |= (1 << i);
         else if (inputs[15 + i] !== 0) valid = false;
       }
-      if (valid) {
+      if (valid && internal.memory[address] !== dataIn) {
+        internal.memory = new Uint8Array(internal.memory);
         internal.memory[address] = dataIn;
       }
     }
@@ -274,7 +275,10 @@ export const IC6116: NodeDefinition = {
       if (pInputs[15] === 1) p_data |= 64;
       if (pInputs[16] === 1) p_data |= 128;
 
-      internal.memory[p_addr] = p_data;
+      if (internal.memory[p_addr] !== p_data) {
+        internal.memory = new Uint8Array(internal.memory);
+        internal.memory[p_addr] = p_data;
+      }
     }
     
     const ce_n = inputs[17] ?? 1;

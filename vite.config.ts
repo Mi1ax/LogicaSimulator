@@ -6,4 +6,14 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig(({ command }) => ({
   plugins: [react(), tailwindcss()],
   base: command === 'build' ? '/LogicaSimulator/' : '/',
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-konva', 'zustand'],
+          'vendor-konva': ['konva'],
+        },
+      },
+    },
+  },
 }));

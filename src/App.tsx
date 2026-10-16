@@ -31,34 +31,30 @@ function App() {
   useEffect(() => {
     if (!simRunning) return;
 
-    let reqId: number;
+    // Wake up only at the needed tick rate for low frequencies (e.g. 100ms for 10Hz),
+    // and cap batch UI flushes at ~30 FPS (33ms) for high frequencies to avoid burning CPU/GPU at 60-165Hz.
+    const intervalMs = Math.max(33, Math.floor(1000 / Math.max(1, simSpeed)));
+    lastSimTimeRef.current = performance.now();
+    accumulatedTimeRef.current = 0;
 
-    const loop = (timestamp: number) => {
-      if (lastSimTimeRef.current === 0) {
-        lastSimTimeRef.current = timestamp;
-      }
-
-      const deltaTime = timestamp - lastSimTimeRef.current;
-      lastSimTimeRef.current = timestamp;
+    const timerId = window.setInterval(() => {
+      const now = performance.now();
+      const deltaTime = now - lastSimTimeRef.current;
+      lastSimTimeRef.current = now;
 
       // Cap deltaTime at 100ms to avoid huge lag spikes if tab is suspended
       accumulatedTimeRef.current += Math.min(deltaTime, 100);
 
       const msPerTick = 1000 / simSpeed;
-      
       if (accumulatedTimeRef.current >= msPerTick) {
         const ticksToRun = Math.floor(accumulatedTimeRef.current / msPerTick);
         accumulatedTimeRef.current -= ticksToRun * msPerTick;
         stepSimulationBatch(ticksToRun);
       }
-
-      reqId = requestAnimationFrame(loop);
-    };
-
-    reqId = requestAnimationFrame(loop);
+    }, intervalMs);
 
     return () => {
-      cancelAnimationFrame(reqId);
+      window.clearInterval(timerId);
       lastSimTimeRef.current = 0;
       accumulatedTimeRef.current = 0;
     };

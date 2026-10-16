@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Path, Group, Circle } from 'react-konva';
 import { useSimulatorStore } from '../../../store/useSimulatorStore';
-import { computeAllWirePaths } from '../../../core/engine/routing';
+import { computeAllWirePaths, computeDraftWirePath } from '../../../core/engine/routing';
 import { getCanvasTheme } from '../theme';
 import { getSchematicPinPosition } from '../../../core/utils/schematicLayout';
 import { Wire } from '../../../core/models/types';
@@ -34,6 +34,7 @@ const SingleWire = React.memo(({
   );
   const selectedWpMask = useSimulatorStore(state => {
     if (!wire.waypoints || wire.waypoints.length === 0) return '';
+    if (state.schematicScale < 0.55 && !isSelected) return '__lod_hide__';
     let mask = '';
     for (let i = 0; i < wire.waypoints.length; i++) {
       const wpId = `wp:${wire.id}:${i}`;
@@ -135,7 +136,7 @@ const SingleWire = React.memo(({
     />
   );
 
-  if (!wire.waypoints || wire.waypoints.length === 0) {
+  if (!wire.waypoints || wire.waypoints.length === 0 || selectedWpMask === '__lod_hide__') {
     return wirePathElement;
   }
 
@@ -216,21 +217,20 @@ const SingleWire = React.memo(({
 
 const DraftWirePreview: React.FC<{ draftWireColor: string }> = React.memo(({ draftWireColor }) => {
   const draftWire = useSimulatorStore(state => state.draftWire);
-  const nodes = useSimulatorStore(state => state.nodes);
+  const sourceNode = useSimulatorStore(state =>
+    state.draftWire ? state.nodes.find(n => n.id === state.draftWire!.sourceNodeId) : undefined
+  );
 
   const draftWirePath = useMemo(() => {
-    if (!draftWire) return null;
-    const sourceNode = nodes.find(n => n.id === draftWire.sourceNodeId);
-    if (!sourceNode) return null;
+    if (!draftWire || !sourceNode) return null;
     const start = getSchematicPinPosition(sourceNode, draftWire.sourcePinId);
-    const { draftWirePath: path } = computeAllWirePaths([], [], {
+    return computeDraftWirePath({
       start,
       end: { x: draftWire.endX, y: draftWire.endY },
       waypoints: draftWire.waypoints,
-      manhattan: draftWire.manhattan
+      manhattan: draftWire.manhattan,
     });
-    return path;
-  }, [draftWire, nodes]);
+  }, [draftWire, sourceNode]);
 
   if (!draftWirePath) return null;
 

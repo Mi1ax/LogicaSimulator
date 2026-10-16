@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { NodeType } from '../../core/models/types';
-import { BoxSelect, Cpu, ToggleLeft, Lightbulb, Zap, SlidersHorizontal, Tag, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp, Trash2, X, Grid3X3, Type, StickyNote } from 'lucide-react';
+import { BoxSelect, Cpu, ToggleLeft, Lightbulb, Zap, SlidersHorizontal, Tag, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp, Trash2, X, Grid3X3, Type, StickyNote, PanelLeftClose, GitCommitHorizontal } from 'lucide-react';
 import { ALL_BUILTIN_NODES, getNodeDefinition } from '../../core/engine/nodes';
 
 interface ToolItem {
@@ -48,6 +48,8 @@ const getToolIcon = (type: NodeType, size = 18): React.ReactNode => {
       return <Type size={size} />;
     case 'STICKY_NOTE':
       return <StickyNote size={size} />;
+    case 'FSM_DIAGRAM':
+      return <GitCommitHorizontal size={size} />;
     case 'NOT':
     case 'BUFFER':
       return <BoxSelect size={size} />;
@@ -98,6 +100,8 @@ function buildBaseCategories(): ToolCategory[] {
 export const Toolbox: React.FC = () => {
   const startPlacingNode = useSimulatorStore((state) => state.startPlacingNode);
   const appMode = useSimulatorStore((state) => state.appMode);
+  const isToolboxOpen = useSimulatorStore((state) => state.isToolboxOpen);
+  const toggleToolbox = useSimulatorStore((state) => state.toggleToolbox);
   const savedCircuits = useSimulatorStore((state) => state.savedCircuits);
   const subcircuits = Object.entries(savedCircuits).map(([id, sc]) => ({ id, name: sc.name }));
 
@@ -276,7 +280,7 @@ export const Toolbox: React.FC = () => {
     );
   };
 
-  if (appMode === 'hex' || appMode === 'code') {
+  if (appMode !== 'schematic' || !isToolboxOpen) {
     return null;
   }
 
@@ -287,7 +291,7 @@ export const Toolbox: React.FC = () => {
       <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex flex-col gap-3 shrink-0">
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-bold text-gray-800 dark:text-slate-100">Components</h2>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-1">
             <button 
               onClick={() => setAllExpanded(true)} 
               className="text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200 p-1 rounded hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
@@ -301,6 +305,13 @@ export const Toolbox: React.FC = () => {
               title="Collapse All"
             >
               <ChevronsDownUp size={16} />
+            </button>
+            <button 
+              onClick={toggleToolbox} 
+              className="text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200 p-1 rounded hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors"
+              title="Hide Left Panel"
+            >
+              <PanelLeftClose size={16} />
             </button>
           </div>
         </div>

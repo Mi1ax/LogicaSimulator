@@ -347,7 +347,8 @@ const cloneInternalState = (raw?: Record<string, any>): Record<string, any> => {
     if (Array.isArray(v)) {
       cloned[k] = v.slice();
     } else if (v instanceof Uint8Array) {
-      cloned[k] = new Uint8Array(v);
+      // Memory ICs (62256, 6116) perform copy-on-write when mutating bytes
+      cloned[k] = v;
     } else if (v && typeof v === 'object') {
       cloned[k] = { ...v };
     } else {
@@ -509,17 +510,40 @@ export const stepCompiledCircuit = (
     if (!changed) break;
   }
 
-  const finalWireStates: Record<string, Signal> = {};
-  if (computeWireStates) {
+  // Structural sharing: if no pin states changed compared to prevState.pinStates,
+  // reuse prevState.pinStates and prevState.wireStates references to avoid triggering UI subscribers.
+  let anyPinChangedFromPrev = prevState.tickCount === 0;
+  if (!anyPinChangedFromPrev) {
+    for (let i = 0; i < allPinIds.length; i++) {
+      const pid = allPinIds[i];
+      if (currentPinStates[pid] !== prevState.pinStates[pid]) {
+        anyPinChangedFromPrev = true;
+        break;
+      }
+    }
+  }
+
+  const resolvedPinStates = anyPinChangedFromPrev ? currentPinStates : prevState.pinStates;
+
+  let finalWireStates: Record<string, Signal>;
+  if (!computeWireStates) {
+    finalWireStates = prevState.wireStates;
+  } else if (
+    !anyPinChangedFromPrev &&
+    (wires.length === 0 || wires[0].id in prevState.wireStates)
+  ) {
+    finalWireStates = prevState.wireStates;
+  } else {
+    finalWireStates = {};
     for (let i = 0; i < wires.length; i++) {
       const wire = wires[i];
-      finalWireStates[wire.id] = currentPinStates[wire.sourcePinId];
+      finalWireStates[wire.id] = resolvedPinStates[wire.sourcePinId];
     }
   }
 
   return {
     tickCount: prevState.tickCount + 1,
-    pinStates: currentPinStates,
+    pinStates: resolvedPinStates,
     wireStates: finalWireStates,
     nodeStates: finalNodeStates,
     connectedPins,

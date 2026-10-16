@@ -84,7 +84,20 @@ export const FsmDiagramView: React.FC<FsmDiagramViewProps> = ({
   readOnly = false,
   onPlaceOnSchematic,
 }) => {
-  const pinStates = useSimulatorStore(state => state.simState.pinStates);
+  const galPinSig = useSimulatorStore(state => {
+    if (!targetNodeId) return '';
+    const galNode = state.nodes.find(n => n.id === targetNodeId);
+    if (!galNode) return '';
+    const ps = state.simState.pinStates;
+    let sig = '';
+    for (let i = 0; i < galNode.inputs.length; i++) {
+      sig += ps[galNode.inputs[i].id] ?? '_';
+    }
+    for (let i = 0; i < galNode.outputs.length; i++) {
+      sig += ps[galNode.outputs[i].id] ?? '_';
+    }
+    return sig;
+  });
   const theme = useSimulatorStore(state => state.theme);
   const isDark = theme === 'dark';
 
@@ -118,8 +131,8 @@ export const FsmDiagramView: React.FC<FsmDiagramViewProps> = ({
 
   const liveStatus = useMemo(() => {
     if (!fsm.hasFsm || !targetNodeId) return null;
-    return getLiveFsmStatus(fsm, targetNodeId, pinStates);
-  }, [fsm, targetNodeId, pinStates]);
+    return getLiveFsmStatus(fsm, targetNodeId, useSimulatorStore.getState().simState.pinStates);
+  }, [fsm, targetNodeId, galPinSig]);
 
   const defaultPositions = useMemo(() => computeDefaultFsmPositions(fsm.states), [fsm.states]);
 

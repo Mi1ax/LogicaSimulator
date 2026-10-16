@@ -623,6 +623,16 @@ export const PropertiesPanel: React.FC = () => {
                       Invert Initial Phase (Start LOW)
                     </label>
                   </div>
+
+                  {node.type === 'NE555' && (
+                    <button
+                      type="button"
+                      onClick={() => useSimulatorStore.getState().setAppMode('ne555')}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-1.5 px-3 rounded transition-colors text-xs mt-1"
+                    >
+                      Open 555 Analog Lab
+                    </button>
+                  )}
                 </>
               )}
             </div>

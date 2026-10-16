@@ -1,6 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, StepForward, Square } from 'lucide-react';
-import { useSimulatorStore } from '../../store/useSimulatorStore';
+import { useSimulatorStore, subscribeTickCount } from '../../store/useSimulatorStore';
+
+const TickDisplay: React.FC = React.memo(() => {
+  const spanRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let lastUpdate = 0;
+    return subscribeTickCount((tickCount) => {
+      if (!spanRef.current) return;
+      const now = performance.now();
+      // Always update immediately on reset (0) or manual steps, and throttle rapid simulation updates to ~10 Hz
+      if (tickCount <= 1 || now - lastUpdate >= 90) {
+        lastUpdate = now;
+        spanRef.current.textContent = `Tick: ${tickCount}`;
+      }
+    });
+  }, []);
+
+  return (
+    <div
+      ref={spanRef}
+      className="absolute left-6 text-sm font-medium text-gray-500 dark:text-slate-400 tabular-nums"
+    >
+      Tick: {useSimulatorStore.getState().simState.tickCount}
+    </div>
+  );
+});
 
 export const Bottombar: React.FC = () => {
   const simRunning = useSimulatorStore(state => state.simRunning);
@@ -9,7 +35,7 @@ export const Bottombar: React.FC = () => {
   const resetSimulation = useSimulatorStore(state => state.resetSimulation);
   const simSpeed = useSimulatorStore(state => state.simSpeed);
   const setSimSpeed = useSimulatorStore(state => state.setSimSpeed);
-  const tickCount = useSimulatorStore(state => state.simState.tickCount);
+  const hasTicks = useSimulatorStore(state => state.simState.tickCount > 0);
 
   const [localSpeed, setLocalSpeed] = useState(simSpeed.toString());
   useEffect(() => {
@@ -18,9 +44,7 @@ export const Bottombar: React.FC = () => {
 
   return (
     <div className="h-12 bg-white dark:bg-slate-800 border-t border-gray-300 dark:border-slate-700 flex items-center justify-center px-4 shadow-[0_-1px_2px_rgba(0,0,0,0.05)] z-20 relative transition-colors">
-      <div className="absolute left-6 text-sm font-medium text-gray-500 dark:text-slate-400">
-        Tick: {tickCount}
-      </div>
+      <TickDisplay />
 
       <div className="flex items-center gap-2 bg-gray-100 dark:bg-slate-900/50 p-1 rounded-md border border-gray-200 dark:border-slate-600">
         <button
@@ -51,9 +75,9 @@ export const Bottombar: React.FC = () => {
 
         <button
           onClick={() => { setSimRunning(false); resetSimulation(); }}
-          disabled={!simRunning && tickCount === 0}
+          disabled={!simRunning && !hasTicks}
           className={`p-1 rounded transition-colors ${
-            (!simRunning && tickCount === 0)
+            (!simRunning && !hasTicks)
               ? 'opacity-50 cursor-not-allowed text-gray-400' 
               : 'text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30'
           }`}

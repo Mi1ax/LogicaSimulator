@@ -1,6 +1,5 @@
 import React from 'react';
 import { Group, Rect, Path } from 'react-konva';
-import { useShallow } from 'zustand/react/shallow';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
 import { getSchematicDimensions, getGridAlignedPinYs } from '../../../../core/utils/schematicLayout';
@@ -18,9 +17,16 @@ export const SchematicLEDBarNode: React.FC<Props> = React.memo(({ node }) => {
     (state.selection?.type === 'node' && state.selection.id === node.id) ||
     state.multiSelection.includes(node.id)
   );
-  const ledStates = useSimulatorStore(
-    useShallow(state => node.inputs.map(pin => state.simState.pinStates[pin.id] === 1))
-  );
+  const ledMask = useSimulatorStore(state => {
+    const pinStates = state.simState.pinStates;
+    let mask = 0;
+    for (let i = 0; i < node.inputs.length; i++) {
+      if (pinStates[node.inputs[i].id] === 1) {
+        mask |= 1 << i;
+      }
+    }
+    return mask;
+  });
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getSchematicDimensions(node);
@@ -43,7 +49,7 @@ export const SchematicLEDBarNode: React.FC<Props> = React.memo(({ node }) => {
       
       {node.inputs.map((pin, index) => {
         const y = pinYs[index];
-        const isHigh = ledStates[index];
+        const isHigh = (ledMask & (1 << index)) !== 0;
 
         return (
           <Group key={pin.id}>

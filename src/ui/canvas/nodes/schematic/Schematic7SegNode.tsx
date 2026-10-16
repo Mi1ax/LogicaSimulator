@@ -7,24 +7,37 @@ import { getCanvasTheme } from '../../theme';
 import { Pin } from '../../primitives/Pin';
 import { SchematicNodeWrapper } from './SchematicNodeWrapper';
 
-import { useShallow } from 'zustand/react/shallow';
-
 interface Props {
   node: LogicNode;
 }
 
 export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
+  const isLowDetail = useSimulatorStore(state => state.schematicScale < 0.55);
   const isSelected = useSimulatorStore(state =>
     (state.selection?.type === 'node' && state.selection.id === node.id) ||
     state.multiSelection.includes(node.id)
   );
   
-  const segments = useSimulatorStore(useShallow(state => {
+  const segMask = useSimulatorStore(state => {
     const activeLevel = node.properties?.commonAnode ? 0 : 1;
-    return node.inputs.map(p => state.simState.pinStates[p.id] === activeLevel ? 1 : 0);
-  }));
-  const [a, b, c, d, e, f, g, dp] = segments;
+    const pinStates = state.simState.pinStates;
+    let mask = 0;
+    for (let i = 0; i < node.inputs.length; i++) {
+      if (pinStates[node.inputs[i].id] === activeLevel) {
+        mask |= 1 << i;
+      }
+    }
+    return mask;
+  });
+  const a = (segMask & 1) !== 0 ? 1 : 0;
+  const b = (segMask & 2) !== 0 ? 1 : 0;
+  const c = (segMask & 4) !== 0 ? 1 : 0;
+  const d = (segMask & 8) !== 0 ? 1 : 0;
+  const e = (segMask & 16) !== 0 ? 1 : 0;
+  const f = (segMask & 32) !== 0 ? 1 : 0;
+  const g = (segMask & 64) !== 0 ? 1 : 0;
+  const dp = (segMask & 128) !== 0 ? 1 : 0;
 
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getSchematicDimensions(node);
@@ -43,10 +56,7 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
       fill={active ? activeColor : inactiveColor}
       perfectDrawEnabled={false}
       listening={false}
-      shadowEnabled={active}
-      shadowColor={active ? activeColor : 'transparent'}
-      shadowBlur={active ? 8 : 0}
-      shadowOpacity={0.8}
+      shadowForStrokeEnabled={false}
     />
   );
 
@@ -104,10 +114,6 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
           fill={dp === 1 ? activeColor : inactiveColor}
           perfectDrawEnabled={false}
           listening={false}
-          shadowEnabled={dp === 1}
-          shadowColor={dp === 1 ? activeColor : 'transparent'}
-          shadowBlur={dp === 1 ? 8 : 0}
-          shadowOpacity={0.8}
         />
       </Group>
 
@@ -133,18 +139,20 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
               y={yOffset}
               type={pin.type}
             />
-            <Group x={xOffset} y={isTop ? 16 : height - 16} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
-              <Text
-                text={pin.name}
-                x={-10}
-                y={-4}
-                width={20}
-                align="center"
-                fontSize={8}
-                fill={canvasTheme.textColor}
-                listening={false}
-              />
-            </Group>
+            {!isLowDetail && (
+              <Group x={xOffset} y={isTop ? 16 : height - 16} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
+                <Text
+                  text={pin.name}
+                  x={-10}
+                  y={-4}
+                  width={20}
+                  align="center"
+                  fontSize={8}
+                  fill={canvasTheme.textColor}
+                  listening={false}
+                />
+              </Group>
+            )}
           </Group>
         );
       })}

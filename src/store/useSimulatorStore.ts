@@ -19,8 +19,8 @@ export interface PointerSettings {
 }
 
 interface SimulatorState {
-  appMode: 'schematic' | 'hex' | 'code';
-  setAppMode: (mode: 'schematic' | 'hex' | 'code') => void;
+  appMode: 'schematic' | 'hex' | 'code' | 'ne555';
+  setAppMode: (mode: 'schematic' | 'hex' | 'code' | 'ne555') => void;
 
   savedCircuits: Record<string, { name: string, nodes: LogicNode[], wires: Wire[], history: any[], future: any[] }>;
   activeSubcircuitId: string;
@@ -30,6 +30,9 @@ interface SimulatorState {
 
   theme: 'light' | 'dark';
   toggleTheme: () => void;
+
+  isToolboxOpen: boolean;
+  toggleToolbox: () => void;
 
   // Settings
   settings: PointerSettings;
@@ -183,7 +186,7 @@ const applyAutoConnect = (state: SimulatorState, movedNodeIds: string[]) => {
 
 export const useSimulatorStore = create<SimulatorState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
   appMode: 'schematic',
   setAppMode: (mode) => set({ appMode: mode, selection: null }),
 
@@ -266,6 +269,9 @@ export const useSimulatorStore = create<SimulatorState>()(
 
   theme: 'dark',
   toggleTheme: () => set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' })),
+
+  isToolboxOpen: true,
+  toggleToolbox: () => set((state) => ({ isToolboxOpen: !state.isToolboxOpen })),
 
   settings: {
     mouseWheelBehavior: 'zoom',
@@ -607,22 +613,54 @@ export const useSimulatorStore = create<SimulatorState>()(
 
   // Sequential IC state (counters, registers) lives in simState.nodeStates,
   // so resetting the simulation state resets every IC as well.
-  resetSimulation: () => set({ simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} } }),
+  resetSimulation: () => {
+    set({ simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} } });
+    notifyTickListeners(0);
+  },
 
-  stepSimulation: () => set((state) => ({
-    simState: computeNextState(state.nodes, state.wires, state.simState, state.savedCircuits)
-  })),
+  stepSimulation: () => set((state) => {
+    const nextSimState = computeNextState(state.nodes, state.wires, state.simState, state.savedCircuits);
+    notifyTickListeners(nextSimState.tickCount);
+    return { simState: nextSimState };
+  }),
 
-  stepSimulationBatch: (ticks) => set((state) => {
+  stepSimulationBatch: (ticks) => {
+    const state = get();
+    const prevSim = state.simState;
     const { state: nextSimState } = computeNextStateBatch(
       state.nodes,
       state.wires,
-      state.simState,
+      prevSim,
       state.savedCircuits,
       ticks
     );
-    return { simState: nextSimState };
-  }),
+
+    const firstTickTransition = prevSim.tickCount === 0 && nextSimState.tickCount > 0;
+    const pinsChanged = nextSimState.pinStates !== prevSim.pinStates;
+
+    let memoryChanged = false;
+    if (!pinsChanged && nextSimState.nodeStates && prevSim.nodeStates) {
+      for (const nodeId in nextSimState.nodeStates) {
+        if (nextSimState.nodeStates[nodeId]?.memory !== prevSim.nodeStates[nodeId]?.memory) {
+          memoryChanged = true;
+          break;
+        }
+      }
+    }
+
+    if (!firstTickTransition && !pinsChanged && !memoryChanged) {
+      // Fast path: no logic signals or SRAM bytes changed during these ticks.
+      // Mutate tickCount and internal sequential counters in-place without waking 1,000+ Zustand UI subscribers.
+      prevSim.tickCount = nextSimState.tickCount;
+      prevSim.nodeStates = nextSimState.nodeStates;
+      prevSim.connectedPins = nextSimState.connectedPins;
+      notifyTickListeners(nextSimState.tickCount);
+      return;
+    }
+
+    set({ simState: nextSimState });
+    notifyTickListeners(nextSimState.tickCount);
+  },
 
   setSimRunning: (running) => set({ simRunning: running }),
   setSimSpeed: (hz) => set({ simSpeed: hz }),
@@ -1013,22 +1051,60 @@ export const useSimulatorStore = create<SimulatorState>()(
         }
         return persistedState as any;
       },
-      partialize: (state) => ({
-        nodes: state.nodes,
-        wires: state.wires,
-        simSpeed: state.simSpeed,
-        settings: state.settings,
-        theme: state.theme,
-        appMode: state.appMode,
-        savedCircuits: state.savedCircuits,
-        activeSubcircuitId: state.activeSubcircuitId,
-        schematicPos: state.schematicPos,
-        schematicScale: state.schematicScale,
-        canvasOffset: state.canvasOffset
-      })
+      partialize: (() => {
+        let cachedPartial: Record<string, any> | null = null;
+        return (state: SimulatorState) => {
+          if (
+            cachedPartial &&
+            cachedPartial.nodes === state.nodes &&
+            cachedPartial.wires === state.wires &&
+            cachedPartial.simSpeed === state.simSpeed &&
+            cachedPartial.settings === state.settings &&
+            cachedPartial.theme === state.theme &&
+            cachedPartial.appMode === state.appMode &&
+            cachedPartial.savedCircuits === state.savedCircuits &&
+            cachedPartial.activeSubcircuitId === state.activeSubcircuitId &&
+            cachedPartial.schematicPos === state.schematicPos &&
+            cachedPartial.schematicScale === state.schematicScale &&
+            cachedPartial.canvasOffset === state.canvasOffset
+          ) {
+            return cachedPartial;
+          }
+          cachedPartial = {
+            nodes: state.nodes,
+            wires: state.wires,
+            simSpeed: state.simSpeed,
+            settings: state.settings,
+            theme: state.theme,
+            appMode: state.appMode,
+            savedCircuits: state.savedCircuits,
+            activeSubcircuitId: state.activeSubcircuitId,
+            schematicPos: state.schematicPos,
+            schematicScale: state.schematicScale,
+            canvasOffset: state.canvasOffset,
+          };
+          return cachedPartial;
+        };
+      })()
     }
   )
 );
+
+const tickListeners = new Set<(tickCount: number) => void>();
+
+function notifyTickListeners(tickCount: number) {
+  if (tickListeners.size === 0) return;
+  for (const listener of tickListeners) {
+    listener(tickCount);
+  }
+}
+
+export function subscribeTickCount(listener: (tickCount: number) => void): () => void {
+  tickListeners.add(listener);
+  return () => {
+    tickListeners.delete(listener);
+  };
+}
 
 // Provide grid size constant exported from core
 export { GRID_SIZE } from '../core/engine/circuit';
@@ -1036,6 +1112,10 @@ export { GRID_SIZE } from '../core/engine/circuit';
 
 
 useSimulatorStore.subscribe((state, prevState) => {
+  if (state.simState.tickCount !== prevState.simState.tickCount) {
+    notifyTickListeners(state.simState.tickCount);
+  }
+
   // If active subcircuit nodes change, update its registry entry
   if (state.nodes !== prevState.nodes) {
     if (state.activeSubcircuitId !== 'main') {

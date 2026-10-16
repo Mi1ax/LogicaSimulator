@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, PanelLeftOpen } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 
 export const CircuitTabs: React.FC = () => {
@@ -11,6 +11,8 @@ export const CircuitTabs: React.FC = () => {
   const addSubcircuit = useSimulatorStore(state => state.addSubcircuit);
   const deleteSubcircuit = useSimulatorStore(state => state.deleteSubcircuit);
   const appMode = useSimulatorStore(state => state.appMode);
+  const isToolboxOpen = useSimulatorStore(state => state.isToolboxOpen);
+  const toggleToolbox = useSimulatorStore(state => state.toggleToolbox);
 
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
@@ -29,6 +31,15 @@ export const CircuitTabs: React.FC = () => {
 
   return (
     <div className="flex items-center bg-gray-100 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-2 h-10 overflow-x-auto select-none">
+      {!isToolboxOpen && (
+        <button
+          onClick={toggleToolbox}
+          className="flex items-center justify-center p-1.5 mr-2 text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-md transition-colors shrink-0"
+          title="Show Left Panel (Components)"
+        >
+          <PanelLeftOpen size={16} />
+        </button>
+      )}
       {subcircuits.map(sc => (
         <div
           key={sc.id}

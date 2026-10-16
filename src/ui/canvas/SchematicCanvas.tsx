@@ -24,11 +24,13 @@ import {
   SchematicStickyNoteNode,
   SchematicFsmDiagramNode,
 } from './nodes/schematic/SchematicAnnotationNodes';
-import { useShallow } from 'zustand/react/shallow';
 
 
 let lastNodesArray: any[] = [];
 let nodeMapCache = new Map<string, any>();
+let lastSplitNodesRef: any[] | null = null;
+let cachedBgIds: string[] = [];
+let cachedFgIds: string[] = [];
 
 function getNodeById(state: any, id: string) {
   if (state.nodes !== lastNodesArray) {
@@ -39,6 +41,36 @@ function getNodeById(state: any, id: string) {
     lastNodesArray = state.nodes;
   }
   return nodeMapCache.get(id);
+}
+
+function getSplitNodeIds(nodes: LogicNode[]) {
+  if (nodes !== lastSplitNodesRef) {
+    const bg: string[] = [];
+    const fg: string[] = [];
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
+      if (n.type === 'REGION_BOX' || n.type === 'FSM_DIAGRAM') {
+        bg.push(n.id);
+      } else {
+        fg.push(n.id);
+      }
+    }
+    // Preserve previous array reference if contents are identical
+    if (
+      bg.length !== cachedBgIds.length ||
+      bg.some((id, idx) => id !== cachedBgIds[idx])
+    ) {
+      cachedBgIds = bg;
+    }
+    if (
+      fg.length !== cachedFgIds.length ||
+      fg.some((id, idx) => id !== cachedFgIds[idx])
+    ) {
+      cachedFgIds = fg;
+    }
+    lastSplitNodesRef = nodes;
+  }
+  return { cachedBgIds, cachedFgIds };
 }
 
 import { LogicNode } from '../../core/models/types';
@@ -91,8 +123,8 @@ export const SchematicCanvas: React.FC = () => {
   const setScale = useSimulatorStore(state => state.setSchematicScale);
   const setCanvasOffset = useSimulatorStore(state => state.setCanvasOffset);
   
-  const backgroundNodeIds = useSimulatorStore(useShallow(state => state.nodes.filter(n => n.type === 'REGION_BOX' || n.type === 'FSM_DIAGRAM').map(n => n.id)));
-  const foregroundNodeIds = useSimulatorStore(useShallow(state => state.nodes.filter(n => n.type !== 'REGION_BOX' && n.type !== 'FSM_DIAGRAM').map(n => n.id)));
+  const backgroundNodeIds = useSimulatorStore(state => getSplitNodeIds(state.nodes).cachedBgIds);
+  const foregroundNodeIds = useSimulatorStore(state => getSplitNodeIds(state.nodes).cachedFgIds);
   const isDrawingWire = useSimulatorStore(state => Boolean(state.draftWire));
   const updateDraftWire = useSimulatorStore(state => state.updateDraftWire);
   const select = useSimulatorStore(state => state.select);
@@ -100,11 +132,52 @@ export const SchematicCanvas: React.FC = () => {
 
   const initializedRef = useRef(false);
   const mainLayerRef = useRef<any>(null);
+  const hitDirtyRef = useRef(true);
   const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wheelRafRef = useRef<number | null>(null);
   const pendingViewRef = useRef<{ x: number; y: number; scale: number } | null>(null);
   const isInteractingViewRef = useRef(false);
   const lastMousePosRef = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    hitDirtyRef.current = true;
+  }, [dimensions.width, dimensions.height, stagePos.x, stagePos.y, scale]);
+
+  useEffect(() => {
+    const unsub = useSimulatorStore.subscribe((state, prevState) => {
+      if (
+        state.nodes !== prevState.nodes ||
+        state.wires !== prevState.wires ||
+        state.schematicPos !== prevState.schematicPos ||
+        state.schematicScale !== prevState.schematicScale ||
+        state.theme !== prevState.theme
+      ) {
+        hitDirtyRef.current = true;
+      }
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    const layer = mainLayerRef.current;
+    if (!layer || layer._hitOptimized) return;
+    layer._hitOptimized = true;
+    const origDrawHit = layer.drawHit.bind(layer);
+    layer.drawHit = function (...args: any[]) {
+      if (!hitDirtyRef.current) {
+        return this;
+      }
+      hitDirtyRef.current = false;
+      return origDrawHit(...args);
+    };
+    const markDirty = () => {
+      hitDirtyRef.current = true;
+    };
+    layer.on('dragmove.hitopt dragend.hitopt', markDirty);
+    return () => {
+      layer.off('dragmove.hitopt dragend.hitopt', markDirty);
+    };
+  }, [dimensions.width, dimensions.height]);
 
   useEffect(() => {
     if (!containerRef.current) return;

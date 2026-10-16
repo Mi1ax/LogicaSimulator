@@ -171,15 +171,65 @@ export const IC_NE555: NodeDefinition = {
     { name: 'RST\'', type: 'input', pinNumber: 4, schematicSide: 'left', schematicRow: 3 },
     { name: 'VCC', type: 'input', pinNumber: 8 },
   ],
-  defaultProperties: { highTicks: 5, lowTicks: 5, startHigh: true },
-  evaluate: (inputs, props, tickCount) => {
+  defaultProperties: {
+    highTicks: 5,
+    lowTicks: 5,
+    startHigh: true,
+    ne555Mode: 'astable',
+    pulseTicks: 10,
+    r1Value: 10,
+    r1Unit: 'kΩ',
+    r2Value: 47,
+    r2Unit: 'kΩ',
+    cValue: 10,
+    cUnit: 'µF',
+    vcc: 5.0,
+    bypassDiode: false,
+  },
+  evaluate: (inputs, props, tickCount, internal = {}) => {
     // inputs: 0 = GND, 1 = TRIG', 2 = RST', 3 = VCC
     const trigN = inputs[1] ?? 1;
     const rstN = inputs[2] ?? 1;
+    const mode = props?.ne555Mode || 'astable';
+    const st = internal;
 
     if (rstN === 0) {
+      st.latchQ = 0;
+      st.monoRemaining = 0;
       return [0];
     }
+
+    if (mode === 'bistable') {
+      if (st.latchQ === undefined) st.latchQ = 0;
+      if (trigN === 0) {
+        st.latchQ = 1;
+      }
+      return [st.latchQ ? 1 : 0];
+    }
+
+    if (mode === 'monostable') {
+      const pulseTicks = Math.max(1, props?.pulseTicks ?? props?.highTicks ?? 10);
+      if (st.monoRemaining === undefined) st.monoRemaining = 0;
+      if (st.lastTick === undefined) st.lastTick = tickCount ?? 0;
+
+      const tickAdvanced = (tickCount ?? 0) !== st.lastTick;
+      st.lastTick = tickCount ?? 0;
+
+      if (trigN === 0) {
+        st.monoRemaining = pulseTicks;
+        return [1];
+      }
+
+      if (st.monoRemaining > 0) {
+        if (tickAdvanced) {
+          st.monoRemaining = Math.max(0, st.monoRemaining - 1);
+        }
+        return [st.monoRemaining > 0 ? 1 : 0];
+      }
+      return [0];
+    }
+
+    // Default: Astable mode
     if (trigN === 0) {
       return [1];
     }

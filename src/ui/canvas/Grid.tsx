@@ -37,6 +37,7 @@ export const Grid: React.FC<GridProps> = React.memo(({ width, height }) => {
     return {
       fine: createGridPatternCanvas(GRID_SIZE, canvasTheme.gridColor),
       coarse: createGridPatternCanvas(GRID_SIZE * 2, canvasTheme.gridColor),
+      ultraCoarse: createGridPatternCanvas(GRID_SIZE * 4, canvasTheme.gridColor),
     };
   }, [canvasTheme.gridColor]);
 
@@ -49,9 +50,9 @@ export const Grid: React.FC<GridProps> = React.memo(({ width, height }) => {
           const x = stage ? stage.x() : 0;
           const y = stage ? stage.y() : 0;
 
-          const useCoarse = scale < 0.45;
-          const step = useCoarse ? GRID_SIZE * 2 : GRID_SIZE;
-          const patternCanvas = useCoarse ? patterns.coarse : patterns.fine;
+          const step = scale < 0.25 ? GRID_SIZE * 4 : scale < 0.5 ? GRID_SIZE * 2 : GRID_SIZE;
+          const patternCanvas =
+            scale < 0.25 ? patterns.ultraCoarse : scale < 0.5 ? patterns.coarse : patterns.fine;
 
           const startX = Math.floor(-x / scale / step) * step - step;
           const endX = startX + Math.ceil(width / scale / step) * step + step * 2;
