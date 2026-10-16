@@ -196,6 +196,12 @@ export const Topbar: React.FC = () => {
           >
             Code Editor
           </button>
+          <button
+            onClick={() => setAppMode('ne555')}
+            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${appMode === 'ne555' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
+          >
+            555 Lab
+          </button>
         </div>
       </div>
 
