@@ -25,6 +25,51 @@ export const getSchematicDimensions = (node: LogicNode) => {
     return { width: 0, height: 0 };
   }
 
+  if (node.type === 'REGION_BOX') {
+    return {
+      width: Math.max(60, Number(node.properties?.width) || 240),
+      height: Math.max(60, Number(node.properties?.height) || 160),
+    };
+  }
+
+  if (node.type === 'STICKY_NOTE') {
+    return {
+      width: Math.max(80, Number(node.properties?.width) || 220),
+      height: Math.max(60, Number(node.properties?.height) || 140),
+    };
+  }
+
+  if (node.type === 'TEXT_LABEL') {
+    const fontSize = Math.max(10, Number(node.properties?.fontSize) || 20);
+    const text = String(node.properties?.label || 'Text');
+    const lines = text.split('\n');
+    const bold = node.properties?.bold !== false;
+    const italic = !!node.properties?.italic;
+    const fontFamily = node.properties?.fontFamily === 'mono' ? 'monospace' : 'sans-serif';
+    const fontStyle = bold && italic ? 'bold italic' : bold ? 'bold' : italic ? 'italic' : 'normal';
+
+    let maxLineWidth = 0;
+    if (typeof document !== 'undefined') {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.font = `${fontStyle} ${fontSize}px ${fontFamily}`;
+        for (const l of lines) {
+          maxLineWidth = Math.max(maxLineWidth, ctx.measureText(l || ' ').width);
+        }
+      }
+    }
+    if (maxLineWidth === 0) {
+      const maxLen = Math.max(1, ...lines.map(l => l.length));
+      maxLineWidth = maxLen * fontSize * 0.68;
+    }
+
+    return {
+      width: Math.max(40, Math.ceil((maxLineWidth + 8) / 20) * 20),
+      height: Math.max(20, Math.ceil((lines.length * fontSize * 1.35) / 20) * 20),
+    };
+  }
+
   if (node.type === 'INPUT' || node.type === 'OUTPUT' || node.type === 'CLOCK' || node.type === 'NET_LABEL') {
     return { width: 60, height: 40 };
   }
@@ -107,6 +152,9 @@ export const getSchematicAnchor = (node: LogicNode): { x: number; y: number } =>
   const def = getNodeDefinition(node.type);
   const { width, height } = getSchematicDimensions(node);
 
+  if (node.type === 'REGION_BOX' || node.type === 'STICKY_NOTE' || node.type === 'TEXT_LABEL') {
+    return { x: 0, y: 0 };
+  }
   if (node.type === 'JUNCTION') return { x: 10, y: 10 };
   if (['INPUT', 'OUTPUT', 'CLOCK', 'VCC', 'GND', 'PULL_UP', 'PULL_DOWN', 'NET_LABEL'].includes(node.type)) {
     // IO nodes have always pivoted around (20,20); keep it so saved layouts don't shift.

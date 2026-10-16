@@ -379,4 +379,61 @@ export const KeypadNode: NodeDefinition = {
   evaluate: () => Array(7).fill(undefined),
 };
 
+export const RegionBoxNode: NodeDefinition = {
+  type: 'REGION_BOX',
+  label: 'Region / Group Box',
+  category: 'Annotations',
+  tags: ['region', 'box', 'frame', 'group', 'area', 'border', 'highlight', 'annotation'],
+  numInputs: 0,
+  numOutputs: 0,
+  disableTransform: true,
+  defaultProperties: {
+    label: 'Block Title',
+    width: 240,
+    height: 160,
+    color: 'blue',
+    borderStyle: 'dashed',
+    fillOpacity: 0.08,
+  },
+  evaluate: () => [],
+};
 
+export const TextLabelNode: NodeDefinition = {
+  type: 'TEXT_LABEL',
+  label: 'Text / Heading',
+  category: 'Annotations',
+  tags: ['text', 'heading', 'title', 'label', 'comment', 'annotation'],
+  numInputs: 0,
+  numOutputs: 0,
+  disableTransform: false,
+  defaultProperties: {
+    label: 'Heading Text',
+    fontSize: 20,
+    color: 'default',
+    bold: true,
+    italic: false,
+    fontFamily: 'sans',
+    align: 'left',
+  },
+  evaluate: () => [],
+};
+
+export const StickyNoteNode: NodeDefinition = {
+  type: 'STICKY_NOTE',
+  label: 'Sticky Note / Card',
+  category: 'Annotations',
+  tags: ['note', 'sticky', 'card', 'comment', 'documentation', 'table', 'annotation'],
+  numInputs: 0,
+  numOutputs: 0,
+  disableTransform: true,
+  defaultProperties: {
+    label: 'Note',
+    text: 'Write notes, truth tables, or pin descriptions here...',
+    width: 220,
+    height: 140,
+    color: 'amber',
+    fontSize: 12,
+    fontFamily: 'sans',
+  },
+  evaluate: () => [],
+};

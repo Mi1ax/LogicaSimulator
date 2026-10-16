@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Group } from 'react-konva';
 import { KonvaEventObject } from 'konva/lib/Node';
 import { LogicNode } from '../../../../core/models/types';
@@ -10,6 +10,7 @@ interface SchematicNodeWrapperProps {
   cursor?: string;
   onClickExtra?: (e: KonvaEventObject<MouseEvent>) => void;
   onMouseLeaveExtra?: (e: KonvaEventObject<MouseEvent>) => void;
+  getExtraDragIds?: (e: KonvaEventObject<DragEvent>) => string[] | undefined;
   children: React.ReactNode;
 }
 
@@ -18,6 +19,7 @@ export const SchematicNodeWrapper: React.FC<SchematicNodeWrapperProps> = ({
   cursor = 'grab',
   onClickExtra,
   onMouseLeaveExtra,
+  getExtraDragIds,
   children,
 }) => {
   const updateNodePosition = useSimulatorStore(state => state.updateNodePosition);
@@ -25,6 +27,7 @@ export const SchematicNodeWrapper: React.FC<SchematicNodeWrapperProps> = ({
   const isPlacing = useSimulatorStore(
     state => state.placingNodeId === node.id || Boolean(state.pastingNodeIds && state.pastingNodeIds.includes(node.id))
   );
+  const extraDragIdsRef = useRef<string[] | undefined>(undefined);
 
   const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
 
@@ -53,18 +56,22 @@ export const SchematicNodeWrapper: React.FC<SchematicNodeWrapperProps> = ({
         select({ type: 'node', id: node.id }, e.evt.shiftKey);
         onClickExtra?.(e);
       }}
-      onDragStart={() => useSimulatorStore.getState().saveHistory()}
+      onDragStart={(e) => {
+        useSimulatorStore.getState().saveHistory();
+        extraDragIdsRef.current = getExtraDragIds?.(e);
+      }}
       onDragMove={(e) => {
         const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
         const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
         e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY);
+        updateNodePosition(node.id, localX, localY, false, extraDragIdsRef.current);
       }}
       onDragEnd={(e) => {
         const localX = Math.round((e.target.x() - anchorX) / 20) * 20;
         const localY = Math.round((e.target.y() - anchorY) / 20) * 20;
         e.target.position({ x: localX + anchorX, y: localY + anchorY });
-        updateNodePosition(node.id, localX, localY, true);
+        updateNodePosition(node.id, localX, localY, true, extraDragIdsRef.current);
+        extraDragIdsRef.current = undefined;
       }}
       onMouseEnter={(e) => {
         const container = e.target.getStage()?.container();

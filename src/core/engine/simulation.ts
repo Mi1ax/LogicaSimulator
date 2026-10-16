@@ -253,6 +253,9 @@ export const compileCircuit = (
 
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
+    if (n.type === 'REGION_BOX' || n.type === 'TEXT_LABEL' || n.type === 'STICKY_NOTE') {
+      continue;
+    }
     const isWeak = n.type === 'PULL_UP' || n.type === 'PULL_DOWN';
     const inputPinIds: string[] = new Array(n.inputs.length);
     const outputPinIds: string[] = new Array(n.outputs.length);

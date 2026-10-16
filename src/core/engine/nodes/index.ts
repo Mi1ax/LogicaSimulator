@@ -6,7 +6,8 @@ import {
   InputNode, OutputNode,
   SubInNode, SubOutNode, SubIoNode, ClockNode,
   VccNode, GndNode, PullUpNode, PullDownNode, JunctionNode,
-  DipSwitchNode, SevenSegNode, NetLabelNode, BusBreakoutNode, PushButtonNode, LedBarNode, KeypadNode
+  DipSwitchNode, SevenSegNode, NetLabelNode, BusBreakoutNode, PushButtonNode, LedBarNode, KeypadNode,
+  RegionBoxNode, TextLabelNode, StickyNoteNode
 } from './basicNodes';
 import {
   IC74LS00, IC74LS02, IC74LS04, IC74LS08, IC74LS30, IC74LS32, IC74LS86,
@@ -41,6 +42,11 @@ export const ALL_BUILTIN_NODES: NodeDefinition[] = [
   NetLabelNode,
   BusBreakoutNode,
   NcNode,
+
+  // Annotations
+  RegionBoxNode,
+  TextLabelNode,
+  StickyNoteNode,
 
   // Basic Logic
   AndNode,

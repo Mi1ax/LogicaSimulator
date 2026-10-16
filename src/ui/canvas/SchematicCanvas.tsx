@@ -18,6 +18,11 @@ import { SchematicButtonNode } from './nodes/schematic/SchematicButtonNode';
 import { SchematicLEDBarNode } from './nodes/schematic/SchematicLEDBarNode';
 import { SchematicNCNode } from './nodes/schematic/SchematicNCNode';
 import { SchematicKeypadNode } from './nodes/schematic/SchematicKeypadNode';
+import {
+  SchematicRegionBoxNode,
+  SchematicTextLabelNode,
+  SchematicStickyNoteNode,
+} from './nodes/schematic/SchematicAnnotationNodes';
 import { useShallow } from 'zustand/react/shallow';
 
 
@@ -56,6 +61,9 @@ const SCHEMATIC_NODE_RENDERERS: Record<string, React.FC<{ node: LogicNode }>> = 
   SUB_IN: SchematicNetLabelNode,
   SUB_OUT: SchematicNetLabelNode,
   SUB_IO: SchematicNetLabelNode,
+  REGION_BOX: SchematicRegionBoxNode,
+  TEXT_LABEL: SchematicTextLabelNode,
+  STICKY_NOTE: SchematicStickyNoteNode,
 };
 
 const ConnectedNode = React.memo(({ id }: { id: string }) => {
@@ -81,7 +89,8 @@ export const SchematicCanvas: React.FC = () => {
   const setScale = useSimulatorStore(state => state.setSchematicScale);
   const setCanvasOffset = useSimulatorStore(state => state.setCanvasOffset);
   
-  const nodeIds = useSimulatorStore(useShallow(state => state.nodes.map(n => n.id)));
+  const backgroundNodeIds = useSimulatorStore(useShallow(state => state.nodes.filter(n => n.type === 'REGION_BOX').map(n => n.id)));
+  const foregroundNodeIds = useSimulatorStore(useShallow(state => state.nodes.filter(n => n.type !== 'REGION_BOX').map(n => n.id)));
   const isDrawingWire = useSimulatorStore(state => Boolean(state.draftWire));
   const updateDraftWire = useSimulatorStore(state => state.updateDraftWire);
   const select = useSimulatorStore(state => state.select);
@@ -443,7 +452,12 @@ export const SchematicCanvas: React.FC = () => {
               const minY = Math.min(p1.y, p2.y, p3.y, p4.y);
               const maxY = Math.max(p1.y, p2.y, p3.y, p4.y);
 
-              if (minX < x2 && maxX > x1 && minY < y2 && maxY > y1) {
+              if (node.type === 'REGION_BOX') {
+                // Only select a Region Box via marquee if the marquee encloses the entire box
+                if (minX >= x1 && maxX <= x2 && minY >= y1 && maxY <= y2) {
+                  selectedIds.push(node.id);
+                }
+              } else if (minX < x2 && maxX > x1 && minY < y2 && maxY > y1) {
                 selectedIds.push(node.id);
               }
             });
@@ -539,6 +553,9 @@ export const SchematicCanvas: React.FC = () => {
         />
 
         <Layer ref={mainLayerRef}>
+          {backgroundNodeIds.map((id) => (
+            <ConnectedNode key={id} id={id} />
+          ))}
           <WireRenderer />
           {selectionBox && (
             <Rect
@@ -552,7 +569,7 @@ export const SchematicCanvas: React.FC = () => {
               listening={false}
             />
           )}
-          {nodeIds.map((id) => (
+          {foregroundNodeIds.map((id) => (
             <ConnectedNode key={id} id={id} />
           ))}
         </Layer>

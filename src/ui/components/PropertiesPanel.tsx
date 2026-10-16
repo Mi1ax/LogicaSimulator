@@ -101,6 +101,235 @@ export const PropertiesPanel: React.FC = () => {
           </div>
         )}
 
+        {/* Annotation Controls (Region Box / Text Label / Sticky Note) */}
+        {(node.type === 'REGION_BOX' || node.type === 'TEXT_LABEL' || node.type === 'STICKY_NOTE') && (() => {
+          const colorSwatches = [
+            ...(node.type === 'TEXT_LABEL' ? [{ id: 'default', label: 'Default', hex: '#94a3b8' }] : []),
+            { id: 'blue', label: 'Blue', hex: '#3b82f6' },
+            { id: 'emerald', label: 'Green', hex: '#10b981' },
+            { id: 'amber', label: 'Amber', hex: '#f59e0b' },
+            { id: 'rose', label: 'Rose', hex: '#f43f5e' },
+            { id: 'purple', label: 'Purple', hex: '#a855f7' },
+            { id: 'cyan', label: 'Cyan', hex: '#06b6d4' },
+            { id: 'slate', label: 'Slate', hex: '#64748b' },
+          ];
+          const activeColor = node.properties?.color || (node.type === 'STICKY_NOTE' ? 'amber' : node.type === 'REGION_BOX' ? 'blue' : 'default');
+
+          return (
+            <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-slate-700">
+              {/* Color Picker */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5">
+                  Color Theme
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {colorSwatches.map(s => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      title={s.label}
+                      onClick={() => updateNodeProperties(node.id, { color: s.id })}
+                      className={`w-6 h-6 rounded-full border-2 transition-transform ${
+                        activeColor === s.id
+                          ? 'border-gray-900 dark:border-white scale-110 shadow-sm'
+                          : 'border-transparent hover:scale-105'
+                      }`}
+                      style={{ backgroundColor: s.hex }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Dimensions for Region Box & Sticky Note */}
+              {(node.type === 'REGION_BOX' || node.type === 'STICKY_NOTE') && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+                      Width (px)
+                    </label>
+                    <NumberInput
+                      min={node.type === 'STICKY_NOTE' ? 100 : 60}
+                      max={4000}
+                      step={20}
+                      className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
+                      value={Number(node.properties?.width) || 240}
+                      onChangeValue={(val) => updateNodeProperties(node.id, { width: Math.round(val / 20) * 20 })}
+                      fallbackValue={240}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+                      Height (px)
+                    </label>
+                    <NumberInput
+                      min={60}
+                      max={4000}
+                      step={20}
+                      className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
+                      value={Number(node.properties?.height) || 160}
+                      onChangeValue={(val) => updateNodeProperties(node.id, { height: Math.round(val / 20) * 20 })}
+                      fallbackValue={160}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Region Box Border & Fill Opacity */}
+              {node.type === 'REGION_BOX' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+                      Border Style
+                    </label>
+                    <div className="grid grid-cols-3 gap-1 bg-gray-100 dark:bg-slate-900 p-1 rounded-md">
+                      {(['dashed', 'solid', 'dotted'] as const).map(style => (
+                        <button
+                          key={style}
+                          type="button"
+                          onClick={() => updateNodeProperties(node.id, { borderStyle: style })}
+                          className={`py-1 text-xs font-medium rounded capitalize transition-colors ${
+                            (node.properties?.borderStyle || 'dashed') === style
+                              ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                              : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200'
+                          }`}
+                        >
+                          {style}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+                      Background Tint
+                    </label>
+                    <div className="grid grid-cols-5 gap-1 bg-gray-100 dark:bg-slate-900 p-1 rounded-md">
+                      {[
+                        { label: '0%', val: 0 },
+                        { label: '4%', val: 0.04 },
+                        { label: '8%', val: 0.08 },
+                        { label: '15%', val: 0.15 },
+                        { label: '25%', val: 0.25 },
+                      ].map(opt => (
+                        <button
+                          key={opt.label}
+                          type="button"
+                          onClick={() => updateNodeProperties(node.id, { fillOpacity: opt.val })}
+                          className={`py-1 text-[11px] font-medium rounded transition-colors ${
+                            (node.properties?.fillOpacity ?? 0.08) === opt.val
+                              ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                              : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Sticky Note Body Text */}
+              {node.type === 'STICKY_NOTE' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+                    Note Text
+                  </label>
+                  <textarea
+                    rows={5}
+                    className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100 resize-y"
+                    value={node.properties?.text ?? ''}
+                    onChange={(e) => updateNodeProperties(node.id, { text: e.target.value })}
+                    placeholder="Write notes, truth tables, or pin descriptions..."
+                  />
+                </div>
+              )}
+
+              {/* Typography Controls for Text Label & Sticky Note */}
+              {(node.type === 'TEXT_LABEL' || node.type === 'STICKY_NOTE') && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+                      Font Size (px)
+                    </label>
+                    <div className="flex gap-1.5 items-center">
+                      <NumberInput
+                        min={9}
+                        max={96}
+                        className="w-20 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-md px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-slate-100"
+                        value={Number(node.properties?.fontSize) || (node.type === 'TEXT_LABEL' ? 20 : 12)}
+                        onChangeValue={(val) => updateNodeProperties(node.id, { fontSize: val })}
+                        fallbackValue={node.type === 'TEXT_LABEL' ? 20 : 12}
+                      />
+                      {node.type === 'TEXT_LABEL' && (
+                        <div className="flex gap-1 flex-1">
+                          {[14, 20, 28, 36].map(sz => (
+                            <button
+                              key={sz}
+                              type="button"
+                              onClick={() => updateNodeProperties(node.id, { fontSize: sz })}
+                              className={`flex-1 py-1 text-[11px] font-medium rounded border transition-colors ${
+                                (Number(node.properties?.fontSize) || 20) === sz
+                                  ? 'bg-blue-50 dark:bg-blue-900/40 border-blue-400 text-blue-600 dark:text-blue-400'
+                                  : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400'
+                              }`}
+                            >
+                              {sz}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    {node.type === 'TEXT_LABEL' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => updateNodeProperties(node.id, { bold: !(node.properties?.bold !== false) })}
+                          className={`flex-1 py-1 text-xs font-bold rounded border transition-colors ${
+                            node.properties?.bold !== false
+                              ? 'bg-blue-50 dark:bg-blue-900/40 border-blue-400 text-blue-600 dark:text-blue-400'
+                              : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400'
+                          }`}
+                        >
+                          B
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateNodeProperties(node.id, { italic: !node.properties?.italic })}
+                          className={`flex-1 py-1 text-xs italic rounded border transition-colors ${
+                            node.properties?.italic
+                              ? 'bg-blue-50 dark:bg-blue-900/40 border-blue-400 text-blue-600 dark:text-blue-400'
+                              : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400'
+                          }`}
+                        >
+                          I
+                        </button>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateNodeProperties(node.id, {
+                          fontFamily: node.properties?.fontFamily === 'mono' ? 'sans' : 'mono',
+                        })
+                      }
+                      className={`flex-1 py-1 text-xs font-mono rounded border transition-colors ${
+                        node.properties?.fontFamily === 'mono'
+                          ? 'bg-blue-50 dark:bg-blue-900/40 border-blue-400 text-blue-600 dark:text-blue-400'
+                          : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400'
+                      }`}
+                    >
+                      Mono
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
+
         {/* 7-Segment Type */}
         {node.type === '7_SEG_DISPLAY' && (
           <div>

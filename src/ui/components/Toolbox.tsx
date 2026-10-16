@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { NodeType } from '../../core/models/types';
-import { BoxSelect, Cpu, ToggleLeft, Lightbulb, Zap, SlidersHorizontal, Tag, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp, Trash2, X, Grid3X3 } from 'lucide-react';
+import { BoxSelect, Cpu, ToggleLeft, Lightbulb, Zap, SlidersHorizontal, Tag, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp, Trash2, X, Grid3X3, Type, StickyNote } from 'lucide-react';
 import { ALL_BUILTIN_NODES, getNodeDefinition } from '../../core/engine/nodes';
 
 interface ToolItem {
@@ -42,6 +42,12 @@ const getToolIcon = (type: NodeType, size = 18): React.ReactNode => {
       return <Tag size={size} />;
     case 'NC':
       return <X size={size} />;
+    case 'REGION_BOX':
+      return <BoxSelect size={size} />;
+    case 'TEXT_LABEL':
+      return <Type size={size} />;
+    case 'STICKY_NOTE':
+      return <StickyNote size={size} />;
     case 'NOT':
     case 'BUFFER':
       return <BoxSelect size={size} />;
@@ -98,7 +104,7 @@ export const Toolbox: React.FC = () => {
   const activeSubcircuitId = useSimulatorStore(state => state.activeSubcircuitId);
   const customCircuits = subcircuits.filter(sc => sc.id !== 'main');
 
-  const baseCategories = useMemo(() => buildBaseCategories(), []);
+  const baseCategories = useMemo(() => buildBaseCategories(), [ALL_BUILTIN_NODES.length]);
   const displayCategories = [...baseCategories];
   
   const extraCategories: ToolCategory[] = [];
@@ -147,6 +153,7 @@ export const Toolbox: React.FC = () => {
     'Power & I/O/Inputs & Switches': true,
     'Power & I/O/Outputs & Displays': true,
     'Power & I/O/Wiring & Labels': true,
+    'Annotations': true,
     'Subcircuit Pins': true,
     'Custom Components': true,
     'Basic Logic': true,
@@ -230,7 +237,7 @@ export const Toolbox: React.FC = () => {
 
   const renderCategory = (category: ToolCategory, parentPath = '') => {
     const path = parentPath ? `${parentPath}/${category.name}` : category.name;
-    const isExpanded = search !== '' || expandedCats[path];
+    const isExpanded = search !== '' || (expandedCats[path] ?? true);
 
     const filteredItems = filterItems(category.items);
     let renderedSubcategories: React.ReactNode[] = [];
