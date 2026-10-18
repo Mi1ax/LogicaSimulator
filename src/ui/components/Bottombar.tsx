@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, StepForward, Square } from 'lucide-react';
+import { Play, Pause, StepForward, Square, Activity } from 'lucide-react';
 import { useSimulatorStore, subscribeTickCount } from '../../store/useSimulatorStore';
 
 const TickDisplay: React.FC = React.memo(() => {
@@ -21,14 +21,22 @@ const TickDisplay: React.FC = React.memo(() => {
   return (
     <div
       ref={spanRef}
-      className="absolute left-6 text-sm font-medium text-gray-500 dark:text-slate-400 tabular-nums"
+      className="text-sm font-medium text-gray-500 dark:text-slate-400 tabular-nums"
     >
       Tick: {useSimulatorStore.getState().simState.tickCount}
     </div>
   );
 });
 
-export const Bottombar: React.FC = () => {
+interface BottombarProps {
+  analyzerOpen?: boolean;
+  onToggleAnalyzer?: () => void;
+}
+
+export const Bottombar: React.FC<BottombarProps> = ({
+  analyzerOpen = false,
+  onToggleAnalyzer,
+}) => {
   const simRunning = useSimulatorStore(state => state.simRunning);
   const setSimRunning = useSimulatorStore(state => state.setSimRunning);
   const stepSimulation = useSimulatorStore(state => state.stepSimulation);
@@ -44,7 +52,23 @@ export const Bottombar: React.FC = () => {
 
   return (
     <div className="h-12 bg-white dark:bg-slate-800 border-t border-gray-300 dark:border-slate-700 flex items-center justify-center px-4 shadow-[0_-1px_2px_rgba(0,0,0,0.05)] z-20 relative transition-colors">
-      <TickDisplay />
+      <div className="absolute left-6 flex items-center gap-4">
+        <TickDisplay />
+        {onToggleAnalyzer && (
+          <button
+            onClick={onToggleAnalyzer}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
+              analyzerOpen
+                ? 'bg-cyan-50 dark:bg-cyan-950/50 text-cyan-700 dark:text-cyan-300 border-cyan-300 dark:border-cyan-700'
+                : 'bg-gray-100 dark:bg-slate-900/60 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-200 dark:hover:bg-slate-700'
+            }`}
+            title="Toggle Waveforms & Breakpoints Drawer"
+          >
+            <Activity size={14} className="text-cyan-500" />
+            <span>Waveforms</span>
+          </button>
+        )}
+      </div>
 
       <div className="flex items-center gap-2 bg-gray-100 dark:bg-slate-900/50 p-1 rounded-md border border-gray-200 dark:border-slate-600">
         <button

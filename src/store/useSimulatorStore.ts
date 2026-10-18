@@ -4,7 +4,13 @@ import { persist } from 'zustand/middleware';
 import { LogicNode, NodeType, Wire, DraftWire } from '../core/models/types';
 import * as circuit from '../core/engine/circuit';
 import { syncSubcircuitInstances } from '../core/engine/circuit';
-import { computeNextState, computeNextStateBatch } from '../core/engine/simulation';
+import { computeNextStateBatch } from '../core/engine/simulation';
+import {
+  AnalyzerChannel,
+  BreakpointRule,
+  globalAnalyzerBuffer,
+  evaluateBreakpointsFast,
+} from '../core/engine/logicAnalyzer';
 import { getSchematicPinPosition } from '../core/utils/schematicLayout';
 import { computeManhattanElbow } from '../core/engine/routing';
 import { generateId } from '../core/utils/id';
@@ -110,12 +116,45 @@ interface SimulatorState {
   setNodeInputCount: (nodeId: string, count: number) => void;
   setNodeOutputCount: (nodeId: string, count: number) => void;
 
+  // Logic Analyzer & Breakpoints
+  analyzerChannels: AnalyzerChannel[];
+  breakpoints: BreakpointRule[];
+  trapShortCircuit: boolean;
+  lastTriggeredBreakpointId: string | null;
+  setAnalyzerChannels: (
+    updater: AnalyzerChannel[] | ((prev: AnalyzerChannel[]) => AnalyzerChannel[])
+  ) => void;
+  setBreakpoints: (
+    updater: BreakpointRule[] | ((prev: BreakpointRule[]) => BreakpointRule[])
+  ) => void;
+  setTrapShortCircuit: (trap: boolean) => void;
+  clearAnalyzerHistory: () => void;
+
   // Undo / Redo
   history: { nodes: LogicNode[], wires: Wire[] }[];
   future: { nodes: LogicNode[], wires: Wire[] }[];
   undo: () => void;
   redo: () => void;
   saveHistory: () => void;
+}
+
+let cachedChannelsRef: AnalyzerChannel[] | null = null;
+let cachedTrackedPinIds: string[] = [];
+
+function getTrackedPinIds(channels: AnalyzerChannel[]): string[] {
+  if (channels === cachedChannelsRef) {
+    return cachedTrackedPinIds;
+  }
+  const set = new Set<string>();
+  for (let i = 0; i < channels.length; i++) {
+    const pinIds = channels[i].pinIds;
+    for (let p = 0; p < pinIds.length; p++) {
+      set.add(pinIds[p]);
+    }
+  }
+  cachedChannelsRef = channels;
+  cachedTrackedPinIds = Array.from(set);
+  return cachedTrackedPinIds;
 }
 
 const cloneNodesForHistory = (nodes: LogicNode[]): LogicNode[] =>
@@ -679,42 +718,193 @@ export const useSimulatorStore = create<SimulatorState>()(
   setNodeInputCount: (id, count) => set((state) => ({ ...circuit.setNodeInputCount(state, id, count), ...pushHistory(state) })),
   setNodeOutputCount: (id, count) => set((state) => ({ ...circuit.setNodeOutputCount(state, id, count), ...pushHistory(state) })),
 
+  // Logic Analyzer & Breakpoints State
+  analyzerChannels: [],
+  breakpoints: [],
+  trapShortCircuit: false,
+  lastTriggeredBreakpointId: null,
+
+  setAnalyzerChannels: (updater) =>
+    set((state) => {
+      const next =
+        typeof updater === 'function' ? updater(state.analyzerChannels) : updater;
+      const tracked = getTrackedPinIds(next);
+      if (tracked.length > 0 && state.simState.tickCount > 0) {
+        globalAnalyzerBuffer.recordFromPinStates(
+          state.simState.tickCount,
+          tracked,
+          state.simState.pinStates
+        );
+      }
+      return { analyzerChannels: next };
+    }),
+
+  setBreakpoints: (updater) =>
+    set((state) => ({
+      breakpoints:
+        typeof updater === 'function' ? updater(state.breakpoints) : updater,
+      lastTriggeredBreakpointId: null,
+    })),
+
+  setTrapShortCircuit: (trap) =>
+    set({ trapShortCircuit: trap, lastTriggeredBreakpointId: null }),
+
+  clearAnalyzerHistory: () => {
+    globalAnalyzerBuffer.clear();
+    notifyTickListeners(useSimulatorStore.getState().simState.tickCount);
+  },
+
   // Undoable: the cleared circuit is pushed onto the history stack first.
-  clearNodes: () => set((state) => ({
-    ...pushHistory(state),
-    nodes: [],
-    wires: [],
-    
-    draftWire: null,
-    placingNodeId: null,
-    selection: null,
-    simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} },
-    simRunning: false
-  })),
+  clearNodes: () => {
+    globalAnalyzerBuffer.clear();
+    return set((state) => ({
+      ...pushHistory(state),
+      nodes: [],
+      wires: [],
+      analyzerChannels: [],
+      breakpoints: [],
+      lastTriggeredBreakpointId: null,
+      draftWire: null,
+      placingNodeId: null,
+      selection: null,
+      simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} },
+      simRunning: false,
+    }));
+  },
 
   // Sequential IC state (counters, registers) lives in simState.nodeStates,
   // so resetting the simulation state resets every IC as well.
   resetSimulation: () => {
-    set({ simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} } });
+    globalAnalyzerBuffer.clear();
+    set({
+      simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} },
+      lastTriggeredBreakpointId: null,
+    });
     notifyTickListeners(0);
   },
 
-  stepSimulation: () => set((state) => {
-    const nextSimState = computeNextState(state.nodes, state.wires, state.simState, state.savedCircuits);
-    notifyTickListeners(nextSimState.tickCount);
-    return { simState: nextSimState };
-  }),
+  stepSimulation: () =>
+    set((state) => {
+      const tracked = getTrackedPinIds(state.analyzerChannels);
+      let triggeredBpId: string | null = null;
+      let triggeredTick = 0;
+
+      const { state: nextSimState } = computeNextStateBatch(
+        state.nodes,
+        state.wires,
+        state.simState,
+        state.savedCircuits,
+        1,
+        12,
+        tracked.length > 0 || state.breakpoints.length > 0 || state.trapShortCircuit
+          ? (compiled, tickCount) => {
+              if (tracked.length > 0) {
+                globalAnalyzerBuffer.recordFromCompiledBuf(
+                  tickCount,
+                  tracked,
+                  compiled.pinIdToIdx,
+                  compiled.curBuf
+                );
+              }
+              if (state.breakpoints.length > 0 || state.trapShortCircuit) {
+                const hit = evaluateBreakpointsFast(
+                  state.breakpoints,
+                  state.analyzerChannels,
+                  state.trapShortCircuit,
+                  compiled.pinIdToIdx,
+                  compiled.curBuf,
+                  compiled.prevBuf
+                );
+                if (hit) {
+                  triggeredBpId = hit;
+                  triggeredTick = tickCount;
+                  return true;
+                }
+              }
+              return false;
+            }
+          : undefined
+      );
+
+      notifyTickListeners(nextSimState.tickCount);
+
+      if (triggeredBpId) {
+        return {
+          simState: nextSimState,
+          simRunning: false,
+          lastTriggeredBreakpointId: triggeredBpId,
+          breakpoints: state.breakpoints.map((bp) =>
+            bp.id === triggeredBpId
+              ? { ...bp, hitCount: bp.hitCount + 1, lastHitTick: triggeredTick }
+              : bp
+          ),
+        };
+      }
+
+      return { simState: nextSimState, lastTriggeredBreakpointId: null };
+    }),
 
   stepSimulationBatch: (ticks) => {
     const state = get();
     const prevSim = state.simState;
+    const tracked = getTrackedPinIds(state.analyzerChannels);
+    const hasActiveBp =
+      state.trapShortCircuit || state.breakpoints.some((b) => b.enabled);
+
+    let triggeredBpId: string | null = null;
+    let triggeredTick = 0;
+
     const { state: nextSimState } = computeNextStateBatch(
       state.nodes,
       state.wires,
       prevSim,
       state.savedCircuits,
-      ticks
+      ticks,
+      12,
+      tracked.length > 0 || hasActiveBp
+        ? (compiled, tickCount) => {
+            if (tracked.length > 0) {
+              globalAnalyzerBuffer.recordFromCompiledBuf(
+                tickCount,
+                tracked,
+                compiled.pinIdToIdx,
+                compiled.curBuf
+              );
+            }
+            if (hasActiveBp) {
+              const hit = evaluateBreakpointsFast(
+                state.breakpoints,
+                state.analyzerChannels,
+                state.trapShortCircuit,
+                compiled.pinIdToIdx,
+                compiled.curBuf,
+                compiled.prevBuf
+              );
+              if (hit) {
+                triggeredBpId = hit;
+                triggeredTick = tickCount;
+                return true;
+              }
+            }
+            return false;
+          }
+        : undefined
     );
+
+    if (triggeredBpId) {
+      set({
+        simState: nextSimState,
+        simRunning: false,
+        lastTriggeredBreakpointId: triggeredBpId,
+        breakpoints: state.breakpoints.map((bp) =>
+          bp.id === triggeredBpId
+            ? { ...bp, hitCount: bp.hitCount + 1, lastHitTick: triggeredTick }
+            : bp
+        ),
+      });
+      notifyTickListeners(nextSimState.tickCount);
+      return;
+    }
 
     const firstTickTransition = prevSim.tickCount === 0 && nextSimState.tickCount > 0;
     const pinsChanged = nextSimState.pinStates !== prevSim.pinStates;
@@ -739,7 +929,11 @@ export const useSimulatorStore = create<SimulatorState>()(
     notifyTickListeners(nextSimState.tickCount);
   },
 
-  setSimRunning: (running) => set({ simRunning: running }),
+  setSimRunning: (running) =>
+    set({
+      simRunning: running,
+      ...(running ? { lastTriggeredBreakpointId: null } : {}),
+    }),
   setSimSpeed: (hz) => set({ simSpeed: hz }),
 
   toggleInputNode: (id) => set((state) => {

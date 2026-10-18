@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { Trash2, Sun, Moon, Settings, Save, FolderOpen, Library, Menu as MenuIcon, ChevronRight, X } from 'lucide-react';
 import { serializeCircuit, deserializeCircuit } from '../../core/utils/serialization';
+import { globalAnalyzerBuffer } from '../../core/engine/logicAnalyzer';
 
 export const Topbar: React.FC = () => {
   const [showMenu, setShowMenu] = useState(false);
@@ -28,6 +29,7 @@ export const Topbar: React.FC = () => {
     if (loadedFileName) {
       setFileName(stripExtension(loadedFileName));
     }
+    globalAnalyzerBuffer.clear();
     useSimulatorStore.setState(() => ({
       nodes,
       wires,
@@ -41,6 +43,9 @@ export const Topbar: React.FC = () => {
       future: [],
       selection: null,
       multiSelection: [],
+      analyzerChannels: [],
+      breakpoints: [],
+      lastTriggeredBreakpointId: null,
       simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} },
     }));
   };

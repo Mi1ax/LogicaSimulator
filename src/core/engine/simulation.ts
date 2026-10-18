@@ -159,6 +159,7 @@ export interface CompiledCircuit {
   dirtyNodesA: Int32Array;
   dirtyNodesB: Int32Array;
   allPinIds: string[];
+  pinIdToIdx: Map<string, number>;
   curBuf: Signal[];
   driverBuf: Signal[];
   prevBuf: Signal[];
@@ -472,6 +473,7 @@ export const compileCircuit = (
     dirtyNodesA: new Int32Array(compiledNodes.length),
     dirtyNodesB: new Int32Array(compiledNodes.length),
     allPinIds,
+    pinIdToIdx: pinIndexMap,
     curBuf: new Array(totalPins),
     driverBuf: new Array(totalPins),
     prevBuf: new Array(totalPins),
@@ -965,13 +967,15 @@ export const computeNextStateBatch = (
   prevState: SimulationState,
   savedCircuits: Record<string, { nodes: LogicNode[]; wires: Wire[] }> = EMPTY_SAVED_CIRCUITS,
   ticks: number,
-  maxBudgetMs: number = 12
-): { state: SimulationState; ticksExecuted: number } => {
+  maxBudgetMs: number = 12,
+  onTick?: (compiled: CompiledCircuit, tickCount: number) => boolean
+): { state: SimulationState; ticksExecuted: number; stoppedByHook?: boolean } => {
   if (ticks <= 0) return { state: prevState, ticksExecuted: 0 };
   const compiled = getOrCompileCircuit(rootNodes, rootWires, savedCircuits);
   let nextState = prevState;
   const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
   let executed = 0;
+  let stoppedByHook = false;
 
   for (let i = 0; i < ticks; i++) {
     const isLast = i === ticks - 1;
@@ -982,10 +986,33 @@ export const computeNextStateBatch = (
       (i & 15) === 0 &&
       (typeof performance !== 'undefined' ? performance.now() : Date.now()) - startTime >= maxBudgetMs;
 
-    nextState = stepCompiledCircuit(compiled, nextState, isLast || hitBudget, i > 0);
+    const shouldUnpack = isLast || hitBudget;
+    nextState = stepCompiledCircuit(compiled, nextState, shouldUnpack, i > 0);
     executed++;
+
+    if (onTick && onTick(compiled, nextState.tickCount)) {
+      stoppedByHook = true;
+      if (!shouldUnpack) {
+        const { allPinIds, curBuf, wires } = compiled;
+        const resolvedPinStates: Record<string, Signal> = { ...prevState.pinStates };
+        for (let p = 0; p < allPinIds.length; p++) {
+          resolvedPinStates[allPinIds[p]] = curBuf[p];
+        }
+        const finalWireStates: Record<string, Signal> = {};
+        for (let w = 0; w < wires.length; w++) {
+          finalWireStates[wires[w].id] = resolvedPinStates[wires[w].sourcePinId];
+        }
+        nextState = {
+          ...nextState,
+          pinStates: resolvedPinStates,
+          wireStates: finalWireStates,
+        };
+      }
+      break;
+    }
+
     if (hitBudget) break;
   }
 
-  return { state: nextState, ticksExecuted: executed };
+  return { state: nextState, ticksExecuted: executed, stoppedByHook };
 };

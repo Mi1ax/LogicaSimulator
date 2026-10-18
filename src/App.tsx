@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Topbar } from './ui/components/Topbar';
 import { Bottombar } from './ui/components/Bottombar';
 import { Toolbox } from './ui/components/Toolbox';
@@ -6,14 +6,15 @@ import { CanvasArea } from './ui/canvas/CanvasArea';
 import { PropertiesPanel } from './ui/components/PropertiesPanel';
 import { useSimulatorStore } from './store/useSimulatorStore';
 import { ErrorBoundary } from './ui/components/ErrorBoundary';
-
 import { CircuitTabs } from './ui/components/CircuitTabs';
+import { LogicAnalyzerDrawer } from './ui/components/LogicAnalyzerDrawer';
 
 function App() {
   const theme = useSimulatorStore(state => state.theme);
   const simRunning = useSimulatorStore(state => state.simRunning);
   const simSpeed = useSimulatorStore(state => state.simSpeed);
   const stepSimulationBatch = useSimulatorStore(state => state.stepSimulationBatch);
+  const [analyzerOpen, setAnalyzerOpen] = useState<boolean>(true);
 
   // Theme Sync
   useEffect(() => {
@@ -70,10 +71,17 @@ function App() {
           <ErrorBoundary>
             <CanvasArea />
           </ErrorBoundary>
+          <LogicAnalyzerDrawer
+            isOpen={analyzerOpen}
+            onToggleOpen={() => setAnalyzerOpen(prev => !prev)}
+          />
         </div>
         <PropertiesPanel />
       </div>
-      <Bottombar />
+      <Bottombar
+        analyzerOpen={analyzerOpen}
+        onToggleAnalyzer={() => setAnalyzerOpen(prev => !prev)}
+      />
     </div>
   );
 }
