@@ -1,6 +1,8 @@
 # Testing Logica Components
 
-Logica uses [Vitest](https://vitest.dev/) for unit testing its core simulation engine, schematic layout geometry, and components. Because the simulation logic is isolated from the React UI layer, tests run in milliseconds in a pure Node.js environment.
+> **Documentation Version:** `v1.2.2`
+
+Logica uses [Vitest](https://vitest.dev/) for unit testing its core simulation engine, PLD compiler, schematic layout geometry, serialization, and components. Because the simulation logic is isolated from the React UI layer, all 90 unit tests run in milliseconds in a pure Node.js environment.
 
 ## Running Tests
 
@@ -11,7 +13,7 @@ npm test
 
 To run all tests once (CI mode):
 ```bash
-npx vitest run
+npm test -- --run
 ```
 
 To run the visual truth table tests for basic logic gates:
@@ -21,15 +23,17 @@ npm run test:gates
 
 ---
 
-## Existing Test Suite Overview
+## Existing Test Suite Overview (`90` Tests across `7` Files)
 
 | Test File | What It Covers |
 | :--- | :--- |
 | `src/core/engine/__tests__/gates.test.ts` | Exhaustive truth table verification for combinational logic gates (`AND`, `OR`, `NOR`, `XOR`, `NOT`) with formatted CLI output. |
 | `src/core/engine/__tests__/circuit.test.ts` | Structural mutations: adding/removing nodes, connecting wires, and cleaning up attached wires on node deletion. |
-| `src/core/engine/__tests__/simulation.test.ts` | End-to-end signal propagation across nodes and wires across simulation ticks. |
+| `src/core/engine/__tests__/simulation.test.ts` | End-to-end signal propagation, `74LS161` synchronous counter edge triggering, `PULL_UP`/`PULL_DOWN` resistor resolution, and cyclic subcircuit recursion protection. |
+| `src/core/utils/__tests__/pldCompiler.test.ts` | CUPL boolean equation compilation (`compilePldToJedec`), `TABLE` `.X.` ("don't care") algebraic factoring, macro expansion, and `extractFsmFromPld` complexity limits. |
 | `src/core/utils/__tests__/schematicLayout.test.ts` | Schematic node dimensions and pin coordinate calculations. |
 | `src/core/utils/__tests__/schematicRotation.test.ts` | Pin positions and normal vectors (`nx`, `ny`) under all combinations of `rotation` (`0°`, `90°`, `180°`, `270°`), `flipX`, and `flipY`. |
+| `src/core/utils/__tests__/serialization.test.ts` | Round-trip `.logica` v2 circuit serialization and deserialization (`serializeCircuit` / `deserializeCircuit`). |
 
 ---
 
@@ -44,23 +48,7 @@ If you add or modify a combinational logic gate:
 
 ## Testing Stateful ICs (`src/core/engine/nodes/ics/`)
 
-For stateful Integrated Circuits (counters, registers, flip-flops, memory, PLDs), write sequential tick tests that verify clock-edge triggering, asynchronous resets, and tri-state (`undefined` / High-Z) outputs:
-
-```typescript
-import { describe, it, expect } from 'vitest';
-import { getNodeDefinition } from '../nodes';
-
-describe('74LS161 Counter', () => {
-  it('increments on rising clock edge when powered and enabled', () => {
-    const def = getNodeDefinition('74LS161')!;
-    const props: Record<string, any> = { ...def.defaultProperties };
-
-    // Ensure VCC (pin 16) = 1 and GND (pin 8) = 0
-    // Construct inputs matching def.customPins input order...
-    // Simulate clock low -> clock high transition and assert outputs.
-  });
-});
-```
+For stateful Integrated Circuits (counters, registers, flip-flops, memory, PLDs), write sequential tick tests using `computeNextState` or `computeNextStateBatch` that verify clock-edge triggering, asynchronous resets, and tri-state (`undefined` / High-Z) outputs.
 
 ## Testing Schematic Geometry & Transformations
 

@@ -1,23 +1,35 @@
 # Logica Simulator
 
-Logica is a modern, high-performance digital logic and IC simulator built on a highly optimized React-Konva canvas. It features a pure discrete-event simulation engine fully decoupled from the visual layer, allowing for fast execution, zero-lag zooming, and a declarative, extensible architecture.
+> **Version:** `v1.2.2`
+
+Logica is a modern, high-performance digital logic and IC simulator built on a highly optimized React-Konva canvas. It features a compiled flat-array, event-driven simulation engine fully decoupled from the visual layer, allowing for multi-kilohertz execution, zero-lag zooming with Viewport Frustum Culling and Level-of-Detail (LOD), and a declarative, extensible architecture.
 
 > [!NOTE]
 > This project is developed with the assistance of AI.
 
 ## Features
 - **Strict Separation of Concerns**: Core engine logic and simulation state are completely decoupled from UI components.
+- **Compiled Event-Driven Simulation Engine**: Compiles circuits into flat typed arrays (`Uint8Array` / `Int32Array`) with event-driven dirty-net & dirty-node relaxation queues and zero-allocation intermediate batch ticks (`1 Hz` up to `1 MHz`).
 - **Declarative Component Architecture**: Add new logic gates or 74LS/Memory/PLD chips in `src/core/engine/nodes/ics/` with declarative metadata (`category`, `variableInputs`, `variableOutputs`, `memorySize`, `disableTransform`) — the Toolbox, Properties Panel, and Hex Editor adapt automatically.
-- **Advanced IC & PLD Simulation**: Accurate timing and state emulation for 74LS series chips (gates, counters, decoders, ALU, registers/transceivers), Memory ICs (`27C256` EPROM, `6116` & `62256` SRAM), and `GAL22V10` PLDs with JEDEC fuse map support.
-- **Hierarchical Subcircuits**: Create reusable custom IC modules with `SUB_IN`, `SUB_OUT`, and bidirectional `SUB_IO` pins.
-- **Live Hex Editor**: Inspect, edit, upload, and download ROM/RAM memory contents in real-time while the simulation is running.
-- **High-Performance Canvas**: Utilizes targeted Zustand selectors, `<SchematicNodeWrapper>`, SVG geometry memoization, and cached Manhattan wire routing to handle complex circuits smoothly.
-- **Manhattan Routing & Buses**: Automatic orthogonal wire routing with visual crossover jumpers, 8-bit `BUS_SPLITTER` nodes, `NET_LABEL` wireless tunnels, and `NC` (Not Connected) pin markers.
-- **Flexible Simulation Clock**: Real-time tick engine with adjustable clock speeds from 1Hz up to 1MHz, step-by-step debugging, and interactive inputs (Buttons, DIP Switches, 7-Segment Displays, LED Bars).
+- **Advanced IC, Timer & PLD Simulation**:
+  - **74LS Series**: Gates, Synchronous Counters (`74LS161`, `74LS191`), Decoders (`74LS47`, `74LS138`, `74LS139`, `74LS154`), Arithmetic/ALU (`74LS283`, `74LS181`), Registers & Bus Transceivers (`74LS173`, `74LS175`, `74LS241`, `74LS244`, `74LS245`, `74LS273`, `74LS373`, `74LS374`, `74LS541`).
+  - **NE555 Precision Timer Lab**: Astable, Monostable, and Comparator modes with an interactive R/C oscilloscope workbench and inverse R/C solver.
+  - **Memory ICs**: `27C256` EPROM, `6116` & `62256` SRAM with a live Hex Editor.
+  - **GAL22V10 PLD & FSM Extractor**: Built-in CUPL-style boolean equation & truth-table compiler (`compilePldToJedec`), JEDEC fuse map inspector, and live Finite State Machine transition graph visualizer (`FsmDiagramView`).
+- **Hierarchical Subcircuits & Multi-Tab Workspace**: Create reusable custom IC modules with `SUB_IN`, `SUB_OUT`, and bidirectional `SUB_IO` pins and edit them across tabs.
+- **High-Performance Canvas**: Viewport Frustum Culling, Zoom-Out LOD, combined `<Path>` geometry, cached `CanvasPattern` dot grid, and incremental Manhattan wire routing with crossover jumpers.
 
-## Documentation
-- [Architecture Overview](./docs/architecture.md): Deep dive into the UI vs. Engine separation of concerns, state management, and rendering pipeline.
-- [Components & Properties](./docs/components.md): How to create new components and configure their declarative metadata and internal memory.
+## Documentation (`v1.2.2`)
+- **[Complete Codebase Reference (`docs/code/`)](./docs/code/README.md)**: Detailed technical reference for every file, module, type, function, and component in `src/`:
+  - [Core Models (`src/core/models/types.ts`)](./docs/code/core-models.md)
+  - [Core Engine (`src/core/engine/*`)](./docs/code/core-engine.md)
+  - [Declarative Nodes & ICs (`src/core/engine/nodes/*`)](./docs/code/core-nodes.md)
+  - [Core Utilities (`src/core/utils/*`)](./docs/code/core-utils.md)
+  - [Zustand Store (`src/store/useSimulatorStore.ts`)](./docs/code/store.md)
+  - [Canvas & Specialized Views (`src/ui/canvas/*`)](./docs/code/ui-canvas.md)
+  - [App Shell & UI Components (`src/ui/components/*`)](./docs/code/ui-components.md)
+- [Architecture Overview](./docs/architecture.md): High-level overview of the UI vs. Engine separation of concerns, state management, and rendering pipeline.
+- [Components & Properties](./docs/components.md): Guide to creating new components and configuring declarative metadata and internal memory.
 - [Testing Guide](./docs/testing.md): How to run and write unit tests for combinational gates, stateful ICs, and schematic geometry.
 - [AI Agent Instructions](./docs/AGENT_INSTRUCTIONS.md): Guidelines and conventions for AI coding assistants working on this repository.
 
