@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useLayoutEffect } from 'react';
 import { Group, Rect, Text, Path, Circle, Line } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
@@ -52,6 +52,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
     (state.selection?.type === 'node' && state.selection.id === node.id) ||
     state.multiSelection.includes(node.id)
   );
+  const staticGroupRef = useRef<any>(null);
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getSchematicDimensions(node);
@@ -81,8 +82,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
     labelY: number;
     effectiveAlign: 'left' | 'right' | 'center';
     overbar: 'none' | 'full' | 'last-char';
-    barX1: number;
-    barX2: number;
+    barPoints: number[];
   }[] = [];
 
   const bubbleRadius = 3.5;
@@ -194,63 +194,191 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
       labelY,
       effectiveAlign,
       overbar,
-      barX1,
-      barX2,
+      barPoints: [barX1, -7, barX2, -7],
     });
   }
 
+  const partLabel = def?.type?.startsWith('SUBCIRCUIT:') ? def.label : (def?.type || 'IC');
+
+  // Cache static IC body + legs + wedges + bubbles + 30-50 pin texts into a single offscreen bitmap
+  // so simulation frames perform 1 fast drawImage() blit per IC instead of 40+ CPU fillText() calls.
+  useLayoutEffect(() => {
+    const grp = staticGroupRef.current;
+    if (!grp || width <= 0 || height <= 0) return;
+    try {
+      grp.cache({
+        x: -28,
+        y: -28,
+        width: width + 56,
+        height: height + 56,
+        pixelRatio: isLowDetail ? 1 : 2,
+      });
+    } catch {
+      // Fallback to uncached rendering if offscreen canvas creation fails
+    }
+  }, [
+    width,
+    height,
+    theme,
+    isSelected,
+    isLowDetail,
+    invRot,
+    flipScaleX,
+    flipScaleY,
+    partLabel,
+    allPins.length,
+  ]);
+
   return (
     <SchematicNodeWrapper node={node}>
-      {/* IC Body */}
+      {/* Lightweight interactive hit target for clicking/dragging the IC body */}
       <Rect
         x={0}
         y={0}
         width={width}
         height={height}
-        fill={canvasTheme.nodeBg}
-        stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
-        strokeWidth={isSelected ? 3 : 2}
-        cornerRadius={0}
+        fill="rgba(0,0,0,0)"
+        strokeEnabled={false}
         perfectDrawEnabled={false}
       />
 
-      {/* Combined Pin Extension Legs */}
-      {combinedLegsPath && (
-        <Path
-          data={combinedLegsPath}
-          stroke={canvasTheme.nodeBorder}
-          strokeWidth={2}
-          perfectDrawEnabled={false}
-          listening={false}
-        />
-      )}
-
-      {/* Combined IEEE Clock Input Wedges */}
-      {!isLowDetail && combinedWedgesPath && (
-        <Path
-          data={combinedWedgesPath}
-          stroke={canvasTheme.nodeBorder}
-          strokeWidth={1.5}
-          lineJoin="round"
-          perfectDrawEnabled={false}
-          listening={false}
-        />
-      )}
-
-      {/* Active-Low Inversion Bubbles */}
-      {!isLowDetail && bubbles.map(b => (
-        <Circle
-          key={`b-${b.id}`}
-          x={b.x}
-          y={b.y}
-          radius={bubbleRadius}
+      {/* Bitmap-cached Static Visuals (IC body, legs, wedges, bubbles, part name, pin numbers & names) */}
+      <Group ref={staticGroupRef} listening={false}>
+        {/* IC Body */}
+        <Rect
+          x={0}
+          y={0}
+          width={width}
+          height={height}
           fill={canvasTheme.nodeBg}
-          stroke={canvasTheme.nodeBorder}
-          strokeWidth={2}
+          stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
+          strokeWidth={isSelected ? 3 : 2}
+          cornerRadius={0}
           perfectDrawEnabled={false}
           listening={false}
         />
-      ))}
+
+        {/* Combined Pin Extension Legs */}
+        {combinedLegsPath && (
+          <Path
+            data={combinedLegsPath}
+            stroke={canvasTheme.nodeBorder}
+            strokeWidth={2}
+            perfectDrawEnabled={false}
+            listening={false}
+          />
+        )}
+
+        {/* Combined IEEE Clock Input Wedges */}
+        {!isLowDetail && combinedWedgesPath && (
+          <Path
+            data={combinedWedgesPath}
+            stroke={canvasTheme.nodeBorder}
+            strokeWidth={1.5}
+            lineJoin="round"
+            perfectDrawEnabled={false}
+            listening={false}
+          />
+        )}
+
+        {/* Active-Low Inversion Bubbles */}
+        {!isLowDetail && bubbles.map(b => (
+          <Circle
+            key={`b-${b.id}`}
+            x={b.x}
+            y={b.y}
+            radius={bubbleRadius}
+            fill={canvasTheme.nodeBg}
+            stroke={canvasTheme.nodeBorder}
+            strokeWidth={2}
+            perfectDrawEnabled={false}
+            listening={false}
+          />
+        ))}
+
+        {/* IC Label */}
+        <Group x={width / 2} y={height / 2} rotation={invRot} scaleX={flipScaleX} scaleY={flipScaleY} listening={false}>
+          <Text
+            text={partLabel}
+            x={0}
+            y={0}
+            width={height}
+            align="center"
+            fontSize={14}
+            fontFamily="sans-serif"
+            fontStyle="normal"
+            fill={canvasTheme.nodeBorder}
+            opacity={0.4}
+            rotation={-90}
+            offsetX={height / 2}
+            offsetY={8}
+            perfectDrawEnabled={false}
+            listening={false}
+          />
+        </Group>
+
+        {/* Pin Numbers, Labels, and Overbars */}
+        {!isLowDetail && pinConfigs.map(cfg => (
+          <React.Fragment key={`lbl-${cfg.id}`}>
+            {cfg.safePin !== undefined && (
+              <Text
+                text={String(cfg.safePin)}
+                x={cfg.numX + 10}
+                y={cfg.numY + 4.5}
+                offsetX={10}
+                offsetY={4.5}
+                rotation={invRot}
+                scaleX={flipScaleX}
+                scaleY={flipScaleY}
+                width={20}
+                align="center"
+                fontSize={9}
+                fontFamily="sans-serif"
+                fill={canvasTheme.nodeBorder}
+                perfectDrawEnabled={false}
+                listening={false}
+              />
+            )}
+            {cfg.cleanName && (
+              <>
+                {cfg.overbar !== 'none' && (
+                  <Line
+                    x={cfg.labelX + 30}
+                    y={cfg.labelY + 5}
+                    rotation={invRot}
+                    scaleX={flipScaleX}
+                    scaleY={flipScaleY}
+                    points={cfg.barPoints}
+                    stroke={canvasTheme.textColor}
+                    strokeWidth={1.2}
+                    perfectDrawEnabled={false}
+                    listening={false}
+                  />
+                )}
+                <Text
+                  text={cfg.cleanName}
+                  x={cfg.labelX + 30}
+                  y={cfg.labelY + 5}
+                  offsetX={30}
+                  offsetY={5}
+                  rotation={invRot}
+                  scaleX={flipScaleX}
+                  scaleY={flipScaleY}
+                  width={60}
+                  wrap="none"
+                  align={cfg.effectiveAlign}
+                  fontSize={10}
+                  fontFamily="monospace"
+                  fontStyle="normal"
+                  fill={canvasTheme.textColor}
+                  perfectDrawEnabled={false}
+                  listening={false}
+                />
+              </>
+            )}
+          </React.Fragment>
+        ))}
+      </Group>
 
       {/* Custom Name Label */}
       {node.properties?.label && (
@@ -272,96 +400,19 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
         />
       )}
 
-      {/* IC Label */}
-      <Group x={width / 2} y={height / 2} rotation={invRot} scaleX={flipScaleX} scaleY={flipScaleY} listening={false}>
-        <Text
-          text={def?.type?.startsWith('SUBCIRCUIT:') ? def.label : (def?.type || 'IC')}
-          x={0}
-          y={0}
-          width={height}
-          align="center"
-          fontSize={14}
-          fontFamily="sans-serif"
-          fontStyle="normal"
-          fill={canvasTheme.nodeBorder}
-          opacity={0.4}
-          rotation={-90}
-          offsetX={height / 2}
-          offsetY={8}
-          perfectDrawEnabled={false}
-          listening={false}
-        />
-      </Group>
-
-      {/* Render Pins, Numbers, Labels, and Overbars */}
+      {/* Dynamic Pin Circles */}
       {pinConfigs.map(cfg => (
-        <React.Fragment key={cfg.id}>
-          <Pin
-            id={cfg.id}
-            nodeId={node.id}
-            x={cfg.pinX}
-            y={cfg.pinY}
-            type={cfg.type}
-          />
-          {cfg.safePin !== undefined && (
-            <Text
-              text={String(cfg.safePin)}
-              x={cfg.numX + 10}
-              y={cfg.numY + 4.5}
-              offsetX={10}
-              offsetY={4.5}
-              rotation={invRot}
-              scaleX={flipScaleX}
-              scaleY={flipScaleY}
-              width={20}
-              align="center"
-              fontSize={9}
-              fontFamily="sans-serif"
-              fill={canvasTheme.nodeBorder}
-              perfectDrawEnabled={false}
-              listening={false}
-            />
-          )}
-          {cfg.cleanName && (
-            <>
-              {cfg.overbar !== 'none' && (
-                <Line
-                  x={cfg.labelX + 30}
-                  y={cfg.labelY + 5}
-                  rotation={invRot}
-                  scaleX={flipScaleX}
-                  scaleY={flipScaleY}
-                  points={[cfg.barX1, -7, cfg.barX2, -7]}
-                  stroke={canvasTheme.textColor}
-                  strokeWidth={1.2}
-                  perfectDrawEnabled={false}
-                  listening={false}
-                />
-              )}
-              <Text
-                text={cfg.cleanName}
-                x={cfg.labelX + 30}
-                y={cfg.labelY + 5}
-                offsetX={30}
-                offsetY={5}
-                rotation={invRot}
-                scaleX={flipScaleX}
-                scaleY={flipScaleY}
-                width={60}
-                wrap="none"
-                align={cfg.effectiveAlign}
-                fontSize={10}
-                fontFamily="monospace"
-                fontStyle="normal"
-                fill={canvasTheme.textColor}
-                perfectDrawEnabled={false}
-                listening={false}
-              />
-            </>
-          )}
-        </React.Fragment>
+        <Pin
+          key={cfg.id}
+          id={cfg.id}
+          nodeId={node.id}
+          x={cfg.pinX}
+          y={cfg.pinY}
+          type={cfg.type}
+        />
       ))}
     </SchematicNodeWrapper>
   );
 });
+
 

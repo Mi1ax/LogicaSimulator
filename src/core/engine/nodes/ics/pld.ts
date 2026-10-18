@@ -104,6 +104,50 @@ function getCompiledJedec(jedecString: string): CompiledJedec {
   return compiled;
 }
 
+const scratchColStates = new Uint8Array(44);
+const scratchPrevColStates = new Uint8Array(44);
+const scratchDInputsPrev = new Uint8Array(10);
+const scratchOrResults = new Uint8Array(10);
+const scratchOes = new Uint8Array(10);
+
+function fillColStates(
+  sourceInputs: any[],
+  s1: number[],
+  regs: number[],
+  outColStates: Uint8Array
+): void {
+  for (let m = 0; m < GAL22V10_COL_MAP.length; m++) {
+    const mapping = GAL22V10_COL_MAP[m];
+    let val = 0;
+    if (mapping.pin >= 13 && mapping.pin <= 22) {
+      const olmcIndex = mapping.pin - 13;
+      if (s1[olmcIndex] === 0) {
+        val = regs[olmcIndex] === 1 ? 0 : 1;
+      } else {
+        val = sourceInputs[mapping.pin] === 1 ? 1 : 0;
+      }
+    } else {
+      val = sourceInputs[mapping.pin] === 1 ? 1 : 0;
+    }
+
+    outColStates[mapping.trueCol] = val;
+    outColStates[mapping.trueCol + 1] = val === 1 ? 0 : 1;
+  }
+}
+
+function evaluateJedecRow(
+  rows: (number[] | null)[],
+  rowIdx: number,
+  states: Uint8Array
+): number {
+  const activeCols = rows[rowIdx];
+  if (activeCols === null) return 0;
+  for (let i = 0; i < activeCols.length; i++) {
+    if (states[activeCols[i]] === 0) return 0;
+  }
+  return 1;
+}
+
 export const IC_GAL22V10: NodeDefinition = {
   type: 'GAL22V10',
   label: 'GAL22V10 (Programmable Logic Device)',
@@ -150,69 +194,39 @@ export const IC_GAL22V10: NodeDefinition = {
     const { rows, olmcActiveRows, s0, s1 } = compiled;
     const regs = internal!.registers;
 
-    const buildColStates = (sourceInputs: any[]) => {
-      const colStates = new Array<number>(44);
-      for (let m = 0; m < GAL22V10_COL_MAP.length; m++) {
-        const mapping = GAL22V10_COL_MAP[m];
-        let val = 0;
-        if (mapping.pin >= 13 && mapping.pin <= 22) {
-          const olmcIndex = mapping.pin - 13;
-          if (s1[olmcIndex] === 0) {
-            val = regs[olmcIndex] === 1 ? 0 : 1;
-          } else {
-            val = sourceInputs[mapping.pin] === 1 ? 1 : 0;
-          }
-        } else {
-          val = sourceInputs[mapping.pin] === 1 ? 1 : 0;
-        }
+    fillColStates(inputs, s1, regs, scratchColStates);
+    const hasPrev = Boolean(isRisingEdge && prevInputs);
+    if (hasPrev) {
+      fillColStates(prevInputs!, s1, regs, scratchPrevColStates);
+    }
+    const prevColStates = hasPrev ? scratchPrevColStates : scratchColStates;
 
-        colStates[mapping.trueCol] = val;
-        colStates[mapping.trueCol + 1] = val === 1 ? 0 : 1;
-      }
-      return colStates;
-    };
+    const ar = evaluateJedecRow(rows, 0, scratchColStates);
+    const arPrev = hasPrev ? evaluateJedecRow(rows, 0, prevColStates) : ar;
+    const spPrev = isRisingEdge ? evaluateJedecRow(rows, 131, prevColStates) : 0;
 
-    const colStates = buildColStates(inputs);
-    const prevColStates = isRisingEdge && prevInputs ? buildColStates(prevInputs) : colStates;
-
-    const evaluateRow = (rowIdx: number, states: number[]) => {
-      const activeCols = rows[rowIdx];
-      if (activeCols === null) return 0;
-      for (let i = 0; i < activeCols.length; i++) {
-        if (states[activeCols[i]] === 0) return 0;
-      }
-      return 1;
-    };
-
-    const ar = evaluateRow(0, colStates);
-    const arPrev = isRisingEdge && prevInputs ? evaluateRow(0, prevColStates) : ar;
-    const spPrev = isRisingEdge && prevInputs ? evaluateRow(131, prevColStates) : evaluateRow(131, colStates);
-
-    const dInputsPrev = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    const orResults = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    const oes = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     const returnOutputs = new Array(10);
 
     for (let i = 0; i < 10; i++) {
       const olmc = GAL22V10_OLMC_MAP[i];
-      oes[i] = evaluateRow(olmc.startRow, colStates);
+      scratchOes[i] = evaluateJedecRow(rows, olmc.startRow, scratchColStates);
 
       let orResult = 0;
       let orResultPrev = 0;
       const activeRows = olmcActiveRows[i];
       for (let r = 0; r < activeRows.length; r++) {
         const rowIdx = activeRows[r];
-        if (orResult === 0 && evaluateRow(rowIdx, colStates) === 1) {
+        if (orResult === 0 && evaluateJedecRow(rows, rowIdx, scratchColStates) === 1) {
           orResult = 1;
         }
-        if (isRisingEdge && prevInputs && orResultPrev === 0 && evaluateRow(rowIdx, prevColStates) === 1) {
+        if (hasPrev && orResultPrev === 0 && evaluateJedecRow(rows, rowIdx, prevColStates) === 1) {
           orResultPrev = 1;
         }
       }
-      if (!isRisingEdge || !prevInputs) orResultPrev = orResult;
+      if (!hasPrev) orResultPrev = orResult;
 
-      orResults[i] = orResult;
-      dInputsPrev[i] = orResultPrev;
+      scratchOrResults[i] = orResult;
+      scratchDInputsPrev[i] = orResultPrev;
     }
 
     if (ar === 1 || arPrev === 1) {
@@ -222,17 +236,17 @@ export const IC_GAL22V10: NodeDefinition = {
         regs.fill(1);
       } else {
         for (let i = 0; i < 10; i++) {
-          regs[i] = dInputsPrev[i];
+          regs[i] = scratchDInputsPrev[i];
         }
       }
     }
 
     for (let i = 0; i < 10; i++) {
-      let pinOutputValue = s1[i] === 0 ? regs[i] : orResults[i];
+      let pinOutputValue = s1[i] === 0 ? regs[i] : scratchOrResults[i];
       if (s0[i] === 0) {
         pinOutputValue = pinOutputValue === 1 ? 0 : 1;
       }
-      returnOutputs[i] = oes[i] === 1 ? pinOutputValue : undefined;
+      returnOutputs[i] = scratchOes[i] === 1 ? pinOutputValue : undefined;
     }
 
     return returnOutputs as any;

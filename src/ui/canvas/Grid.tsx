@@ -8,7 +8,7 @@ interface GridProps {
   height: number;
 }
 
-function createGridPatternCanvas(step: number, color: string): HTMLCanvasElement | null {
+function createGridPattern(step: number, color: string): CanvasPattern | null {
   const canvas = document.createElement('canvas');
   canvas.width = step;
   canvas.height = step;
@@ -26,7 +26,7 @@ function createGridPatternCanvas(step: number, color: string): HTMLCanvasElement
     const [cx, cy] = corners[i];
     ctx.fillRect(cx - 0.5, cy - 0.5, 1.5, 1.5);
   }
-  return canvas;
+  return ctx.createPattern(canvas, 'repeat');
 }
 
 export const Grid: React.FC<GridProps> = React.memo(({ width, height }) => {
@@ -35,9 +35,9 @@ export const Grid: React.FC<GridProps> = React.memo(({ width, height }) => {
 
   const patterns = useMemo(() => {
     return {
-      fine: createGridPatternCanvas(GRID_SIZE, canvasTheme.gridColor),
-      coarse: createGridPatternCanvas(GRID_SIZE * 2, canvasTheme.gridColor),
-      ultraCoarse: createGridPatternCanvas(GRID_SIZE * 4, canvasTheme.gridColor),
+      fine: createGridPattern(GRID_SIZE, canvasTheme.gridColor),
+      coarse: createGridPattern(GRID_SIZE * 2, canvasTheme.gridColor),
+      ultraCoarse: createGridPattern(GRID_SIZE * 4, canvasTheme.gridColor),
     };
   }, [canvasTheme.gridColor]);
 
@@ -51,7 +51,7 @@ export const Grid: React.FC<GridProps> = React.memo(({ width, height }) => {
           const y = stage ? stage.y() : 0;
 
           const step = scale < 0.25 ? GRID_SIZE * 4 : scale < 0.5 ? GRID_SIZE * 2 : GRID_SIZE;
-          const patternCanvas =
+          const pattern =
             scale < 0.25 ? patterns.ultraCoarse : scale < 0.5 ? patterns.coarse : patterns.fine;
 
           const startX = Math.floor(-x / scale / step) * step - step;
@@ -60,12 +60,9 @@ export const Grid: React.FC<GridProps> = React.memo(({ width, height }) => {
           const startY = Math.floor(-y / scale / step) * step - step;
           const endY = startY + Math.ceil(height / scale / step) * step + step * 2;
 
-          if (patternCanvas) {
-            const pattern = context.createPattern(patternCanvas, 'repeat');
-            if (pattern) {
-              context.fillStyle = pattern;
-              context.fillRect(startX, startY, endX - startX, endY - startY);
-            }
+          if (pattern) {
+            context.fillStyle = pattern;
+            context.fillRect(startX, startY, endX - startX, endY - startY);
           }
 
           // Draw logical center axes (origin)

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Group, Rect, Text, Path } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
@@ -30,6 +30,15 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
     switches = [...switches, ...Array(numSwitches - switches.length).fill(0)];
   }
 
+  const legsPath = useMemo(() => {
+    let dStr = '';
+    for (let i = 0; i < node.outputs.length; i++) {
+      const yOffset = 20 + i * 20;
+      dStr += `M ${width} ${yOffset} L ${width + 20} ${yOffset} `;
+    }
+    return dStr;
+  }, [node.outputs.length, width]);
+
   return (
     <SchematicNodeWrapper node={node}>
       {/* Switch Body */}
@@ -43,6 +52,15 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
         strokeWidth={isSelected ? 3 : 2}
         cornerRadius={4}
         perfectDrawEnabled={false}
+      />
+
+      {/* Combined Pin Extension Legs */}
+      <Path
+        data={legsPath}
+        stroke={canvasTheme.nodeBorder}
+        strokeWidth={2}
+        perfectDrawEnabled={false}
+        listening={false}
       />
 
       {/* Label */}
@@ -121,14 +139,6 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
               </Group>
             )}
             
-            {/* Pin Extension Leg */}
-            <Path
-              data={`M ${width} ${yOffset} L ${width + 20} ${yOffset}`}
-              stroke={canvasTheme.nodeBorder}
-              strokeWidth={2}
-              perfectDrawEnabled={false}
-              listening={false}
-            />
             {/* The actual connection pin */}
             <Pin
               id={pin.id}

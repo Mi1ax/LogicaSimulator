@@ -72,39 +72,33 @@ export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) 
   const inputYs = getGridAlignedPinYs(node.inputs.length, height);
   const outputYs = getGridAlignedPinYs(node.outputs.length, height);
 
+  let legsPath = '';
+  if (isStandardGate) {
+    for (let i = 0; i < node.inputs.length; i++) {
+      const py = inputYs[i];
+      legsPath += `M 0 ${py} L ${getLineEndX(py)} ${py} `;
+    }
+    for (let i = 0; i < node.outputs.length; i++) {
+      const py = outputYs[i];
+      legsPath += `M ${endX} ${py} L ${width} ${py} `;
+    }
+  }
+
   return (
     <SchematicNodeWrapper node={node}>
       {isStandardGate ? (
         <>
           <Rect x={0} y={0} width={width} height={height} fill="transparent" perfectDrawEnabled={false} />
           
-          {node.inputs.map((pin, index) => {
-            const py = inputYs[index];
-            return (
-              <Path
-                key={`line-in-${pin.id}`}
-                data={`M 0 ${py} L ${getLineEndX(py)} ${py}`}
-                stroke={canvasTheme.nodeBorder}
-                strokeWidth={2}
-                perfectDrawEnabled={false}
-                listening={false}
-              />
-            );
-          })}
-          
-          {node.outputs.map((pin, index) => {
-            const py = outputYs[index];
-            return (
-              <Path
-                key={`line-out-${pin.id}`}
-                data={`M ${endX} ${py} L ${width} ${py}`}
-                stroke={canvasTheme.nodeBorder}
-                strokeWidth={2}
-                perfectDrawEnabled={false}
-                listening={false}
-              />
-            );
-          })}
+          {legsPath && (
+            <Path
+              data={legsPath}
+              stroke={canvasTheme.nodeBorder}
+              strokeWidth={2}
+              perfectDrawEnabled={false}
+              listening={false}
+            />
+          )}
 
           <Path
             data={gatePath}

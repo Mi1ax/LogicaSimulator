@@ -241,4 +241,19 @@ describe('Simulation Engine', () => {
     expect(statePressed.pinStates['kp-r1']).toBe(0);
     expect(statePressed.pinStates['kp-c1']).toBe(0);
   });
+
+  it('should not stack-overflow when flattening cyclic subcircuits (A -> B -> A)', () => {
+    const savedCircuits = {
+      subA: {
+        nodes: [{ id: 'n1', type: 'SUBCIRCUIT:subB' as any, x: 0, y: 0, inputs: [], outputs: [], properties: {} }],
+        wires: [],
+      },
+      subB: {
+        nodes: [{ id: 'n2', type: 'SUBCIRCUIT:subA' as any, x: 0, y: 0, inputs: [], outputs: [], properties: {} }],
+        wires: [],
+      },
+    };
+    const next = computeNextState(savedCircuits.subA.nodes, [], { tickCount: 0, pinStates: {}, wireStates: {} }, savedCircuits);
+    expect(next.tickCount).toBe(1);
+  });
 });

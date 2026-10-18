@@ -84,20 +84,22 @@ export const FsmDiagramView: React.FC<FsmDiagramViewProps> = ({
   readOnly = false,
   onPlaceOnSchematic,
 }) => {
-  const galPinSig = useSimulatorStore(state => {
-    if (!targetNodeId) return '';
-    const galNode = state.nodes.find(n => n.id === targetNodeId);
-    if (!galNode) return '';
-    const ps = state.simState.pinStates;
-    let sig = '';
-    for (let i = 0; i < galNode.inputs.length; i++) {
-      sig += ps[galNode.inputs[i].id] ?? '_';
-    }
-    for (let i = 0; i < galNode.outputs.length; i++) {
-      sig += ps[galNode.outputs[i].id] ?? '_';
-    }
-    return sig;
-  });
+  const fsm = useMemo(() => extractFsmFromPld(pldSource), [pldSource]);
+
+  const liveStateSig = useSimulatorStore(
+    useCallback(
+      (state) => {
+        if (!fsm.hasFsm || !targetNodeId) return '';
+        const status = getLiveFsmStatus(fsm, targetNodeId, state.simState.pinStates);
+        let inputsSig = '';
+        for (const k in status.liveInputs) {
+          inputsSig += `${k}:${status.liveInputs[k]};`;
+        }
+        return `${status.currentStateName ?? ''}|${status.currentStateCode}|${status.nextStateName ?? ''}|${status.nextStateCode}|${inputsSig}`;
+      },
+      [fsm, targetNodeId]
+    )
+  );
   const theme = useSimulatorStore(state => state.theme);
   const isDark = theme === 'dark';
 
@@ -127,12 +129,10 @@ export const FsmDiagramView: React.FC<FsmDiagramViewProps> = ({
     startY: number;
   } | null>(null);
 
-  const fsm = useMemo(() => extractFsmFromPld(pldSource), [pldSource]);
-
   const liveStatus = useMemo(() => {
     if (!fsm.hasFsm || !targetNodeId) return null;
     return getLiveFsmStatus(fsm, targetNodeId, useSimulatorStore.getState().simState.pinStates);
-  }, [fsm, targetNodeId, galPinSig]);
+  }, [fsm, targetNodeId, liveStateSig]);
 
   const defaultPositions = useMemo(() => computeDefaultFsmPositions(fsm.states), [fsm.states]);
 

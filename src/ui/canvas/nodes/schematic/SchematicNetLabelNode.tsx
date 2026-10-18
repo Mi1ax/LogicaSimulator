@@ -1,5 +1,5 @@
 import React from 'react';
-import { Rect, Text, Line } from 'react-konva';
+import { Rect, Text, Path } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
 import { Pin } from '../../primitives/Pin';
@@ -10,6 +10,8 @@ import { SchematicNodeWrapper } from './SchematicNodeWrapper';
 interface NetLabelProps {
   node: LogicNode;
 }
+
+const SELECTION_DASH = [2, 2];
 
 export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
@@ -46,8 +48,8 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
         }
       }}
     >
-      <Line
-        points={isInputSide ? [0, height / 2, 10, height / 2] : [width - 10, height / 2, width, height / 2]}
+      <Path
+        data={isInputSide ? `M 0 ${height / 2} L 10 ${height / 2}` : `M ${width - 10} ${height / 2} L ${width} ${height / 2}`}
         stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
         strokeWidth={2}
         listening={false}
@@ -82,7 +84,7 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
           height={16}
           stroke={canvasTheme.selectedNodeColor}
           strokeWidth={1}
-          dash={[2, 2]}
+          dash={SELECTION_DASH}
           listening={false}
           perfectDrawEnabled={false}
         />

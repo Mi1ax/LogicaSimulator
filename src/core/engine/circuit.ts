@@ -179,20 +179,22 @@ export const moveSelection = (state: CircuitState, ids: string[], primaryId: str
 
   if (dx === 0 && dy === 0) return state;
 
+  const idSet = new Set(ids);
+
   return {
     ...state,
     nodes: state.nodes.map(node => {
-      if (ids.includes(node.id)) {
+      if (idSet.has(node.id)) {
         return { ...node, x: node.x + dx, y: node.y + dy };
       }
       return node;
     }),
     wires: state.wires.map(wire => {
-      if (ids.includes(wire.id) || wire.waypoints?.some((_, idx) => ids.includes(`wp:${wire.id}:${idx}`))) {
+      if (idSet.has(wire.id) || wire.waypoints?.some((_, idx) => idSet.has(`wp:${wire.id}:${idx}`))) {
         return {
           ...wire,
           waypoints: wire.waypoints?.map((wp, idx) => {
-            if (ids.includes(wire.id) || ids.includes(`wp:${wire.id}:${idx}`)) {
+            if (idSet.has(wire.id) || idSet.has(`wp:${wire.id}:${idx}`)) {
               return { x: wp.x + dx, y: wp.y + dy };
             }
             return wp;

@@ -55,6 +55,8 @@ export const computeDraftWirePath = (draftWire: {
   return draftWirePath;
 };
 
+let lastCleanedWiresRef: Wire[] | null = null;
+
 export const computeAllWirePaths = (
   wires: Wire[],
   nodes: LogicNode[],
@@ -63,13 +65,24 @@ export const computeAllWirePaths = (
   const wirePaths = new Map<string, { path: string; points: { x: number; y: number }[] }>();
 
   if (wires.length > 0 || !draftWire) {
-    const nodeMap = new Map(nodes.map(n => [n.id, n]));
+    const nodeMap = new Map<string, LogicNode>();
+    for (let i = 0; i < nodes.length; i++) {
+      nodeMap.set(nodes[i].id, nodes[i]);
+    }
 
-    // Clean up cache for deleted wires
-    const wireIds = new Set(wires.map(w => w.id));
-    for (const id of wireCache.keys()) {
-      if (!wireIds.has(id)) {
-        wireCache.delete(id);
+    // Clean up cache for deleted wires only when the wires array reference changes
+    if (wires !== lastCleanedWiresRef) {
+      lastCleanedWiresRef = wires;
+      if (wireCache.size > wires.length) {
+        const wireIds = new Set<string>();
+        for (let i = 0; i < wires.length; i++) {
+          wireIds.add(wires[i].id);
+        }
+        for (const id of wireCache.keys()) {
+          if (!wireIds.has(id)) {
+            wireCache.delete(id);
+          }
+        }
       }
     }
 
@@ -85,7 +98,7 @@ export const computeAllWirePaths = (
       const cached = wireCache.get(wire.id);
 
       if (cached && cached.hash === hash && cached.waypointsRef === wire.waypoints) {
-        wirePaths.set(wire.id, { path: cached.path, points: cached.points });
+        wirePaths.set(wire.id, cached);
         continue;
       }
 
@@ -105,8 +118,9 @@ export const computeAllWirePaths = (
       path += ` L ${end.x} ${end.y}`;
       points.push({ x: end.x, y: end.y });
 
-      wireCache.set(wire.id, { path, points, hash, waypointsRef: wire.waypoints });
-      wirePaths.set(wire.id, { path, points });
+      const entry = { path, points, hash, waypointsRef: wire.waypoints };
+      wireCache.set(wire.id, entry);
+      wirePaths.set(wire.id, entry);
     }
   }
 

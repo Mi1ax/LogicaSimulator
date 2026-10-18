@@ -11,6 +11,20 @@ interface IONodeProps {
   node: LogicNode;
 }
 
+const SELECTION_DASH = [4, 4];
+const LED_INPUT_PTS = [-10, 0, 10, 0];
+const LED_ANODE_PTS = [10, -10, 10, 10, 25, 0];
+const LED_CATHODE_PTS = [25, -10, 25, 10];
+const LED_GND_WIRE_PTS = [25, 0, 35, 0];
+const LED_GND1_PTS = [35, -8, 35, 8];
+const LED_GND2_PTS = [39, -5, 39, 5];
+const LED_GND3_PTS = [43, -2, 43, 2];
+const LED_RAY1_PTS = [12, -15, 20, -25];
+const LED_RAY1_TIP_PTS = [15, -25, 20, -25, 20, -20];
+const LED_RAY2_PTS = [22, -15, 30, -25];
+const LED_RAY2_TIP_PTS = [25, -25, 30, -25, 30, -20];
+const CLOCK_WAVE_PTS = [-16, 6, -10, 6, -10, -6, 0, -6, 0, 6, 10, 6, 10, -6, 16, -6];
+
 export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
   const isSelected = useSimulatorStore(state =>
@@ -58,7 +72,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
             <Text text="VCC" x={-width / 2} y={-6} width={width} align="center" fontSize={12} fontFamily="monospace" fill={canvasTheme.textColor} listening={false} />
           </Group>
           <Rect x={0} y={0} width={width} height={height} fill="transparent" perfectDrawEnabled={false} />
-          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} listening={false} perfectDrawEnabled={false} />}
+          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={SELECTION_DASH} listening={false} perfectDrawEnabled={false} />}
         </>
       ) : isPullUp ? (
         <>
@@ -85,7 +99,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
             <Text text="VCC" x={-width / 2} y={-6} width={width} align="center" fontSize={11} fontFamily="monospace" fill={canvasTheme.textColor} listening={false} />
           </Group>
           <Rect x={0} y={0} width={width} height={height} fill="transparent" perfectDrawEnabled={false} />
-          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} listening={false} perfectDrawEnabled={false} />}
+          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={SELECTION_DASH} listening={false} perfectDrawEnabled={false} />}
         </>
       ) : isGnd ? (
         <>
@@ -97,7 +111,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
             <Text text="GND" x={-width / 2} y={-6} width={width} align="center" fontSize={12} fontFamily="monospace" fill={canvasTheme.textColor} listening={false} />
           </Group>
           <Rect x={0} y={0} width={width} height={height} fill="transparent" perfectDrawEnabled={false} />
-          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} listening={false} perfectDrawEnabled={false} />}
+          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={SELECTION_DASH} listening={false} perfectDrawEnabled={false} />}
         </>
       ) : isPullDown ? (
         <>
@@ -126,39 +140,39 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
             <Text text="GND" x={-width / 2} y={-6} width={width} align="center" fontSize={11} fontFamily="monospace" fill={canvasTheme.textColor} listening={false} />
           </Group>
           <Rect x={0} y={0} width={width} height={height} fill="transparent" perfectDrawEnabled={false} />
-          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} listening={false} perfectDrawEnabled={false} />}
+          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={SELECTION_DASH} listening={false} perfectDrawEnabled={false} />}
         </>
       ) : isOutput ? (
         <>
           {/* Schematic LED Symbol */}
           <Group x={10} y={height/2} listening={false}>
             {/* Input wire */}
-            <Line points={[-10, 0, 10, 0]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+            <Line points={LED_INPUT_PTS} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
             
             {/* Diode Triangle (Anode) */}
-            <Line points={[10, -10, 10, 10, 25, 0]} closed fill={val === 1 ? indicatorFill : 'transparent'} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+            <Line points={LED_ANODE_PTS} closed fill={val === 1 ? indicatorFill : 'transparent'} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
             
             {/* Diode Line (Cathode) */}
-            <Line points={[25, -10, 25, 10]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+            <Line points={LED_CATHODE_PTS} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
             
             {/* Wire to ground symbol */}
-            <Line points={[25, 0, 35, 0]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+            <Line points={LED_GND_WIRE_PTS} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
             {/* Ground symbol */}
-            <Line points={[35, -8, 35, 8]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
-            <Line points={[39, -5, 39, 5]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
-            <Line points={[43, -2, 43, 2]} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+            <Line points={LED_GND1_PTS} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+            <Line points={LED_GND2_PTS} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+            <Line points={LED_GND3_PTS} stroke={borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
             
             {/* Light Arrows */}
             <Group opacity={val === 1 ? 1 : 0.3} listening={false}>
-              <Line points={[12, -15, 20, -25]} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
-              <Line points={[15, -25, 20, -25, 20, -20]} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+              <Line points={LED_RAY1_PTS} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+              <Line points={LED_RAY1_TIP_PTS} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
               
-              <Line points={[22, -15, 30, -25]} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
-              <Line points={[25, -25, 30, -25, 30, -20]} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+              <Line points={LED_RAY2_PTS} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+              <Line points={LED_RAY2_TIP_PTS} stroke={val === 1 ? indicatorFill : borderStroke} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
             </Group>
           </Group>
           <Rect x={0} y={0} width={width} height={height} fill="transparent" perfectDrawEnabled={false} />
-          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={[4,4]} listening={false} perfectDrawEnabled={false} />}
+          {isSelected && <Rect x={0} y={0} width={width} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={2} dash={SELECTION_DASH} listening={false} perfectDrawEnabled={false} />}
         </>
       ) : (
         <>
@@ -264,7 +278,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
                 listening={false}
               >
                 <Line
-                  points={[-16, 6, -10, 6, -10, -6, 0, -6, 0, 6, 10, 6, 10, -6, 16, -6]}
+                  points={CLOCK_WAVE_PTS}
                   stroke={val === 1 ? '#ffffff' : canvasTheme.textColor}
                   strokeWidth={2}
                   lineCap="round"

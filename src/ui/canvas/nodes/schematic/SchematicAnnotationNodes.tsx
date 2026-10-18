@@ -655,6 +655,28 @@ export const SchematicStickyNoteNode: React.FC<Props> = React.memo(({ node }) =>
   );
 });
 
+const FSM_HEADER_CORNER_RADIUS = [8, 8, 0, 0];
+const FSM_CARD_HEADER_CORNER_RADIUS = [10, 10, 0, 0];
+const FSM_CARD_DIVIDER_POINTS = [0, 32, FSM_CARD_WIDTH, 32];
+const SELF_LOOP_DASH = [4, 3];
+const NEXT_STATE_DASH = [5, 3];
+
+function computeArrowPoints(ex: number, ey: number, tx: number, ty: number, len = 8.5, halfW = 4.2): number[] {
+  const dx = ex - tx;
+  const dy = ey - ty;
+  const dist = Math.hypot(dx, dy) || 1;
+  const ux = dx / dist;
+  const uy = dy / dist;
+  return [
+    ex,
+    ey,
+    ex - ux * len - uy * halfW,
+    ey - uy * len + ux * halfW,
+    ex - ux * len + uy * halfW,
+    ey - uy * len - ux * halfW,
+  ];
+}
+
 export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
   const isLowDetail = useSimulatorStore(state => state.schematicScale < 0.55);
@@ -685,29 +707,28 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
     return nodes.find(n => n.type === 'GAL22V10') || null;
   }, [nodes, node.properties?.targetNodeId]);
 
-  // Subscribe only to pins belonging to the target GAL22V10 chip so unrelated circuit signals do not re-render the FSM diagram
-  const galPinSig = useSimulatorStore(state => {
-    if (!galNode) return '';
-    const ps = state.simState.pinStates;
-    let sig = '';
-    for (let i = 0; i < galNode.inputs.length; i++) {
-      sig += ps[galNode.inputs[i].id] ?? '_';
-    }
-    for (let i = 0; i < galNode.outputs.length; i++) {
-      sig += ps[galNode.outputs[i].id] ?? '_';
-    }
-    return sig;
-  });
-
   const pldSource = galNode?.properties?.pldSource || '';
   const fsm = useMemo(() => extractFsmFromPld(pldSource), [pldSource]);
 
+  // Subscribe ONLY to the resolved currentStateName + nextStateName string so clock edges (I/CLK)
+  // or unrelated GAL22V10 input toggles that do not change the active/next state cause 0 re-renders.
+  const liveStateSig = useSimulatorStore(state => {
+    if (!galNode || !fsm.hasFsm) return '';
+    const status = getLiveFsmStatus(fsm, galNode.id, state.simState.pinStates);
+    return `${status.currentStateName || ''}|${status.currentStateCode}|${status.nextStateName || ''}`;
+  });
+
   const liveStatus = useMemo(() => {
-    if (!galNode || !fsm.hasFsm) {
-      return { currentStateName: null, currentStateCode: '', nextStateName: null, nextStateCode: '', liveInputs: {} };
+    if (!liveStateSig) {
+      return { currentStateName: null, currentStateCode: '', nextStateName: null };
     }
-    return getLiveFsmStatus(fsm, galNode.id, useSimulatorStore.getState().simState.pinStates);
-  }, [fsm, galNode, galPinSig]);
+    const [curName, curCode, nextName] = liveStateSig.split('|');
+    return {
+      currentStateName: curName || null,
+      currentStateCode: curCode || '',
+      nextStateName: nextName || null,
+    };
+  }, [liveStateSig]);
 
   const positions = useMemo(() => {
     const defaults = computeDefaultFsmPositions(fsm.states);
@@ -761,6 +782,115 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
     return counts;
   }, [fsm.transitions]);
 
+  // Precompute transition curves, arrow points, and pill geometry once per layout
+  const precomputedTransitions = useMemo(() => {
+    return fsm.transitions
+      .map((t, idx) => {
+        const fromState = fsm.states.find(s => s.name === t.from);
+        const toState = fsm.states.find(s => s.name === t.to);
+        if (!fromState || !toState) return null;
+
+        const p1 = positions[t.from];
+        const p2 = positions[t.to];
+        if (!p1 || !p2) return null;
+
+        const h1 = getFsmCardHeight(fromState, false);
+        const h2 = getFsmCardHeight(toState, false);
+
+        if (t.isSelfLoop) {
+          const topY = p1.y - h1 / 2;
+          const sx = p1.x - 28;
+          const sy = topY;
+          const ex = p1.x + 28;
+          const ey = topY;
+          const c1x = p1.x - 55;
+          const c1y = topY - 52;
+          const c2x = p1.x + 55;
+          const c2y = topY - 52;
+          const pathD = `M ${sx} ${sy} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${ex} ${ey}`;
+          const labelX = p1.x;
+          const labelY = topY - 44;
+          const labelStr = t.guard.length > 22 ? t.guard.slice(0, 20) + '…' : t.guard;
+          const pillW = Math.max(36, labelStr.length * 6.4 + 14);
+          const arrowPts = computeArrowPoints(ex, ey, c2x, c2y);
+          return {
+            key: `${t.from}->${t.to}-${idx}`,
+            from: t.from,
+            to: t.to,
+            isSelfLoop: true,
+            pathD,
+            arrowPts,
+            labelX,
+            labelY,
+            labelStr,
+            pillW,
+          };
+        }
+
+        const pairKey = [t.from, t.to].sort().join('--');
+        const hasReverse = (pairCounts.get(pairKey) || 0) > 1;
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const nx = -dy / dist;
+        const ny = dx / dist;
+
+        const curveOffset = hasReverse ? 42 : 18;
+        const midX = (p1.x + p2.x) / 2 + nx * curveOffset;
+        const midY = (p1.y + p2.y) / 2 + ny * curveOffset;
+
+        const startPt = getRectBorderPoint(p1.x, p1.y, FSM_CARD_WIDTH, h1, midX, midY, 2);
+        const endPt = getRectBorderPoint(p2.x, p2.y, FSM_CARD_WIDTH, h2, midX, midY, 6);
+
+        const pathD = `M ${startPt.x} ${startPt.y} Q ${midX} ${midY} ${endPt.x} ${endPt.y}`;
+        const labelX = 0.25 * startPt.x + 0.5 * midX + 0.25 * endPt.x;
+        const labelY = 0.25 * startPt.y + 0.5 * midY + 0.25 * endPt.y;
+
+        const labelStr =
+          t.guard === '1'
+            ? '1 (always)'
+            : t.guard.length > 26
+            ? t.guard.slice(0, 24) + '…'
+            : t.guard;
+        const pillW = Math.max(42, labelStr.length * 6.4 + 14);
+        const arrowPts = computeArrowPoints(endPt.x, endPt.y, midX, midY);
+
+        return {
+          key: `${t.from}->${t.to}-${idx}`,
+          from: t.from,
+          to: t.to,
+          isSelfLoop: false,
+          pathD,
+          arrowPts,
+          labelX,
+          labelY,
+          labelStr,
+          pillW,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+  }, [fsm.transitions, fsm.states, positions, pairCounts]);
+
+  const initMarker = useMemo(() => {
+    if (fsm.states.length === 0) return null;
+    const first = fsm.states[0];
+    const p = positions[first.name];
+    if (!p) return null;
+    const h = getFsmCardHeight(first, false);
+    const targetX = p.x - FSM_CARD_WIDTH / 2 - 4;
+    const targetY = p.y - h / 2 + 16;
+    const startX = targetX - 34;
+    const startY = targetY - 18;
+    return {
+      startX,
+      startY,
+      linePts: [startX, startY, targetX, targetY],
+      arrowPts: computeArrowPoints(targetX, targetY, startX, startY),
+    };
+  }, [fsm.states, positions]);
+
+  const headerLinePts = useMemo(() => [0, headerH, width, headerH], [width, headerH]);
+
   const titleText =
     node.properties?.label ||
     (fsm.deviceName ? `FSM State Machine — ${fsm.deviceName}` : 'FSM State Machine');
@@ -770,22 +900,6 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
         liveStatus.nextStateName ? `  →  NEXT: ${liveStatus.nextStateName}` : ''
       }`
     : '';
-
-  const getArrowPoints = (ex: number, ey: number, tx: number, ty: number, len = 8.5, halfW = 4.2) => {
-    const dx = ex - tx;
-    const dy = ey - ty;
-    const dist = Math.hypot(dx, dy) || 1;
-    const ux = dx / dist;
-    const uy = dy / dist;
-    return [
-      ex,
-      ey,
-      ex - ux * len - uy * halfW,
-      ey - uy * len + ux * halfW,
-      ex - ux * len + uy * halfW,
-      ey - uy * len - ux * halfW,
-    ];
-  };
 
   return (
     <SchematicNodeWrapper node={node}>
@@ -810,13 +924,13 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
         width={width}
         height={headerH}
         fill={isDark ? palette.headerBgDark : palette.headerBgLight}
-        cornerRadius={[8, 8, 0, 0]}
+        cornerRadius={FSM_HEADER_CORNER_RADIUS}
         listening={false}
         perfectDrawEnabled={false}
       />
 
       <Line
-        points={[0, headerH, width, headerH]}
+        points={headerLinePts}
         stroke={palette.stroke}
         strokeWidth={1}
         opacity={0.5}
@@ -893,18 +1007,7 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
             listening={false}
           >
             {/* Transitions */}
-            {fsm.transitions.map((t, idx) => {
-              const fromState = fsm.states.find(s => s.name === t.from);
-              const toState = fsm.states.find(s => s.name === t.to);
-              if (!fromState || !toState) return null;
-
-              const p1 = positions[t.from];
-              const p2 = positions[t.to];
-              if (!p1 || !p2) return null;
-
-              const h1 = getFsmCardHeight(fromState, false);
-              const h2 = getFsmCardHeight(toState, false);
-
+            {precomputedTransitions.map(t => {
               const isLiveTransition =
                 liveStatus.currentStateName === t.from && liveStatus.nextStateName === t.to;
 
@@ -916,34 +1019,17 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
               const strokeWidth = isLiveTransition ? 2.6 : 1.6;
 
               if (t.isSelfLoop) {
-                const topY = p1.y - h1 / 2;
-                const sx = p1.x - 28;
-                const sy = topY;
-                const ex = p1.x + 28;
-                const ey = topY;
-                const c1x = p1.x - 55;
-                const c1y = topY - 52;
-                const c2x = p1.x + 55;
-                const c2y = topY - 52;
-                const pathD = `M ${sx} ${sy} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${ex} ${ey}`;
-                const labelX = p1.x;
-                const labelY = topY - 44;
-                const labelStr =
-                  t.guard.length > 22 ? t.guard.slice(0, 20) + '…' : t.guard;
-                const pillW = Math.max(36, labelStr.length * 6.4 + 14);
-                const arrowPts = getArrowPoints(ex, ey, c2x, c2y);
-
                 return (
-                  <Group key={`${t.from}->${t.to}-${idx}`}>
+                  <Group key={t.key}>
                     <Path
-                      data={pathD}
+                      data={t.pathD}
                       stroke={strokeColor}
                       strokeWidth={strokeWidth}
-                      dash={[4, 3]}
+                      dash={SELF_LOOP_DASH}
                       perfectDrawEnabled={false}
                     />
                     <Line
-                      points={arrowPts}
+                      points={t.arrowPts}
                       fill={strokeColor}
                       closed={true}
                       perfectDrawEnabled={false}
@@ -951,9 +1037,9 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
                     {!isLowDetail && (
                       <>
                         <Rect
-                          x={labelX - pillW / 2}
-                          y={labelY - 10}
-                          width={pillW}
+                          x={t.labelX - t.pillW / 2}
+                          y={t.labelY - 10}
+                          width={t.pillW}
                           height={19}
                           cornerRadius={5}
                           fill={isDark ? '#0f172a' : '#ffffff'}
@@ -962,10 +1048,10 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
                           perfectDrawEnabled={false}
                         />
                         <Text
-                          text={labelStr}
-                          x={labelX - pillW / 2}
-                          y={labelY - 5}
-                          width={pillW}
+                          text={t.labelStr}
+                          x={t.labelX - t.pillW / 2}
+                          y={t.labelY - 5}
+                          width={t.pillW}
                           align="center"
                           fontSize={9.5}
                           fontFamily="monospace"
@@ -987,44 +1073,16 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
                 );
               }
 
-              const pairKey = [t.from, t.to].sort().join('--');
-              const hasReverse = (pairCounts.get(pairKey) || 0) > 1;
-              const dx = p2.x - p1.x;
-              const dy = p2.y - p1.y;
-              const dist = Math.hypot(dx, dy) || 1;
-              const nx = -dy / dist;
-              const ny = dx / dist;
-
-              const curveOffset = hasReverse ? 42 : 18;
-              const midX = (p1.x + p2.x) / 2 + nx * curveOffset;
-              const midY = (p1.y + p2.y) / 2 + ny * curveOffset;
-
-              const startPt = getRectBorderPoint(p1.x, p1.y, FSM_CARD_WIDTH, h1, midX, midY, 2);
-              const endPt = getRectBorderPoint(p2.x, p2.y, FSM_CARD_WIDTH, h2, midX, midY, 6);
-
-              const pathD = `M ${startPt.x} ${startPt.y} Q ${midX} ${midY} ${endPt.x} ${endPt.y}`;
-              const labelX = 0.25 * startPt.x + 0.5 * midX + 0.25 * endPt.x;
-              const labelY = 0.25 * startPt.y + 0.5 * midY + 0.25 * endPt.y;
-
-              const labelStr =
-                t.guard === '1'
-                  ? '1 (always)'
-                  : t.guard.length > 26
-                  ? t.guard.slice(0, 24) + '…'
-                  : t.guard;
-              const pillW = Math.max(42, labelStr.length * 6.4 + 14);
-              const arrowPts = getArrowPoints(endPt.x, endPt.y, midX, midY);
-
               return (
-                <Group key={`${t.from}->${t.to}-${idx}`}>
+                <Group key={t.key}>
                   <Path
-                    data={pathD}
+                    data={t.pathD}
                     stroke={strokeColor}
                     strokeWidth={strokeWidth}
                     perfectDrawEnabled={false}
                   />
                   <Line
-                    points={arrowPts}
+                    points={t.arrowPts}
                     fill={strokeColor}
                     closed={true}
                     perfectDrawEnabled={false}
@@ -1032,9 +1090,9 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
                   {!isLowDetail && (
                     <>
                       <Rect
-                        x={labelX - pillW / 2}
-                        y={labelY - 10}
-                        width={pillW}
+                        x={t.labelX - t.pillW / 2}
+                        y={t.labelY - 10}
+                        width={t.pillW}
                         height={19}
                         cornerRadius={5}
                         fill={
@@ -1051,10 +1109,10 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
                         perfectDrawEnabled={false}
                       />
                       <Text
-                        text={labelStr}
-                        x={labelX - pillW / 2}
-                        y={labelY - 5}
-                        width={pillW}
+                        text={t.labelStr}
+                        x={t.labelX - t.pillW / 2}
+                        y={t.labelY - 5}
+                        width={t.pillW}
                         align="center"
                         fontSize={9.5}
                         fontFamily="monospace"
@@ -1077,40 +1135,29 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
             })}
 
             {/* Initial State Reset Marker */}
-            {fsm.states.length > 0 && positions[fsm.states[0].name] && (() => {
-              const first = fsm.states[0];
-              const p = positions[first.name];
-              const h = getFsmCardHeight(first, false);
-              const targetX = p.x - FSM_CARD_WIDTH / 2 - 4;
-              const targetY = p.y - h / 2 + 16;
-              const startX = targetX - 34;
-              const startY = targetY - 18;
-              const initColor = isDark ? '#94a3b8' : '#475569';
-              const arrowPts = getArrowPoints(targetX, targetY, startX, startY);
-              return (
-                <Group>
-                  <Circle
-                    x={startX}
-                    y={startY}
-                    radius={5.5}
-                    fill={initColor}
-                    perfectDrawEnabled={false}
-                  />
-                  <Line
-                    points={[startX, startY, targetX, targetY]}
-                    stroke={initColor}
-                    strokeWidth={2}
-                    perfectDrawEnabled={false}
-                  />
-                  <Line
-                    points={arrowPts}
-                    fill={initColor}
-                    closed={true}
-                    perfectDrawEnabled={false}
-                  />
-                </Group>
-              );
-            })()}
+            {initMarker && (
+              <Group>
+                <Circle
+                  x={initMarker.startX}
+                  y={initMarker.startY}
+                  radius={5.5}
+                  fill={isDark ? '#94a3b8' : '#475569'}
+                  perfectDrawEnabled={false}
+                />
+                <Line
+                  points={initMarker.linePts}
+                  stroke={isDark ? '#94a3b8' : '#475569'}
+                  strokeWidth={2}
+                  perfectDrawEnabled={false}
+                />
+                <Line
+                  points={initMarker.arrowPts}
+                  fill={isDark ? '#94a3b8' : '#475569'}
+                  closed={true}
+                  perfectDrawEnabled={false}
+                />
+              </Group>
+            )}
 
             {/* UML State Nodes */}
             {fsm.states.map(st => {
@@ -1167,7 +1214,7 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
                     fill={isDark ? '#0f172a' : '#ffffff'}
                     stroke={cardStroke}
                     strokeWidth={isCurrent ? 2.5 : 1.5}
-                    dash={isNext ? [5, 3] : undefined}
+                    dash={isNext ? NEXT_STATE_DASH : undefined}
                     perfectDrawEnabled={false}
                   />
 
@@ -1177,13 +1224,13 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
                     y={0}
                     width={FSM_CARD_WIDTH}
                     height={32}
-                    cornerRadius={[10, 10, 0, 0]}
+                    cornerRadius={FSM_CARD_HEADER_CORNER_RADIUS}
                     fill={cardHeaderBg}
                     perfectDrawEnabled={false}
                   />
 
                   <Line
-                    points={[0, 32, FSM_CARD_WIDTH, 32]}
+                    points={FSM_CARD_DIVIDER_POINTS}
                     stroke={cardStroke}
                     strokeWidth={1}
                     opacity={0.6}

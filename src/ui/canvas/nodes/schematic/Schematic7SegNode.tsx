@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Group, Rect, Path, Text, Circle } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
@@ -10,6 +10,20 @@ import { SchematicNodeWrapper } from './SchematicNodeWrapper';
 interface Props {
   node: LogicNode;
 }
+
+const SLANT = 10;
+const buildSegPath = (points: number[]) =>
+  `M ${points[0] + ((100 - points[1]) / 100) * SLANT} ${points[1]} L ${points[2] + ((100 - points[3]) / 100) * SLANT} ${points[3]} L ${points[4] + ((100 - points[5]) / 100) * SLANT} ${points[5]} L ${points[6] + ((100 - points[7]) / 100) * SLANT} ${points[7]} L ${points[8] + ((100 - points[9]) / 100) * SLANT} ${points[9]} L ${points[10] + ((100 - points[11]) / 100) * SLANT} ${points[11]} Z`;
+
+const SEG_PATHS = {
+  a: buildSegPath([8, 0, 24, 0, 28, 4, 24, 8, 8, 8, 4, 4]),
+  b: buildSegPath([28, 6, 32, 10, 32, 28, 28, 32, 24, 28, 24, 10]),
+  c: buildSegPath([28, 36, 32, 40, 32, 58, 28, 62, 24, 58, 24, 40]),
+  d: buildSegPath([8, 60, 24, 60, 28, 64, 24, 68, 8, 68, 4, 64]),
+  e: buildSegPath([4, 36, 8, 40, 8, 58, 4, 62, 0, 58, 0, 40]),
+  f: buildSegPath([4, 6, 8, 10, 8, 28, 4, 32, 0, 28, 0, 10]),
+  g: buildSegPath([8, 30, 24, 30, 28, 34, 24, 38, 8, 38, 4, 34]),
+};
 
 export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
@@ -30,14 +44,14 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
     }
     return mask;
   });
-  const a = (segMask & 1) !== 0 ? 1 : 0;
-  const b = (segMask & 2) !== 0 ? 1 : 0;
-  const c = (segMask & 4) !== 0 ? 1 : 0;
-  const d = (segMask & 8) !== 0 ? 1 : 0;
-  const e = (segMask & 16) !== 0 ? 1 : 0;
-  const f = (segMask & 32) !== 0 ? 1 : 0;
-  const g = (segMask & 64) !== 0 ? 1 : 0;
-  const dp = (segMask & 128) !== 0 ? 1 : 0;
+  const a = (segMask & 1) !== 0;
+  const b = (segMask & 2) !== 0;
+  const c = (segMask & 4) !== 0;
+  const d = (segMask & 8) !== 0;
+  const e = (segMask & 16) !== 0;
+  const f = (segMask & 32) !== 0;
+  const g = (segMask & 64) !== 0;
+  const dp = (segMask & 128) !== 0;
 
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getSchematicDimensions(node);
@@ -47,18 +61,16 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
   const activeColor = '#ef4444'; // Red
   const inactiveColor = theme === 'dark' ? '#451a1a' : '#fecaca';
 
-  // Apply a slant (skew) to the segment rendering
-  const slant = 10;
-  
-  const renderSeg = (points: number[], active: boolean) => (
-    <Path
-      data={`M ${points[0] + (100 - points[1]) / 100 * slant} ${points[1]} L ${points[2] + (100 - points[3]) / 100 * slant} ${points[3]} L ${points[4] + (100 - points[5]) / 100 * slant} ${points[5]} L ${points[6] + (100 - points[7]) / 100 * slant} ${points[7]} L ${points[8] + (100 - points[9]) / 100 * slant} ${points[9]} L ${points[10] + (100 - points[11]) / 100 * slant} ${points[11]} Z`}
-      fill={active ? activeColor : inactiveColor}
-      perfectDrawEnabled={false}
-      listening={false}
-      shadowForStrokeEnabled={false}
-    />
-  );
+  const legsPath = useMemo(() => {
+    let dStr = '';
+    for (let i = 0; i < pins.length; i++) {
+      const isTop = i < 4;
+      const col = isTop ? i : i - 4;
+      const xOffset = 20 + col * 20;
+      dStr += `M ${xOffset} ${isTop ? 0 : height} L ${xOffset} ${isTop ? 10 : height - 10} `;
+    }
+    return dStr;
+  }, [pins.length, height]);
 
   const dx = 28;
   const dy = 25;
@@ -91,31 +103,33 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
 
       {/* Segments Display Area */}
       <Group x={dx} y={dy} listening={false}>
-        {/* A */}
-        {renderSeg([8,0, 24,0, 28,4, 24,8, 8,8, 4,4], a === 1)}
-        {/* B */}
-        {renderSeg([28,6, 32,10, 32,28, 28,32, 24,28, 24,10], b === 1)}
-        {/* C */}
-        {renderSeg([28,36, 32,40, 32,58, 28,62, 24,58, 24,40], c === 1)}
-        {/* D */}
-        {renderSeg([8,60, 24,60, 28,64, 24,68, 8,68, 4,64], d === 1)}
-        {/* E */}
-        {renderSeg([4,36, 8,40, 8,58, 4,62, 0,58, 0,40], e === 1)}
-        {/* F */}
-        {renderSeg([4,6, 8,10, 8,28, 4,32, 0,28, 0,10], f === 1)}
-        {/* G */}
-        {renderSeg([8,30, 24,30, 28,34, 24,38, 8,38, 4,34], g === 1)}
+        <Path data={SEG_PATHS.a} fill={a ? activeColor : inactiveColor} perfectDrawEnabled={false} listening={false} shadowForStrokeEnabled={false} />
+        <Path data={SEG_PATHS.b} fill={b ? activeColor : inactiveColor} perfectDrawEnabled={false} listening={false} shadowForStrokeEnabled={false} />
+        <Path data={SEG_PATHS.c} fill={c ? activeColor : inactiveColor} perfectDrawEnabled={false} listening={false} shadowForStrokeEnabled={false} />
+        <Path data={SEG_PATHS.d} fill={d ? activeColor : inactiveColor} perfectDrawEnabled={false} listening={false} shadowForStrokeEnabled={false} />
+        <Path data={SEG_PATHS.e} fill={e ? activeColor : inactiveColor} perfectDrawEnabled={false} listening={false} shadowForStrokeEnabled={false} />
+        <Path data={SEG_PATHS.f} fill={f ? activeColor : inactiveColor} perfectDrawEnabled={false} listening={false} shadowForStrokeEnabled={false} />
+        <Path data={SEG_PATHS.g} fill={g ? activeColor : inactiveColor} perfectDrawEnabled={false} listening={false} shadowForStrokeEnabled={false} />
         
         {/* DP */}
         <Circle
           x={38}
           y={64}
           radius={4}
-          fill={dp === 1 ? activeColor : inactiveColor}
+          fill={dp ? activeColor : inactiveColor}
           perfectDrawEnabled={false}
           listening={false}
         />
       </Group>
+
+      {/* Combined Pin Legs */}
+      <Path
+        data={legsPath}
+        stroke={canvasTheme.nodeBorder}
+        strokeWidth={2}
+        perfectDrawEnabled={false}
+        listening={false}
+      />
 
       {/* Render Pins */}
       {pins.map((pin, i) => {
@@ -125,13 +139,6 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
         const yOffset = isTop ? 0 : height;
         return (
           <Group key={pin.id}>
-            <Path
-              data={`M ${xOffset} ${isTop ? 0 : height} L ${xOffset} ${isTop ? 10 : height - 10}`}
-              stroke={canvasTheme.nodeBorder}
-              strokeWidth={2}
-              perfectDrawEnabled={false}
-              listening={false}
-            />
             <Pin
               id={pin.id}
               nodeId={node.id}

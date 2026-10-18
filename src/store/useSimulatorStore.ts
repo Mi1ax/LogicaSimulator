@@ -118,69 +118,125 @@ interface SimulatorState {
   saveHistory: () => void;
 }
 
+const cloneNodesForHistory = (nodes: LogicNode[]): LogicNode[] =>
+  nodes.map((n) => ({
+    ...n,
+    inputs: n.inputs.map((p) => ({ ...p })),
+    outputs: n.outputs.map((p) => ({ ...p })),
+    properties: n.properties
+      ? {
+          ...n.properties,
+          // Share large read-only ROM/EEPROM data arrays across undo snapshots (HexEditor replaces `data` immutably)
+          ...(Array.isArray(n.properties.bits) ? { bits: n.properties.bits.slice() } : {}),
+        }
+      : n.properties,
+  }));
+
+const cloneWiresForHistory = (wires: Wire[]): Wire[] =>
+  wires.map((w) => ({
+    ...w,
+    ...(w.waypoints ? { waypoints: w.waypoints.map((wp) => ({ ...wp })) } : {}),
+  }));
+
 const pushHistory = (state: SimulatorState) => ({
-  history: [...state.history, {
-    nodes: structuredClone(state.nodes),
-    wires: structuredClone(state.wires)
-  }].slice(-50),
-  future: []
+  history: [
+    ...state.history,
+    {
+      nodes: cloneNodesForHistory(state.nodes),
+      wires: cloneWiresForHistory(state.wires),
+    },
+  ].slice(-50),
+  future: [],
 });
 
-
 const applyAutoConnect = (state: SimulatorState, movedNodeIds: string[]) => {
-  const movedNodes = state.nodes.filter(n => movedNodeIds.includes(n.id));
-  const otherNodes = state.nodes.filter(n => !movedNodeIds.includes(n.id));
-  
-  const movedPins = movedNodes.flatMap(n => 
-    [...n.inputs, ...n.outputs].map(p => ({
+  const movedSet = new Set(movedNodeIds);
+  const movedNodes = state.nodes.filter((n) => movedSet.has(n.id));
+  const otherNodes = state.nodes.filter((n) => !movedSet.has(n.id));
+  if (movedNodes.length === 0 || otherNodes.length === 0) return state;
+
+  type PinEntry = { nodeId: string; pinId: string; type: 'input' | 'output' | 'bidir'; pos: { x: number; y: number } };
+
+  const movedPins: PinEntry[] = movedNodes.flatMap((n) =>
+    [...n.inputs, ...n.outputs].map((p) => ({
       nodeId: n.id,
       pinId: p.id,
       type: p.type,
-      pos: getSchematicPinPosition(n, p.id)
+      pos: getSchematicPinPosition(n, p.id),
     }))
   );
-  
-  const otherPins = otherNodes.flatMap(n => 
-    [...n.inputs, ...n.outputs].map(p => ({
-      nodeId: n.id,
-      pinId: p.id,
-      type: p.type,
-      pos: getSchematicPinPosition(n, p.id)
-    }))
-  );
-  
-  let newWires = [...state.wires];
+
+  // Build 10px spatial grid over static pins so lookup is O(1) per moved pin instead of O(P_moved * P_other)
+  const CELL = 10;
+  const spatialGrid = new Map<string, PinEntry[]>();
+
+  for (let i = 0; i < otherNodes.length; i++) {
+    const n = otherNodes[i];
+    const allPins = [...n.inputs, ...n.outputs];
+    for (let p = 0; p < allPins.length; p++) {
+      const pin = allPins[p];
+      const pos = getSchematicPinPosition(n, pin.id);
+      const cx = Math.floor(pos.x / CELL);
+      const cy = Math.floor(pos.y / CELL);
+      const key = `${cx},${cy}`;
+      let bucket = spatialGrid.get(key);
+      if (!bucket) {
+        bucket = [];
+        spatialGrid.set(key, bucket);
+      }
+      bucket.push({ nodeId: n.id, pinId: pin.id, type: pin.type, pos });
+    }
+  }
+
+  const connectedPairs = new Set<string>();
+  for (let i = 0; i < state.wires.length; i++) {
+    const w = state.wires[i];
+    connectedPairs.add(`${w.sourcePinId}|${w.targetPinId}`);
+    connectedPairs.add(`${w.targetPinId}|${w.sourcePinId}`);
+  }
+
+  const newWires = [...state.wires];
   let changed = false;
-  
-  movedPins.forEach(mp => {
-    otherPins.forEach(op => {
-      const dx = mp.pos.x - op.pos.x;
-      const dy = mp.pos.y - op.pos.y;
-      if (dx * dx + dy * dy < 25) { // within 5 pixels
-        const alreadyConnected = newWires.some(w => 
-          (w.sourcePinId === mp.pinId && w.targetPinId === op.pinId) ||
-          (w.sourcePinId === op.pinId && w.targetPinId === mp.pinId)
-        );
-        if (!alreadyConnected) {
-          let source = mp;
-          let target = op;
-          if (op.type === 'output' && mp.type !== 'output') {
-            source = op;
-            target = mp;
+
+  for (let i = 0; i < movedPins.length; i++) {
+    const mp = movedPins[i];
+    const baseCx = Math.floor(mp.pos.x / CELL);
+    const baseCy = Math.floor(mp.pos.y / CELL);
+
+    for (let gx = baseCx - 1; gx <= baseCx + 1; gx++) {
+      for (let gy = baseCy - 1; gy <= baseCy + 1; gy++) {
+        const bucket = spatialGrid.get(`${gx},${gy}`);
+        if (!bucket) continue;
+        for (let b = 0; b < bucket.length; b++) {
+          const op = bucket[b];
+          const dx = mp.pos.x - op.pos.x;
+          const dy = mp.pos.y - op.pos.y;
+          if (dx * dx + dy * dy < 25) {
+            const pairKey = `${mp.pinId}|${op.pinId}`;
+            if (!connectedPairs.has(pairKey)) {
+              let source: PinEntry = mp;
+              let target: PinEntry = op;
+              if (op.type === 'output' && mp.type !== 'output') {
+                source = op;
+                target = mp;
+              }
+              newWires.push({
+                id: generateId('wire'),
+                sourceNodeId: source.nodeId,
+                sourcePinId: source.pinId,
+                targetNodeId: target.nodeId,
+                targetPinId: target.pinId,
+              });
+              connectedPairs.add(pairKey);
+              connectedPairs.add(`${op.pinId}|${mp.pinId}`);
+              changed = true;
+            }
           }
-          newWires.push({
-            id: generateId('wire'),
-            sourceNodeId: source.nodeId,
-            sourcePinId: source.pinId,
-            targetNodeId: target.nodeId,
-            targetPinId: target.pinId
-          });
-          changed = true;
         }
       }
-    });
-  });
-  
+    }
+  }
+
   return changed ? { ...state, wires: newWires } : state;
 };
 
@@ -372,42 +428,65 @@ export const useSimulatorStore = create<SimulatorState>()(
   deleteSelection: () => set((state) => {
     const currentMulti = state.multiSelection || [];
     const idsToDelete = currentMulti.length > 0 ? currentMulti : (state.selection ? [state.selection.id] : []);
-    
     if (idsToDelete.length === 0) return state;
 
-    
-      let nextState = { ...state };
-      let nextSelectedMemoryNodeId = state.selectedMemoryNodeId;
-      
-      const waypointsToRemove: Record<string, number[]> = {};
-      
-      idsToDelete.forEach(id => {
-        if (id.startsWith('wp:')) {
-          const [, wireId, idxStr] = id.split(':');
-          if (!waypointsToRemove[wireId]) waypointsToRemove[wireId] = [];
-          waypointsToRemove[wireId].push(parseInt(idxStr, 10));
-        } else if (nextState.wires.some(w => w.id === id)) {
-          Object.assign(nextState, circuit.deleteWire(nextState, id));
-        } else if (nextState.nodes.some(n => n.id === id)) {
-          Object.assign(nextState, circuit.deleteNode(nextState, id));
-          if (nextSelectedMemoryNodeId === id) {
-            nextSelectedMemoryNodeId = null;
-          }
-        }
-      });
+    const idSet = new Set(idsToDelete);
+    const waypointsToRemove: Record<string, number[]> = {};
+    for (let i = 0; i < idsToDelete.length; i++) {
+      const id = idsToDelete[i];
+      if (id.startsWith('wp:')) {
+        const [, wireId, idxStr] = id.split(':');
+        if (!waypointsToRemove[wireId]) waypointsToRemove[wireId] = [];
+        waypointsToRemove[wireId].push(parseInt(idxStr, 10));
+      }
+    }
 
-      Object.entries(waypointsToRemove).forEach(([wireId, indices]) => {
-        nextState.wires = nextState.wires.map(w => {
-          if (w.id === wireId && w.waypoints) {
-            const newWaypoints = [...w.waypoints];
-            indices.sort((a, b) => b - a).forEach(idx => newWaypoints.splice(idx, 1));
-            return { ...w, waypoints: newWaypoints };
-          }
-          return w;
-        });
+    const deletedNodeIds = new Set<string>();
+    const nextNodes = state.nodes.filter((n) => {
+      if (idSet.has(n.id)) {
+        deletedNodeIds.add(n.id);
+        return false;
+      }
+      return true;
+    });
+
+    let nextWires = state.wires.filter(
+      (w) =>
+        !idSet.has(w.id) &&
+        !deletedNodeIds.has(w.sourceNodeId) &&
+        (!w.targetNodeId || !deletedNodeIds.has(w.targetNodeId))
+    );
+
+    const wpWireIds = Object.keys(waypointsToRemove);
+    if (wpWireIds.length > 0) {
+      nextWires = nextWires.map((w) => {
+        const indices = waypointsToRemove[w.id];
+        if (indices && w.waypoints) {
+          const newWaypoints = [...w.waypoints];
+          indices
+            .slice()
+            .sort((a, b) => b - a)
+            .forEach((idx) => newWaypoints.splice(idx, 1));
+          return { ...w, waypoints: newWaypoints };
+        }
+        return w;
       });
-      
-      return { ...nextState, ...pushHistory(state), selection: null, multiSelection: [], selectedMemoryNodeId: nextSelectedMemoryNodeId };
+    }
+
+    const nextSelectedMemoryNodeId =
+      state.selectedMemoryNodeId && deletedNodeIds.has(state.selectedMemoryNodeId)
+        ? null
+        : state.selectedMemoryNodeId;
+
+    return {
+      ...state,
+      nodes: nextNodes,
+      wires: nextWires,
+      ...pushHistory(state),
+      selection: null,
+      multiSelection: [],
+      selectedMemoryNodeId: nextSelectedMemoryNodeId,
+    };
   }),
 
   placingNodeId: null,
@@ -448,18 +527,20 @@ export const useSimulatorStore = create<SimulatorState>()(
     const ids = state.multiSelection && state.multiSelection.length > 0 
       ? state.multiSelection 
       : (state.selection ? [state.selection.id] : []);
+    if (ids.length === 0) return state;
 
-    const nodesToCopy = state.nodes.filter(n => ids.includes(n.id));
+    const idSet = new Set(ids);
+    const nodesToCopy = state.nodes.filter(n => idSet.has(n.id));
     if (nodesToCopy.length === 0) return state;
 
     const wiresToCopy = state.wires.filter(w => 
-      ids.includes(w.sourceNodeId) && (w.targetNodeId && ids.includes(w.targetNodeId))
+      idSet.has(w.sourceNodeId) && (w.targetNodeId && idSet.has(w.targetNodeId))
     );
 
     return {
       clipboard: {
-        nodes: structuredClone(nodesToCopy),
-        wires: structuredClone(wiresToCopy)
+        nodes: cloneNodesForHistory(nodesToCopy),
+        wires: cloneWiresForHistory(wiresToCopy)
       }
     };
   }),

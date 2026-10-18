@@ -1,4 +1,10 @@
 import { NodeDefinition } from './NodeDefinition';
+import { Signal } from '../../models/types';
+
+const OUT_0: Signal[] = [0];
+const OUT_1: Signal[] = [1];
+const OUT_U: Signal[] = [undefined];
+const OUT_EMPTY: Signal[] = [];
 
 export const AndNode: NodeDefinition = {
   type: 'AND',
@@ -8,8 +14,13 @@ export const AndNode: NodeDefinition = {
   numOutputs: 1,
   variableInputs: { min: 2, max: 8 },
   evaluate: (inputs) => {
-    if (inputs.includes(undefined)) return [undefined];
-    return [inputs.every(i => i === 1) ? 1 : 0];
+    let allOne = true;
+    for (let i = 0; i < inputs.length; i++) {
+      const v = inputs[i];
+      if (v === undefined) return OUT_U;
+      if (v !== 1) allOne = false;
+    }
+    return allOne ? OUT_1 : OUT_0;
   }
 };
 
@@ -21,8 +32,13 @@ export const OrNode: NodeDefinition = {
   numOutputs: 1,
   variableInputs: { min: 2, max: 8 },
   evaluate: (inputs) => {
-    if (inputs.includes(undefined)) return [undefined];
-    return [inputs.some(i => i === 1) ? 1 : 0];
+    let hasOne = false;
+    for (let i = 0; i < inputs.length; i++) {
+      const v = inputs[i];
+      if (v === undefined) return OUT_U;
+      if (v === 1) hasOne = true;
+    }
+    return hasOne ? OUT_1 : OUT_0;
   }
 };
 
@@ -34,8 +50,13 @@ export const NorNode: NodeDefinition = {
   numOutputs: 1,
   variableInputs: { min: 2, max: 8 },
   evaluate: (inputs) => {
-    if (inputs.includes(undefined)) return [undefined];
-    return [inputs.every(i => i === 0) ? 1 : 0];
+    let allZero = true;
+    for (let i = 0; i < inputs.length; i++) {
+      const v = inputs[i];
+      if (v === undefined) return OUT_U;
+      if (v !== 0) allZero = false;
+    }
+    return allZero ? OUT_1 : OUT_0;
   }
 };
 
@@ -46,8 +67,8 @@ export const NotNode: NodeDefinition = {
   numInputs: 1,
   numOutputs: 1,
   evaluate: (inputs) => {
-    if (inputs[0] === undefined) return [undefined];
-    return [inputs[0] === 1 ? 0 : 1];
+    if (inputs[0] === undefined) return OUT_U;
+    return inputs[0] === 1 ? OUT_0 : OUT_1;
   }
 };
 
@@ -59,10 +80,13 @@ export const XorNode: NodeDefinition = {
   numOutputs: 1,
   variableInputs: { min: 2, max: 8 },
   evaluate: (inputs) => {
-    if (inputs.includes(undefined)) return [undefined];
-    // XOR is true if the inputs are different (or if an odd number of inputs are 1)
-    const count = inputs.filter(i => i === 1).length;
-    return [count % 2 === 1 ? 1 : 0];
+    let count = 0;
+    for (let i = 0; i < inputs.length; i++) {
+      const v = inputs[i];
+      if (v === undefined) return OUT_U;
+      if (v === 1) count++;
+    }
+    return (count & 1) === 1 ? OUT_1 : OUT_0;
   }
 };
 
@@ -74,8 +98,13 @@ export const NandNode: NodeDefinition = {
   numOutputs: 1,
   variableInputs: { min: 2, max: 8 },
   evaluate: (inputs) => {
-    if (inputs.includes(undefined)) return [undefined];
-    return [inputs.every(i => i === 1) ? 0 : 1];
+    let allOne = true;
+    for (let i = 0; i < inputs.length; i++) {
+      const v = inputs[i];
+      if (v === undefined) return OUT_U;
+      if (v !== 1) allOne = false;
+    }
+    return allOne ? OUT_0 : OUT_1;
   }
 };
 
@@ -87,9 +116,13 @@ export const XnorNode: NodeDefinition = {
   numOutputs: 1,
   variableInputs: { min: 2, max: 8 },
   evaluate: (inputs) => {
-    if (inputs.includes(undefined)) return [undefined];
-    const count = inputs.filter(i => i === 1).length;
-    return [count % 2 === 1 ? 0 : 1];
+    let count = 0;
+    for (let i = 0; i < inputs.length; i++) {
+      const v = inputs[i];
+      if (v === undefined) return OUT_U;
+      if (v === 1) count++;
+    }
+    return (count & 1) === 1 ? OUT_0 : OUT_1;
   }
 };
 
@@ -100,8 +133,8 @@ export const BufferNode: NodeDefinition = {
   numInputs: 1,
   numOutputs: 1,
   evaluate: (inputs) => {
-    if (inputs[0] === undefined) return [undefined];
-    return [inputs[0] === 1 ? 1 : 0];
+    if (inputs[0] === undefined) return OUT_U;
+    return inputs[0] === 1 ? OUT_1 : OUT_0;
   }
 };
 
@@ -113,7 +146,7 @@ export const NcNode: NodeDefinition = {
   numInputs: 1,
   numOutputs: 0,
   disableTransform: true,
-  evaluate: () => []
+  evaluate: () => OUT_EMPTY
 };
 
 export const InputNode: NodeDefinition = {
@@ -124,7 +157,7 @@ export const InputNode: NodeDefinition = {
   numInputs: 0,
   numOutputs: 1,
   defaultProperties: { value: 0 },
-  evaluate: (_, props) => [props?.value === 1 ? 1 : 0]
+  evaluate: (_, props) => (props?.value === 1 ? OUT_1 : OUT_0)
 };
 
 export const OutputNode: NodeDefinition = {
@@ -134,7 +167,7 @@ export const OutputNode: NodeDefinition = {
   tags: ['output', 'led', 'light', 'indicator'],
   numInputs: 1,
   numOutputs: 0,
-  evaluate: () => []
+  evaluate: () => OUT_EMPTY
 };
 
 export const SubInNode: NodeDefinition = {
@@ -144,7 +177,7 @@ export const SubInNode: NodeDefinition = {
   numOutputs: 1,
   defaultProperties: { value: 0 },
   evaluate: (_, props) => {
-    return [props?._isFlattened ? undefined : (props?.value === 1 ? 1 : 0)];
+    return props?._isFlattened ? OUT_U : (props?.value === 1 ? OUT_1 : OUT_0);
   }
 };
 
@@ -153,7 +186,7 @@ export const SubOutNode: NodeDefinition = {
   label: 'Subcircuit Output',
   numInputs: 1,
   numOutputs: 0,
-  evaluate: (_, props) => [props?._isFlattened ? undefined : (props?.value === 1 ? 1 : 0)]
+  evaluate: (_, props) => (props?._isFlattened ? OUT_U : (props?.value === 1 ? OUT_1 : OUT_0))
 };
 
 export const SubIoNode: NodeDefinition = {
@@ -164,7 +197,7 @@ export const SubIoNode: NodeDefinition = {
   customPins: [
     { name: 'IO', type: 'bidir', schematicSide: 'right' }
   ],
-  evaluate: (_, props) => [props?._isFlattened ? undefined : props?.value]
+  evaluate: (_, props) => (props?._isFlattened ? OUT_U : [props?.value])
 };
 
 export const ClockNode: NodeDefinition = {
@@ -182,17 +215,17 @@ export const ClockNode: NodeDefinition = {
     // Support legacy saved nodes that had an EN input
     if (inputs.length > 0) {
       const en = inputs.length === 1 ? (inputs[0] ?? 1) : (inputs[1] ?? 1);
-      if (en === 0) return [0];
+      if (en === 0) return OUT_0;
     }
 
     if (props?.mode === 'manual') {
-      return [props?.manualValue === 1 ? 1 : 0];
+      return props?.manualValue === 1 ? OUT_1 : OUT_0;
     }
 
     const highTicks = Math.max(1, props?.highTicks ?? props?.interval ?? 5);
     const lowTicks = Math.max(1, props?.lowTicks ?? props?.interval ?? 5);
     const cycleLength = highTicks + lowTicks;
-    if (cycleLength <= 0) return [0];
+    if (cycleLength <= 0) return OUT_0;
 
     const currentTick = (tickCount ?? 0) % cycleLength;
     const startHigh = props?.startHigh !== false;
@@ -200,7 +233,7 @@ export const ClockNode: NodeDefinition = {
       ? (currentTick < highTicks ? 1 : 0)
       : (currentTick < lowTicks ? 0 : 1);
 
-    return [val];
+    return val === 1 ? OUT_1 : OUT_0;
   }
 };
 
@@ -211,7 +244,7 @@ export const VccNode: NodeDefinition = {
   tags: ['vcc', 'power', '5v', 'high', '1'],
   numInputs: 0,
   numOutputs: 1,
-  evaluate: () => [1] // Always outputs 1
+  evaluate: () => OUT_1 // Always outputs 1
 };
 
 export const GndNode: NodeDefinition = {
@@ -221,7 +254,7 @@ export const GndNode: NodeDefinition = {
   tags: ['gnd', 'ground', '0v', 'low', '0'],
   numInputs: 0,
   numOutputs: 1,
-  evaluate: () => [0] // Always outputs 0
+  evaluate: () => OUT_0 // Always outputs 0
 };
 
 export const PullUpNode: NodeDefinition = {
@@ -231,7 +264,7 @@ export const PullUpNode: NodeDefinition = {
   tags: ['pullup', 'pull-up', 'resistor', 'weak', 'vcc', 'high', '1'],
   numInputs: 0,
   numOutputs: 1,
-  evaluate: () => [1] // Weak 1 (overridden by any strong 0/1 driver on the net)
+  evaluate: () => OUT_1 // Weak 1 (overridden by any strong 0/1 driver on the net)
 };
 
 export const PullDownNode: NodeDefinition = {
@@ -241,7 +274,7 @@ export const PullDownNode: NodeDefinition = {
   tags: ['pulldown', 'pull-down', 'resistor', 'weak', 'gnd', 'low', '0'],
   numInputs: 0,
   numOutputs: 1,
-  evaluate: () => [0] // Weak 0 (overridden by any strong 0/1 driver on the net)
+  evaluate: () => OUT_0 // Weak 0 (overridden by any strong 0/1 driver on the net)
 };
 
 export const JunctionNode: NodeDefinition = {
@@ -250,8 +283,10 @@ export const JunctionNode: NodeDefinition = {
   numInputs: 1,
   numOutputs: 1,
   disableTransform: true,
-  evaluate: () => [undefined] // Evaluated purely via net union, should not drive on its own!
+  evaluate: () => OUT_U // Evaluated purely via net union, should not drive on its own!
 };
+
+const OUT_U7: Signal[] = [undefined, undefined, undefined, undefined, undefined, undefined, undefined];
 
 export const DipSwitchNode: NodeDefinition = {
   type: 'DIP_SWITCH',
@@ -264,8 +299,12 @@ export const DipSwitchNode: NodeDefinition = {
   defaultProperties: { switches: [0, 0, 0, 0] },
   evaluate: (_, props) => {
     const numOutputs = props?.numOutputs || 4;
-    const switches = props?.switches || Array(numOutputs).fill(0);
-    return Array.from({ length: numOutputs }, (_, i) => (switches[i] === 1 ? 1 : 0));
+    const switches = props?.switches;
+    const out = new Array<Signal>(numOutputs);
+    for (let i = 0; i < numOutputs; i++) {
+      out[i] = switches?.[i] === 1 ? 1 : 0;
+    }
+    return out;
   }
 };
 
@@ -286,7 +325,7 @@ export const SevenSegNode: NodeDefinition = {
     { type: 'input', name: 'G', pinNumber: 7 },
     { type: 'input', name: 'DP', pinNumber: 8 }
   ],
-  evaluate: () => []
+  evaluate: () => OUT_EMPTY
 };
 
 export const NetLabelNode: NodeDefinition = {
@@ -299,7 +338,7 @@ export const NetLabelNode: NodeDefinition = {
   customPins: [
     { name: 'NET', type: 'bidir', pinNumber: 1, schematicSide: 'right', schematicRow: 1 }
   ],
-  evaluate: () => [undefined],
+  evaluate: () => OUT_U,
 };
 
 export const BusBreakoutNode: NodeDefinition = {
@@ -329,7 +368,7 @@ export const BusBreakoutNode: NodeDefinition = {
     pins.push({ name: 'BUS', type: 'bidir', schematicSide: 'right', schematicRow: Math.max(1, Math.round((bits + 1) / 2)) });
     return pins;
   },
-  evaluate: (inputs) => inputs.map(() => undefined)
+  evaluate: (inputs) => new Array(inputs.length)
 };
 
 
@@ -344,7 +383,7 @@ export const PushButtonNode: NodeDefinition = {
   evaluate: (_, props) => {
     const isPressed = props?.pressed;
     const isActiveLow = props?.activeLow;
-    return [isActiveLow ? (isPressed ? 0 : 1) : (isPressed ? 1 : 0)];
+    return isActiveLow ? (isPressed ? OUT_0 : OUT_1) : (isPressed ? OUT_1 : OUT_0);
   }
 };
 
@@ -356,7 +395,7 @@ export const LedBarNode: NodeDefinition = {
   numInputs: 8,
   numOutputs: 0,
   variableInputs: { min: 1, max: 32, label: 'Number of LEDs' },
-  evaluate: () => []
+  evaluate: () => OUT_EMPTY
 };
 
 export const KeypadNode: NodeDefinition = {
@@ -376,7 +415,7 @@ export const KeypadNode: NodeDefinition = {
     { name: 'C3', type: 'bidir', pinNumber: 7, schematicSide: 'top', schematicRow: 3 },
   ],
   defaultProperties: { pressedKey: null, latched: false },
-  evaluate: () => Array(7).fill(undefined),
+  evaluate: () => OUT_U7,
 };
 
 export const RegionBoxNode: NodeDefinition = {
@@ -395,7 +434,7 @@ export const RegionBoxNode: NodeDefinition = {
     borderStyle: 'dashed',
     fillOpacity: 0.08,
   },
-  evaluate: () => [],
+  evaluate: () => OUT_EMPTY,
 };
 
 export const TextLabelNode: NodeDefinition = {
@@ -415,7 +454,7 @@ export const TextLabelNode: NodeDefinition = {
     fontFamily: 'sans',
     align: 'left',
   },
-  evaluate: () => [],
+  evaluate: () => OUT_EMPTY,
 };
 
 export const StickyNoteNode: NodeDefinition = {
@@ -435,7 +474,7 @@ export const StickyNoteNode: NodeDefinition = {
     fontSize: 12,
     fontFamily: 'sans',
   },
-  evaluate: () => [],
+  evaluate: () => OUT_EMPTY,
 };
 
 export const FsmDiagramNode: NodeDefinition = {
@@ -453,6 +492,6 @@ export const FsmDiagramNode: NodeDefinition = {
     color: 'slate',
     targetNodeId: '',
   },
-  evaluate: () => [],
+  evaluate: () => OUT_EMPTY,
 };
 

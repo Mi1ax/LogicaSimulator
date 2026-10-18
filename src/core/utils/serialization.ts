@@ -190,11 +190,15 @@ export function serializeCircuit(
 }
 
 function hydrateNodesAndWires(rawNodes: any[], rawWires: any[]): { nodes: LogicNode[]; wires: Wire[] } {
-  const nodes: LogicNode[] = (rawNodes || []).map((rawNode) => {
+  const safeNodes = Array.isArray(rawNodes)
+    ? rawNodes.filter((n) => n && typeof n === 'object' && typeof n.id === 'string' && typeof n.type === 'string')
+    : [];
+
+  const nodes: LogicNode[] = safeNodes.map((rawNode) => {
     const def = getNodeDefinition(rawNode.type);
     const properties: Record<string, any> = {
       ...(def?.defaultProperties ? structuredClone(def.defaultProperties) : {}),
-      ...(rawNode.properties || {}),
+      ...(rawNode.properties && typeof rawNode.properties === 'object' ? rawNode.properties : {}),
     };
     delete properties.internal;
     if (def?.renderAs) {
@@ -219,21 +223,34 @@ function hydrateNodesAndWires(rawNodes: any[], rawWires: any[]): { nodes: LogicN
     return {
       id: rawNode.id,
       type: rawNode.type,
-      x: rawNode.x,
-      y: rawNode.y,
+      x: typeof rawNode.x === 'number' && Number.isFinite(rawNode.x) ? rawNode.x : 0,
+      y: typeof rawNode.y === 'number' && Number.isFinite(rawNode.y) ? rawNode.y : 0,
       inputs,
       outputs,
       properties,
     };
   });
 
-  const wires: Wire[] = (rawWires || []).map((rawWire) => ({
+  const safeWires = Array.isArray(rawWires)
+    ? rawWires.filter(
+        (w) =>
+          w &&
+          typeof w === 'object' &&
+          typeof w.id === 'string' &&
+          typeof w.sourceNodeId === 'string' &&
+          typeof w.sourcePinId === 'string' &&
+          typeof w.targetNodeId === 'string' &&
+          typeof w.targetPinId === 'string'
+      )
+    : [];
+
+  const wires: Wire[] = safeWires.map((rawWire) => ({
     id: rawWire.id,
     sourceNodeId: rawWire.sourceNodeId,
     sourcePinId: rawWire.sourcePinId,
     targetNodeId: rawWire.targetNodeId,
     targetPinId: rawWire.targetPinId,
-    ...(rawWire.waypoints && rawWire.waypoints.length > 0 ? { waypoints: rawWire.waypoints } : {}),
+    ...(Array.isArray(rawWire.waypoints) && rawWire.waypoints.length > 0 ? { waypoints: rawWire.waypoints } : {}),
   }));
 
   return { nodes, wires };
@@ -252,6 +269,7 @@ export function deserializeCircuit(rawData: any): {
   if (rawData?.subcircuits && typeof rawData.subcircuits === 'object') {
     hydratedSubcircuits = {};
     for (const [id, sub] of Object.entries<any>(rawData.subcircuits)) {
+      if (!sub || typeof sub !== 'object') continue;
       const hydrated = hydrateNodesAndWires(sub.nodes || [], sub.wires || []);
       updateSubcircuitRegistry(id, sub.name || 'Subcircuit', hydrated.nodes);
       hydratedSubcircuits[id] = {

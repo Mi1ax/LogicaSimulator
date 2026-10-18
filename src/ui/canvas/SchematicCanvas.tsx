@@ -131,7 +131,9 @@ export const SchematicCanvas: React.FC = () => {
   const settings = useSimulatorStore(state => state.settings);
 
   const initializedRef = useRef(false);
+  const bgLayerRef = useRef<any>(null);
   const mainLayerRef = useRef<any>(null);
+  const bgHitDirtyRef = useRef(true);
   const hitDirtyRef = useRef(true);
   const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wheelRafRef = useRef<number | null>(null);
@@ -140,6 +142,7 @@ export const SchematicCanvas: React.FC = () => {
   const lastMousePosRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
+    bgHitDirtyRef.current = true;
     hitDirtyRef.current = true;
   }, [dimensions.width, dimensions.height, stagePos.x, stagePos.y, scale]);
 
@@ -152,6 +155,7 @@ export const SchematicCanvas: React.FC = () => {
         state.schematicScale !== prevState.schematicScale ||
         state.theme !== prevState.theme
       ) {
+        bgHitDirtyRef.current = true;
         hitDirtyRef.current = true;
       }
     });
@@ -159,23 +163,31 @@ export const SchematicCanvas: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const layer = mainLayerRef.current;
-    if (!layer || layer._hitOptimized) return;
-    layer._hitOptimized = true;
-    const origDrawHit = layer.drawHit.bind(layer);
-    layer.drawHit = function (...args: any[]) {
-      if (!hitDirtyRef.current) {
-        return this;
-      }
-      hitDirtyRef.current = false;
-      return origDrawHit(...args);
+    const attachHitOpt = (layer: any, dirtyRef: React.MutableRefObject<boolean>) => {
+      if (!layer || layer._hitOptimized) return () => {};
+      layer._hitOptimized = true;
+      const origDrawHit = layer.drawHit.bind(layer);
+      layer.drawHit = function (...args: any[]) {
+        if (!dirtyRef.current) {
+          return this;
+        }
+        dirtyRef.current = false;
+        return origDrawHit(...args);
+      };
+      const markDirty = () => {
+        dirtyRef.current = true;
+      };
+      layer.on('dragmove.hitopt dragend.hitopt', markDirty);
+      return () => {
+        layer.off('dragmove.hitopt dragend.hitopt', markDirty);
+      };
     };
-    const markDirty = () => {
-      hitDirtyRef.current = true;
-    };
-    layer.on('dragmove.hitopt dragend.hitopt', markDirty);
+
+    const cleanBg = attachHitOpt(bgLayerRef.current, bgHitDirtyRef);
+    const cleanMain = attachHitOpt(mainLayerRef.current, hitDirtyRef);
     return () => {
-      layer.off('dragmove.hitopt dragend.hitopt', markDirty);
+      cleanBg();
+      cleanMain();
     };
   }, [dimensions.width, dimensions.height]);
 
@@ -336,18 +348,21 @@ export const SchematicCanvas: React.FC = () => {
         scaleY={scale}
         onDragStart={(e) => {
           if (e.target === e.target.getStage()) {
-            if (!isInteractingViewRef.current && mainLayerRef.current) {
+            if (!isInteractingViewRef.current) {
               isInteractingViewRef.current = true;
-              mainLayerRef.current.listening(false);
+              bgLayerRef.current?.listening(false);
+              mainLayerRef.current?.listening(false);
             }
           }
         }}
         onDragEnd={(e) => {
           if (e.target === e.target.getStage()) {
-            if (isInteractingViewRef.current && mainLayerRef.current) {
+            if (isInteractingViewRef.current) {
               isInteractingViewRef.current = false;
-              mainLayerRef.current.listening(true);
-              mainLayerRef.current.drawHit();
+              bgLayerRef.current?.listening(true);
+              bgLayerRef.current?.drawHit();
+              mainLayerRef.current?.listening(true);
+              mainLayerRef.current?.drawHit();
             }
             setStagePos({ x: e.target.x(), y: e.target.y() });
           }
@@ -406,9 +421,10 @@ export const SchematicCanvas: React.FC = () => {
 
           pendingViewRef.current = { x: nextX, y: nextY, scale: nextScale };
 
-          if (!isInteractingViewRef.current && mainLayerRef.current) {
+          if (!isInteractingViewRef.current) {
             isInteractingViewRef.current = true;
-            mainLayerRef.current.listening(false);
+            bgLayerRef.current?.listening(false);
+            mainLayerRef.current?.listening(false);
           }
 
           if (wheelRafRef.current === null) {
@@ -436,10 +452,12 @@ export const SchematicCanvas: React.FC = () => {
           wheelTimeoutRef.current = setTimeout(() => {
             const finalView = pendingViewRef.current;
             pendingViewRef.current = null;
-            if (isInteractingViewRef.current && mainLayerRef.current) {
+            if (isInteractingViewRef.current) {
               isInteractingViewRef.current = false;
-              mainLayerRef.current.listening(true);
-              mainLayerRef.current.drawHit();
+              bgLayerRef.current?.listening(true);
+              bgLayerRef.current?.drawHit();
+              mainLayerRef.current?.listening(true);
+              mainLayerRef.current?.drawHit();
             }
             if (finalView) {
               setStagePos({ x: finalView.x, y: finalView.y });
@@ -627,10 +645,13 @@ export const SchematicCanvas: React.FC = () => {
           height={dimensions.height} 
         />
 
-        <Layer ref={mainLayerRef}>
+        <Layer ref={bgLayerRef}>
           {backgroundNodeIds.map((id) => (
             <ConnectedNode key={id} id={id} />
           ))}
+        </Layer>
+
+        <Layer ref={mainLayerRef}>
           <WireRenderer />
           {selectionBox && (
             <Rect

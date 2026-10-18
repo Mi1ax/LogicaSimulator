@@ -32,21 +32,33 @@ export const Topbar: React.FC = () => {
       nodes,
       wires,
       ...(typeof simSpeed === 'number' ? { simSpeed } : {}),
-      ...(subcircuits
-        ? {
-            savedCircuits: {
-              main: { name: 'Main', nodes, wires, history: [], future: [] },
-              ...subcircuits,
-            },
-            activeSubcircuitId: 'main',
-          }
-        : {}),
+      savedCircuits: {
+        main: { name: 'Main', nodes, wires, history: [], future: [] },
+        ...(subcircuits || {}),
+      },
+      activeSubcircuitId: 'main',
       history: [],
       future: [],
       selection: null,
       multiSelection: [],
       simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} },
     }));
+  };
+
+  const buildSerializedCurrentProject = () => {
+    const store = useSimulatorStore.getState();
+    const syncedSaved = {
+      ...store.savedCircuits,
+      [store.activeSubcircuitId]: {
+        name: store.savedCircuits[store.activeSubcircuitId]?.name || (store.activeSubcircuitId === 'main' ? 'Main' : 'Subcircuit'),
+        nodes: store.nodes,
+        wires: store.wires,
+        history: store.history,
+        future: store.future,
+      },
+    };
+    const mainCircuit = syncedSaved['main'] || { nodes: store.nodes, wires: store.wires };
+    return serializeCircuit(mainCircuit.nodes, mainCircuit.wires, syncedSaved, store.simSpeed);
   };
 
   const triggerBrowserDownload = (json: string, targetName: string) => {
@@ -65,8 +77,7 @@ export const Topbar: React.FC = () => {
   };
 
   const handleSave = async () => {
-    const store = useSimulatorStore.getState();
-    const json = serializeCircuit(store.nodes, store.wires, store.savedCircuits, store.simSpeed);
+    const json = buildSerializedCurrentProject();
     const suggested = `${stripExtension(fileName)}.logica`;
     
     if (typeof (window as any).showSaveFilePicker === 'function') {
@@ -100,8 +111,7 @@ export const Topbar: React.FC = () => {
 
   const handleConfirmModalSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    const store = useSimulatorStore.getState();
-    const json = serializeCircuit(store.nodes, store.wires, store.savedCircuits, store.simSpeed);
+    const json = buildSerializedCurrentProject();
     setShowSaveModal(false);
     triggerBrowserDownload(json, fileName);
   };

@@ -91,6 +91,9 @@ function stripComments(source: string): string {
   return out;
 }
 
+const MAX_BRACKET_RANGE = 64;
+const MAX_SOP_TERMS = 256;
+
 function expandBracketList(raw: string): string[] {
   const inner = raw.trim().replace(/^\[/, '').replace(/\]$/, '').trim();
   if (!inner) return [];
@@ -102,6 +105,9 @@ function expandBracketList(raw: string): string[] {
       const prefix = rangeMatch[1] || rangeMatch[3];
       const start = parseInt(rangeMatch[2], 10);
       const end = parseInt(rangeMatch[4], 10);
+      if (Math.abs(end - start) > MAX_BRACKET_RANGE) {
+        return [];
+      }
       const step = start <= end ? 1 : -1;
       for (let v = start; step > 0 ? v <= end : v >= end; v += step) {
         items.push(`${prefix}${v}`);
@@ -289,10 +295,14 @@ function simplifySop(sop: Sop): Sop {
     if (!seen.has(k)) {
       seen.add(k);
       terms.push(simplified);
+      if (terms.length > MAX_SOP_TERMS) {
+        throw new Error(`SOP exceeds ${MAX_SOP_TERMS} terms`);
+      }
     }
   }
 
-  let changed = true;
+  // Only run O(T^2) boolean minimization passes when the SOP is reasonably small
+  let changed = terms.length <= 64;
   let iter = 0;
   while (changed && iter < 12) {
     changed = false;
@@ -392,6 +402,9 @@ function simplifySop(sop: Sop): Sop {
 
 function andSop(a: Sop, b: Sop): Sop {
   if (a.length === 0 || b.length === 0) return [];
+  if (a.length * b.length > MAX_SOP_TERMS * 8) {
+    throw new Error(`SOP multiplication exceeds limit`);
+  }
   const combined: Sop = [];
   for (const ta of a) {
     for (const tb of b) {
@@ -416,39 +429,72 @@ function notSop(sop: Sop): Sop {
   return acc;
 }
 
+function exprToDualSop(
+  expr: Expr,
+  macros: Map<string, Expr>,
+  visiting: Set<string> = new Set()
+): { pos: Sop; neg: Sop } {
+  switch (expr.kind) {
+    case 'const':
+      return expr.value === 1 ? { pos: [[]], neg: [] } : { pos: [], neg: [[]] };
+    case 'var': {
+      const upper = expr.name.toUpperCase();
+      if (upper === 'VCC' || upper === 'TRUE') return { pos: [[]], neg: [] };
+      if (upper === 'GND' || upper === 'FALSE') return { pos: [], neg: [[]] };
+      const macroExpr = macros.get(upper);
+      if (macroExpr) {
+        if (visiting.has(upper)) {
+          return {
+            pos: [[{ name: upper, negated: false }]],
+            neg: [[{ name: upper, negated: true }]],
+          };
+        }
+        const nextVisiting = new Set(visiting);
+        nextVisiting.add(upper);
+        return exprToDualSop(macroExpr, macros, nextVisiting);
+      }
+      return {
+        pos: [[{ name: upper, negated: false }]],
+        neg: [[{ name: upper, negated: true }]],
+      };
+    }
+    case 'not': {
+      const inner = exprToDualSop(expr.expr, macros, visiting);
+      return { pos: inner.neg, neg: inner.pos };
+    }
+    case 'and': {
+      const l = exprToDualSop(expr.left, macros, visiting);
+      const r = exprToDualSop(expr.right, macros, visiting);
+      return {
+        pos: andSop(l.pos, r.pos),
+        neg: orSop(l.neg, r.neg),
+      };
+    }
+    case 'or': {
+      const l = exprToDualSop(expr.left, macros, visiting);
+      const r = exprToDualSop(expr.right, macros, visiting);
+      return {
+        pos: orSop(l.pos, r.pos),
+        neg: andSop(l.neg, r.neg),
+      };
+    }
+    case 'xor': {
+      const l = exprToDualSop(expr.left, macros, visiting);
+      const r = exprToDualSop(expr.right, macros, visiting);
+      return {
+        pos: orSop(andSop(l.pos, r.neg), andSop(l.neg, r.pos)),
+        neg: orSop(andSop(l.pos, r.pos), andSop(l.neg, r.neg)),
+      };
+    }
+  }
+}
+
 function exprToSop(
   expr: Expr,
   macros: Map<string, Expr>,
   visiting: Set<string> = new Set()
 ): Sop {
-  switch (expr.kind) {
-    case 'const':
-      return expr.value === 1 ? [[]] : [];
-    case 'var': {
-      const upper = expr.name.toUpperCase();
-      if (upper === 'VCC' || upper === 'TRUE') return [[]];
-      if (upper === 'GND' || upper === 'FALSE') return [];
-      const macroExpr = macros.get(upper);
-      if (macroExpr) {
-        if (visiting.has(upper)) return [[{ name: upper, negated: false }]];
-        const nextVisiting = new Set(visiting);
-        nextVisiting.add(upper);
-        return exprToSop(macroExpr, macros, nextVisiting);
-      }
-      return [[{ name: upper, negated: false }]];
-    }
-    case 'not':
-      return notSop(exprToSop(expr.expr, macros, visiting));
-    case 'and':
-      return andSop(exprToSop(expr.left, macros, visiting), exprToSop(expr.right, macros, visiting));
-    case 'or':
-      return orSop(exprToSop(expr.left, macros, visiting), exprToSop(expr.right, macros, visiting));
-    case 'xor': {
-      const l = exprToSop(expr.left, macros, visiting);
-      const r = exprToSop(expr.right, macros, visiting);
-      return orSop(andSop(l, notSop(r)), andSop(notSop(l), r));
-    }
-  }
+  return exprToDualSop(expr, macros, visiting).pos;
 }
 
 /**
@@ -669,41 +715,45 @@ export function extractFsmFromPld(source: string): ExtractedFsm {
   }
 
   // 2. Match Next-State equations for each CS bit (MSB -> LSB)
-  for (const csVar of csVarNames) {
-    // Check if csVar itself has a registered .D equation
-    const regEq = pinEquations.find(eq => eq.targetName === csVar && eq.ext === 'D');
-    if (regEq) {
-      const effectiveExpr: Expr = regEq.lhsNegated ? { kind: 'not', expr: regEq.expr } : regEq.expr;
-      const pinInfo = pinByName.get(csVar);
-      nsEquationsByBit.push({
-        name: `${displayNames.get(csVar) || csVar}.d`,
-        pin: pinInfo?.pin,
-        sop: exprToSop(effectiveExpr, macros),
-      });
-      continue;
-    }
-
-    // Otherwise find corresponding combinatorial next-state pin equation (e.g. CS2 -> NS2 / FS2 / D2)
-    const bitNum = extractTrailingNumber(csVar);
-    const matchingEq = pinEquations.find(eq => {
-      if (eq.ext !== '') return false;
-      const eqNum = extractTrailingNumber(eq.targetName);
-      if (bitNum !== -1 && eqNum === bitNum && eq.targetName !== csVar) {
-        return /^(NS|FS|NEXT|N_|D)/i.test(eq.targetName);
+  try {
+    for (const csVar of csVarNames) {
+      // Check if csVar itself has a registered .D equation
+      const regEq = pinEquations.find(eq => eq.targetName === csVar && eq.ext === 'D');
+      if (regEq) {
+        const effectiveExpr: Expr = regEq.lhsNegated ? { kind: 'not', expr: regEq.expr } : regEq.expr;
+        const pinInfo = pinByName.get(csVar);
+        nsEquationsByBit.push({
+          name: `${displayNames.get(csVar) || csVar}.d`,
+          pin: pinInfo?.pin,
+          sop: exprToSop(effectiveExpr, macros),
+        });
+        continue;
       }
-      return false;
-    });
 
-    if (matchingEq) {
-      const pinInfo = pinByName.get(matchingEq.targetName);
-      const invert = Boolean(pinInfo?.activeLow) !== matchingEq.lhsNegated;
-      const effectiveExpr: Expr = invert ? { kind: 'not', expr: matchingEq.expr } : matchingEq.expr;
-      nsEquationsByBit.push({
-        name: displayNames.get(matchingEq.targetName) || matchingEq.targetName,
-        pin: pinInfo?.pin,
-        sop: exprToSop(effectiveExpr, macros),
+      // Otherwise find corresponding combinatorial next-state pin equation (e.g. CS2 -> NS2 / FS2 / D2)
+      const bitNum = extractTrailingNumber(csVar);
+      const matchingEq = pinEquations.find(eq => {
+        if (eq.ext !== '') return false;
+        const eqNum = extractTrailingNumber(eq.targetName);
+        if (bitNum !== -1 && eqNum === bitNum && eq.targetName !== csVar) {
+          return /^(NS|FS|NEXT|N_|D)/i.test(eq.targetName);
+        }
+        return false;
       });
+
+      if (matchingEq) {
+        const pinInfo = pinByName.get(matchingEq.targetName);
+        const invert = Boolean(pinInfo?.activeLow) !== matchingEq.lhsNegated;
+        const effectiveExpr: Expr = invert ? { kind: 'not', expr: matchingEq.expr } : matchingEq.expr;
+        nsEquationsByBit.push({
+          name: displayNames.get(matchingEq.targetName) || matchingEq.targetName,
+          pin: pinInfo?.pin,
+          sop: exprToSop(effectiveExpr, macros),
+        });
+      }
     }
+  } catch (err: any) {
+    return emptyResult(err?.message || 'Next-State equations are too complex to extract FSM.');
   }
 
   if (nsEquationsByBit.length !== csVarNames.length) {
@@ -757,32 +807,44 @@ export function extractFsmFromPld(source: string): ExtractedFsm {
     }
   }
 
-  // 4. Identify non-state Output Equations
+  // 4. Identify non-state Output Equations and precompute their SOP once
   const nonStateOutputEqs = pinEquations.filter(eq => {
     if (eq.ext === 'OE' || eq.ext === 'AR' || eq.ext === 'SP') return false;
     if (nsSet.has(eq.targetName)) return false;
     return true;
   });
 
+  const compiledOutputs = nonStateOutputEqs.map(eq => {
+    const pinInfo = pinByName.get(eq.targetName);
+    const declaredActiveLow = Boolean(pinInfo?.activeLow) || eq.lhsNegated;
+    const invertForPhysical = Boolean(pinInfo?.activeLow) !== eq.lhsNegated;
+    const physicalExpr: Expr = invertForPhysical ? { kind: 'not', expr: eq.expr } : eq.expr;
+    let fullSop: Sop = [];
+    try {
+      fullSop = exprToSop(physicalExpr, macros);
+    } catch {
+      fullSop = [];
+    }
+    return {
+      name: displayNames.get(eq.targetName) || eq.originalTargetName,
+      pin: pinInfo?.pin || 0,
+      declaredActiveLow,
+      fullSop,
+    };
+  });
+
   // Evaluate outputs for each state
   const stateNodes: FsmStateNode[] = internalStates.map(st => {
-    const outputs: FsmStateOutput[] = nonStateOutputEqs.map(eq => {
-      const pinInfo = pinByName.get(eq.targetName);
-      const declaredActiveLow = Boolean(pinInfo?.activeLow) || eq.lhsNegated;
-      // Compute physical pin level (1 or 0 or expression)
-      const invertForPhysical = Boolean(pinInfo?.activeLow) !== eq.lhsNegated;
-      const physicalExpr: Expr = invertForPhysical ? { kind: 'not', expr: eq.expr } : eq.expr;
-      const fullSop = exprToSop(physicalExpr, macros);
-      const restricted = restrictSop(fullSop, st.assignment);
+    const outputs: FsmStateOutput[] = compiledOutputs.map(co => {
+      const restricted = restrictSop(co.fullSop, st.assignment);
       const valueStr = formatSop(restricted, displayNames);
-
-      const isActive = declaredActiveLow ? valueStr === '0' : valueStr !== '0';
+      const isActive = co.declaredActiveLow ? valueStr === '0' : valueStr !== '0';
 
       return {
-        name: displayNames.get(eq.targetName) || eq.originalTargetName,
-        pin: pinInfo?.pin || 0,
+        name: co.name,
+        pin: co.pin,
         value: valueStr,
-        declaredActiveLow,
+        declaredActiveLow: co.declaredActiveLow,
         isActive,
         differsFromDefault: false,
       };
@@ -810,30 +872,35 @@ export function extractFsmFromPld(source: string): ExtractedFsm {
   // 5. Compute transitions between all pairs of states (S_from -> S_to)
   const transitions: FsmTransition[] = [];
 
-  for (const fromSt of internalStates) {
-    // Restrict each NS bit equation to fromSt
-    const restrictedNsBits = nsEquationsByBit.map(ns => restrictSop(ns.sop, fromSt.assignment));
+  try {
+    for (const fromSt of internalStates) {
+      // Restrict each NS bit equation to fromSt and precompute its complement once per source state
+      const restrictedNsBits = nsEquationsByBit.map(ns => restrictSop(ns.sop, fromSt.assignment));
+      const negRestrictedNsBits = restrictedNsBits.map(sop => notSop(sop));
 
-    for (const toSt of internalStates) {
-      let guardSop: Sop = [[]]; // Start with TRUE (1)
-      for (let b = 0; b < csVarNames.length; b++) {
-        const targetBitVal = toSt.code[b] === '1' ? 1 : 0;
-        const bitSop = targetBitVal === 1 ? restrictedNsBits[b] : notSop(restrictedNsBits[b]);
-        guardSop = andSop(guardSop, bitSop);
-        if (guardSop.length === 0) break;
-      }
+      for (const toSt of internalStates) {
+        let guardSop: Sop = [[]]; // Start with TRUE (1)
+        for (let b = 0; b < csVarNames.length; b++) {
+          const targetBitVal = toSt.code[b] === '1' ? 1 : 0;
+          const bitSop = targetBitVal === 1 ? restrictedNsBits[b] : negRestrictedNsBits[b];
+          guardSop = andSop(guardSop, bitSop);
+          if (guardSop.length === 0) break;
+        }
 
-      if (guardSop.length > 0) {
-        const guardStr = formatSop(guardSop, displayNames);
-        transitions.push({
-          id: `${fromSt.name}->${toSt.name}`,
-          from: fromSt.name,
-          to: toSt.name,
-          guard: guardStr === '1' ? 'always (1)' : guardStr,
-          isSelfLoop: fromSt.name === toSt.name,
-        });
+        if (guardSop.length > 0) {
+          const guardStr = formatSop(guardSop, displayNames);
+          transitions.push({
+            id: `${fromSt.name}->${toSt.name}`,
+            from: fromSt.name,
+            to: toSt.name,
+            guard: guardStr === '1' ? 'always (1)' : guardStr,
+            isSelfLoop: fromSt.name === toSt.name,
+          });
+        }
       }
     }
+  } catch (err: any) {
+    return emptyResult(err?.message || 'Transition guard expressions are too complex to extract FSM.');
   }
 
   // Collect input and output metadata

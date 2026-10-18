@@ -123,6 +123,9 @@ function stripComments(source: string): string {
   return out;
 }
 
+const MAX_BRACKET_RANGE = 64;
+const MAX_SOP_TERMS = 256;
+
 function expandBracketList(raw: string): string[] {
   const inner = raw.trim().replace(/^\[/, '').replace(/\]$/, '').trim();
   if (!inner) return [];
@@ -136,6 +139,9 @@ function expandBracketList(raw: string): string[] {
       const start = parseInt(rangeMatch[2], 10);
       const prefix2 = rangeMatch[3];
       const end = parseInt(rangeMatch[4], 10);
+      if (Math.abs(end - start) > MAX_BRACKET_RANGE) {
+        throw new Error(`Range "${trimmed}" is too large (max ${MAX_BRACKET_RANGE} pins)`);
+      }
       const prefix = prefix1 || prefix2;
       const step = start <= end ? 1 : -1;
       for (let v = start; step > 0 ? v <= end : v >= end; v += step) {
@@ -327,6 +333,9 @@ function simplifySop(sop: Sop): Sop {
     if (!seen.has(key)) {
       seen.add(key);
       out.push(simplified);
+      if (out.length > MAX_SOP_TERMS) {
+        throw new Error(`Expression expands to more than ${MAX_SOP_TERMS} product terms (exceeds GAL22V10 hardware limits)`);
+      }
     }
   }
   return out;
@@ -334,6 +343,9 @@ function simplifySop(sop: Sop): Sop {
 
 function andSop(a: Sop, b: Sop): Sop {
   if (a.length === 0 || b.length === 0) return [];
+  if (a.length * b.length > MAX_SOP_TERMS * 8) {
+    throw new Error(`Expression expands to more than ${MAX_SOP_TERMS} product terms (exceeds GAL22V10 hardware limits)`);
+  }
   const combined: Sop = [];
   for (const ta of a) {
     for (const tb of b) {
@@ -347,37 +359,18 @@ function orSop(a: Sop, b: Sop): Sop {
   return simplifySop([...a, ...b]);
 }
 
-function notSop(sop: Sop): Sop {
-  // De Morgan's Law: !(T1 # T2 # ...) = (!T1) & (!T2) & ...
-  if (sop.length === 0) {
-    // !0 = 1
-    return [[]];
-  }
-  let acc: Sop = [[]]; // Start with constant 1
-  for (const term of sop) {
-    if (term.length === 0) {
-      // !1 = 0
-      return [];
-    }
-    // !(L1 & L2 & ...) = (!L1) # (!L2) # ...
-    const invertedLiterals: Sop = term.map(lit => [{ name: lit.name, negated: !lit.negated }]);
-    acc = andSop(acc, invertedLiterals);
-  }
-  return acc;
-}
-
-function exprToSop(
+function exprToDualSop(
   expr: Expr,
   macros: Map<string, Expr>,
   visiting: Set<string> = new Set()
-): Sop {
+): { pos: Sop; neg: Sop } {
   switch (expr.kind) {
     case 'const':
-      return expr.value === 1 ? [[]] : [];
+      return expr.value === 1 ? { pos: [[]], neg: [] } : { pos: [], neg: [[]] };
     case 'var': {
       const upper = expr.name.toUpperCase();
-      if (upper === 'VCC' || upper === 'TRUE') return [[]];
-      if (upper === 'GND' || upper === 'FALSE') return [];
+      if (upper === 'VCC' || upper === 'TRUE') return { pos: [[]], neg: [] };
+      if (upper === 'GND' || upper === 'FALSE') return { pos: [], neg: [[]] };
       const macroExpr = macros.get(upper);
       if (macroExpr) {
         if (visiting.has(upper)) {
@@ -385,22 +378,50 @@ function exprToSop(
         }
         const nextVisiting = new Set(visiting);
         nextVisiting.add(upper);
-        return exprToSop(macroExpr, macros, nextVisiting);
+        return exprToDualSop(macroExpr, macros, nextVisiting);
       }
-      return [[{ name: upper, negated: false }]];
+      return {
+        pos: [[{ name: upper, negated: false }]],
+        neg: [[{ name: upper, negated: true }]],
+      };
     }
-    case 'not':
-      return notSop(exprToSop(expr.expr, macros, visiting));
-    case 'and':
-      return andSop(exprToSop(expr.left, macros, visiting), exprToSop(expr.right, macros, visiting));
-    case 'or':
-      return orSop(exprToSop(expr.left, macros, visiting), exprToSop(expr.right, macros, visiting));
+    case 'not': {
+      const inner = exprToDualSop(expr.expr, macros, visiting);
+      return { pos: inner.neg, neg: inner.pos };
+    }
+    case 'and': {
+      const l = exprToDualSop(expr.left, macros, visiting);
+      const r = exprToDualSop(expr.right, macros, visiting);
+      return {
+        pos: andSop(l.pos, r.pos),
+        neg: orSop(l.neg, r.neg),
+      };
+    }
+    case 'or': {
+      const l = exprToDualSop(expr.left, macros, visiting);
+      const r = exprToDualSop(expr.right, macros, visiting);
+      return {
+        pos: orSop(l.pos, r.pos),
+        neg: andSop(l.neg, r.neg),
+      };
+    }
     case 'xor': {
-      const l = exprToSop(expr.left, macros, visiting);
-      const r = exprToSop(expr.right, macros, visiting);
-      return orSop(andSop(l, notSop(r)), andSop(notSop(l), r));
+      const l = exprToDualSop(expr.left, macros, visiting);
+      const r = exprToDualSop(expr.right, macros, visiting);
+      return {
+        pos: orSop(andSop(l.pos, r.neg), andSop(l.neg, r.pos)),
+        neg: orSop(andSop(l.pos, r.pos), andSop(l.neg, r.neg)),
+      };
     }
   }
+}
+
+function exprToSop(
+  expr: Expr,
+  macros: Map<string, Expr>,
+  visiting: Set<string> = new Set()
+): Sop {
+  return exprToDualSop(expr, macros, visiting).pos;
 }
 
 const HEADER_KEYWORDS = new Set([
@@ -470,8 +491,18 @@ export function compilePldToJedec(source: string): PldCompileResult {
     // In WinCUPL, pin names may start with digits (e.g., 16ms, 2Sec, 2Sec_Load)
     const pinMatch = text.match(/^PIN\s+(\[[^\]]+\]|\d+)\s*=\s*(\[[^\]]+\]|!?\s*[A-Za-z0-9_]+)$/i);
     if (pinMatch) {
-      const pinNums = expandBracketList(pinMatch[1]).map(s => parseInt(s, 10));
-      const pinNames = expandBracketList(pinMatch[2]);
+      let pinNums: number[];
+      let pinNames: string[];
+      try {
+        pinNums = expandBracketList(pinMatch[1]).map(s => parseInt(s, 10));
+        pinNames = expandBracketList(pinMatch[2]);
+      } catch (err: any) {
+        errors.push({
+          line: stmt.line,
+          message: err.message || 'Invalid PIN range declaration',
+        });
+        continue;
+      }
       if (pinNums.length !== pinNames.length) {
         errors.push({
           line: stmt.line,

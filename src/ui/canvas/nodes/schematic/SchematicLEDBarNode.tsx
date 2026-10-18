@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Group, Rect, Path } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
@@ -31,7 +31,14 @@ export const SchematicLEDBarNode: React.FC<Props> = React.memo(({ node }) => {
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getSchematicDimensions(node);
   
-  const pinYs = getGridAlignedPinYs(node.inputs.length, height);
+  const { pinYs, legsPath } = useMemo(() => {
+    const ys = getGridAlignedPinYs(node.inputs.length, height);
+    let dStr = '';
+    for (let i = 0; i < ys.length; i++) {
+      dStr += `M 0 ${ys[i]} L -20 ${ys[i]} `;
+    }
+    return { pinYs: ys, legsPath: dStr };
+  }, [node.inputs.length, height]);
 
   return (
     <SchematicNodeWrapper node={node}>
@@ -46,6 +53,14 @@ export const SchematicLEDBarNode: React.FC<Props> = React.memo(({ node }) => {
         cornerRadius={4}
         perfectDrawEnabled={false}
       />
+
+      <Path
+        data={legsPath}
+        stroke={canvasTheme.nodeBorder}
+        strokeWidth={2}
+        perfectDrawEnabled={false}
+        listening={false}
+      />
       
       {node.inputs.map((pin, index) => {
         const y = pinYs[index];
@@ -53,13 +68,6 @@ export const SchematicLEDBarNode: React.FC<Props> = React.memo(({ node }) => {
 
         return (
           <Group key={pin.id}>
-            <Path
-              data={`M 0 ${y} L -20 ${y}`}
-              stroke={canvasTheme.nodeBorder}
-              strokeWidth={2}
-              perfectDrawEnabled={false}
-              listening={false}
-            />
             <Pin
               id={pin.id}
               nodeId={node.id}

@@ -207,4 +207,21 @@ describe('WinCUPL .pld to GAL22V10 JEDEC Compiler', () => {
     expect(getOlmcOutput(out2, 14)).toBe(1);
     expect(getOlmcOutput(out2, 15)).toBe(1);
   });
+
+  it('rejects oversized PIN bracket ranges and excessive XOR expansions quickly without hanging', () => {
+    const t0 = performance.now();
+    const badRange = compilePldToJedec('Pin [1..9999999] = [A1..A9999999];');
+    expect(badRange.success).toBe(false);
+    expect(badRange.errors[0]?.message).toContain('too large');
+
+    const bigXor = compilePldToJedec(`
+      Name BigXor;
+      Device g22v10;
+      Pin [1..11] = [I0..I10];
+      Pin 14 = Out1;
+      Out1 = I0 $ I1 $ I2 $ I3 $ I4 $ I5 $ I6 $ I7 $ I8 $ I9 $ I10;
+    `);
+    expect(bigXor.success).toBe(false);
+    expect(performance.now() - t0).toBeLessThan(100);
+  });
 });
