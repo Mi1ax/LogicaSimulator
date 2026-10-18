@@ -718,16 +718,12 @@ export const useSimulatorStore = create<SimulatorState>()(
 
     const firstTickTransition = prevSim.tickCount === 0 && nextSimState.tickCount > 0;
     const pinsChanged = nextSimState.pinStates !== prevSim.pinStates;
-
-    let memoryChanged = false;
-    if (!pinsChanged && nextSimState.nodeStates && prevSim.nodeStates) {
-      for (const nodeId in nextSimState.nodeStates) {
-        if (nextSimState.nodeStates[nodeId]?.memory !== prevSim.nodeStates[nodeId]?.memory) {
-          memoryChanged = true;
-          break;
-        }
-      }
-    }
+    const memId = state.selectedMemoryNodeId;
+    const memoryChanged = Boolean(
+      !pinsChanged &&
+        memId &&
+        nextSimState.nodeStates?.[memId]?.memory !== prevSim.nodeStates?.[memId]?.memory
+    );
 
     if (!firstTickTransition && !pinsChanged && !memoryChanged) {
       // Fast path: no logic signals or SRAM bytes changed during these ticks.

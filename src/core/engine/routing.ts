@@ -20,15 +20,18 @@ export const computeManhattanElbow = (
   return { x: start.x, y: end.y };
 };
 
-const wireCache = new Map<
-  string,
-  {
-    path: string;
-    points: { x: number; y: number }[];
-    hash: string;
-    waypointsRef: { x: number; y: number }[] | undefined;
-  }
->();
+export interface WirePathEntry {
+  path: string;
+  points: { x: number; y: number }[];
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  hash: string;
+  waypointsRef: { x: number; y: number }[] | undefined;
+}
+
+const wireCache = new Map<string, WirePathEntry>();
 
 export const computeDraftWirePath = (draftWire: {
   start: Point;
@@ -62,7 +65,7 @@ export const computeAllWirePaths = (
   nodes: LogicNode[],
   draftWire?: { start: Point; end: Point; waypoints?: { x: number; y: number }[]; manhattan?: boolean }
 ) => {
-  const wirePaths = new Map<string, { path: string; points: { x: number; y: number }[] }>();
+  const wirePaths = new Map<string, WirePathEntry>();
 
   if (wires.length > 0 || !draftWire) {
     const nodeMap = new Map<string, LogicNode>();
@@ -106,6 +109,10 @@ export const computeAllWirePaths = (
       const end = getSchematicPinPosition(targetNode, wire.targetPinId);
 
       const points = [{ x: start.x, y: start.y }];
+      let minX = start.x < end.x ? start.x : end.x;
+      let maxX = start.x > end.x ? start.x : end.x;
+      let minY = start.y < end.y ? start.y : end.y;
+      let maxY = start.y > end.y ? start.y : end.y;
 
       let path = `M ${start.x} ${start.y}`;
       if (wire.waypoints && wire.waypoints.length > 0) {
@@ -113,12 +120,25 @@ export const computeAllWirePaths = (
           const wp = wire.waypoints[w];
           path += ` L ${wp.x} ${wp.y}`;
           points.push({ x: wp.x, y: wp.y });
+          if (wp.x < minX) minX = wp.x;
+          if (wp.x > maxX) maxX = wp.x;
+          if (wp.y < minY) minY = wp.y;
+          if (wp.y > maxY) maxY = wp.y;
         }
       }
       path += ` L ${end.x} ${end.y}`;
       points.push({ x: end.x, y: end.y });
 
-      const entry = { path, points, hash, waypointsRef: wire.waypoints };
+      const entry: WirePathEntry = {
+        path,
+        points,
+        minX,
+        maxX,
+        minY,
+        maxY,
+        hash,
+        waypointsRef: wire.waypoints,
+      };
       wireCache.set(wire.id, entry);
       wirePaths.set(wire.id, entry);
     }

@@ -247,7 +247,14 @@ const DraftWirePreview: React.FC<{ draftWireColor: string }> = React.memo(({ dra
   );
 });
 
-export const WireRenderer: React.FC = React.memo(() => {
+export interface ViewportBounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+export const WireRenderer: React.FC<{ viewportBounds?: ViewportBounds | null }> = React.memo(({ viewportBounds }) => {
   const wires = useSimulatorStore(state => state.wires);
   const nodes = useSimulatorStore(state => state.nodes);
   const theme = useSimulatorStore(state => state.theme);
@@ -272,11 +279,23 @@ export const WireRenderer: React.FC = React.memo(() => {
     return set;
   }, [nodes]);
 
+  const cullWires = Boolean(viewportBounds && wires.length > 100);
+
   return (
     <>
       {wires.map(wire => {
         const wireInfo = wirePaths.get(wire.id);
         if (!wireInfo) return null;
+        if (
+          cullWires &&
+          viewportBounds &&
+          (wireInfo.maxX < viewportBounds.minX ||
+            wireInfo.minX > viewportBounds.maxX ||
+            wireInfo.maxY < viewportBounds.minY ||
+            wireInfo.minY > viewportBounds.maxY)
+        ) {
+          return null;
+        }
         
         return (
           <SingleWire 

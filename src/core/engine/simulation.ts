@@ -116,6 +116,8 @@ export interface SimulationState {
 
 interface CompiledNode {
   id: string;
+  selfIndex: number;
+  hasSelfFeedbackPin: boolean;
   sourceNode: LogicNode;
   isFlattened: boolean;
   def: NodeDefinition;
@@ -140,6 +142,7 @@ interface CompiledNet {
   allPinIndices: Int32Array;
   strongDriverIndices: Int32Array;
   weakDriverIndices: Int32Array;
+  fanoutNodeIndices: Int32Array;
 }
 
 export interface CompiledCircuit {
@@ -149,9 +152,15 @@ export interface CompiledCircuit {
   connectedPins: Set<string>;
   disconnectedInputPinIds: string[];
   disconnectedInputPinIndices: Int32Array;
+  pinToNetIdx: Int32Array;
+  dirtyNetFlags: Uint8Array;
+  dirtyNetsList: Int32Array;
+  dirtyNodeFlags: Uint8Array;
+  dirtyNodesA: Int32Array;
+  dirtyNodesB: Int32Array;
   allPinIds: string[];
   curBuf: Signal[];
-  nextBuf: Signal[];
+  driverBuf: Signal[];
   prevBuf: Signal[];
 }
 
@@ -337,8 +346,21 @@ export const compileCircuit = (
         vccInputIdx = -1;
         gndInputIdx = -1;
       }
+      let hasSelfFeedbackPin = false;
+      for (let p = 0; p < outputPinIndices.length; p++) {
+        for (let q = 0; q < inputPinIndices.length; q++) {
+          if (outputPinIndices[p] === inputPinIndices[q]) {
+            hasSelfFeedbackPin = true;
+            break;
+          }
+        }
+        if (hasSelfFeedbackPin) break;
+      }
+
       compiledNodes.push({
         id: n.id,
+        selfIndex: compiledNodes.length,
+        hasSelfFeedbackPin,
         sourceNode: n,
         isFlattened: Boolean(n.properties?._isFlattened),
         def,
@@ -394,6 +416,7 @@ export const compileCircuit = (
       allPinIndices,
       strongDriverIndices,
       weakDriverIndices,
+      fanoutNodeIndices: new Int32Array(0),
     };
   }
 
@@ -411,6 +434,29 @@ export const compileCircuit = (
   }
 
   const totalPins = allPinIds.length;
+  const pinToNetIdx = new Int32Array(totalPins).fill(-1);
+  const netFanoutSets: Set<number>[] = new Array(activeNets.length);
+  for (let i = 0; i < activeNets.length; i++) {
+    netFanoutSets[i] = new Set<number>();
+    const netPinIndices = activeNets[i].allPinIndices;
+    for (let p = 0; p < netPinIndices.length; p++) {
+      pinToNetIdx[netPinIndices[p]] = i;
+    }
+  }
+
+  for (let nIdx = 0; nIdx < compiledNodes.length; nIdx++) {
+    const inPinIndices = compiledNodes[nIdx].inputPinIndices;
+    for (let p = 0; p < inPinIndices.length; p++) {
+      const netIdx = pinToNetIdx[inPinIndices[p]];
+      if (netIdx >= 0) {
+        netFanoutSets[netIdx].add(nIdx);
+      }
+    }
+  }
+
+  for (let i = 0; i < activeNets.length; i++) {
+    activeNets[i].fanoutNodeIndices = Int32Array.from(netFanoutSets[i]);
+  }
 
   return {
     compiledNodes,
@@ -419,9 +465,15 @@ export const compileCircuit = (
     connectedPins,
     disconnectedInputPinIds,
     disconnectedInputPinIndices: Int32Array.from(disconnectedIndicesList),
+    pinToNetIdx,
+    dirtyNetFlags: new Uint8Array(activeNets.length),
+    dirtyNetsList: new Int32Array(activeNets.length),
+    dirtyNodeFlags: new Uint8Array(compiledNodes.length),
+    dirtyNodesA: new Int32Array(compiledNodes.length),
+    dirtyNodesB: new Int32Array(compiledNodes.length),
     allPinIds,
     curBuf: new Array(totalPins),
-    nextBuf: new Array(totalPins),
+    driverBuf: new Array(totalPins),
     prevBuf: new Array(totalPins),
   };
 };
@@ -444,10 +496,67 @@ const cloneInternalState = (raw?: Record<string, any>): Record<string, any> => {
   return cloned;
 };
 
+function resolveNet(
+  net: CompiledNet,
+  driverBuf: Signal[],
+  curBuf: Signal[]
+): boolean {
+  const { allPinIndices, strongDriverIndices, weakDriverIndices } = net;
+  let strongValue: Signal = undefined;
+  let strongCollision = false;
+
+  for (let s = 0; s < strongDriverIndices.length; s++) {
+    const val = driverBuf[strongDriverIndices[s]];
+    if (val !== undefined) {
+      if (strongValue === undefined) {
+        strongValue = val;
+      } else if (strongValue !== val) {
+        strongCollision = true;
+        break;
+      }
+    }
+  }
+
+  let finalVal: Signal;
+  if (strongCollision) {
+    finalVal = 'X';
+  } else if (strongValue !== undefined) {
+    finalVal = strongValue;
+  } else if (weakDriverIndices.length > 0) {
+    let weakValue: Signal = undefined;
+    let weakCollision = false;
+    for (let w = 0; w < weakDriverIndices.length; w++) {
+      const val = driverBuf[weakDriverIndices[w]];
+      if (val !== undefined) {
+        if (weakValue === undefined) {
+          weakValue = val;
+        } else if (weakValue !== val) {
+          weakCollision = true;
+          break;
+        }
+      }
+    }
+    finalVal = weakCollision ? 'X' : weakValue;
+  } else {
+    finalVal = undefined;
+  }
+
+  let anyPinUpdated = false;
+  for (let p = 0; p < allPinIndices.length; p++) {
+    const pinIdx = allPinIndices[p];
+    if (curBuf[pinIdx] !== finalVal) {
+      curBuf[pinIdx] = finalVal;
+      anyPinUpdated = true;
+    }
+  }
+  return anyPinUpdated;
+}
+
 export const stepCompiledCircuit = (
   compiled: CompiledCircuit,
   prevState: SimulationState,
-  computeWireStates: boolean = true
+  computeWireStates: boolean = true,
+  reuseCurBuf: boolean = false
 ): SimulationState => {
   const {
     compiledNodes,
@@ -455,22 +564,36 @@ export const stepCompiledCircuit = (
     activeNets,
     connectedPins,
     disconnectedInputPinIndices,
+    pinToNetIdx,
+    dirtyNetFlags,
+    dirtyNetsList,
+    dirtyNodeFlags,
     allPinIds,
   } = compiled;
 
   const totalPins = allPinIds.length;
-  let curBuf = compiled.curBuf;
-  let nextBuf = compiled.nextBuf;
+  const curBuf = compiled.curBuf;
+  const driverBuf = compiled.driverBuf;
   const prevBuf = compiled.prevBuf;
   const prevPinStates = prevState.pinStates;
+  let curDirtyNodes = compiled.dirtyNodesA;
+  let nextDirtyNodes = compiled.dirtyNodesB;
+  let curDirtyNodeCount = 0;
+  let nextDirtyNodeCount = 0;
 
-  for (let i = 0; i < totalPins; i++) {
-    const val = prevPinStates[allPinIds[i]];
-    curBuf[i] = val;
-    prevBuf[i] = val;
+  if (!reuseCurBuf) {
+    for (let i = 0; i < totalPins; i++) {
+      const val = prevPinStates[allPinIds[i]];
+      curBuf[i] = val;
+      prevBuf[i] = val;
+    }
+  } else {
+    for (let i = 0; i < totalPins; i++) {
+      prevBuf[i] = curBuf[i];
+    }
   }
 
-  // Clear disconnected input pins immediately so gates see undefined on iteration 0
+  // Clear disconnected input pins once before iteration 0
   for (let i = 0; i < disconnectedInputPinIndices.length; i++) {
     curBuf[disconnectedInputPinIndices[i]] = undefined;
   }
@@ -486,13 +609,17 @@ export const stepCompiledCircuit = (
   const MAX_ITERATIONS = 50;
 
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
-    for (let i = 0; i < totalPins; i++) {
-      nextBuf[i] = curBuf[i];
-    }
+    let changed = false;
+    let dirtyNetCount = 0;
+    const nodeLimit = iter === 0 ? compiledNodes.length : curDirtyNodeCount;
 
     // 1. Evaluate gates and sources
-    for (let i = 0; i < compiledNodes.length; i++) {
-      const cn = compiledNodes[i];
+    for (let idx = 0; idx < nodeLimit; idx++) {
+      const nodeIdx = iter === 0 ? idx : curDirtyNodes[idx];
+      if (iter > 0) {
+        dirtyNodeFlags[nodeIdx] = 0;
+      }
+      const cn = compiledNodes[nodeIdx];
       const {
         inputPinIndices,
         outputPinIndices,
@@ -504,6 +631,7 @@ export const stepCompiledCircuit = (
         def,
         sourceNode,
         id,
+        hasSelfFeedbackPin,
       } = cn;
 
       const inLen = inputPinIndices.length;
@@ -517,6 +645,10 @@ export const stepCompiledCircuit = (
         }
       }
 
+      if (!inputsChanged) {
+        continue;
+      }
+
       const isPowered =
         (vccInputIdx === -1 || inValsBuf[vccInputIdx] !== 0) &&
         (gndInputIdx === -1 || inValsBuf[gndInputIdx] !== 1);
@@ -524,13 +656,26 @@ export const stepCompiledCircuit = (
       if (!isPowered) {
         cn.lastHasInternal = false;
         cn.lastInternal = undefined;
+        cn.lastOutVals = undefined;
         for (let p = 0; p < outputPinIndices.length; p++) {
-          nextBuf[outputPinIndices[p]] = undefined;
-        }
-      } else if (!inputsChanged && cn.lastOutVals !== undefined) {
-        const outVals = cn.lastOutVals;
-        for (let p = 0; p < outputPinIndices.length; p++) {
-          nextBuf[outputPinIndices[p]] = outVals[p];
+          const pinIdx = outputPinIndices[p];
+          if (iter === 0 || driverBuf[pinIdx] !== undefined) {
+            driverBuf[pinIdx] = undefined;
+            const netIdx = pinToNetIdx[pinIdx];
+            if (netIdx >= 0) {
+              if (iter > 0 && dirtyNetFlags[netIdx] === 0) {
+                dirtyNetFlags[netIdx] = 1;
+                dirtyNetsList[dirtyNetCount++] = netIdx;
+              }
+            } else if (curBuf[pinIdx] !== undefined) {
+              curBuf[pinIdx] = undefined;
+              changed = true;
+              if (hasSelfFeedbackPin && dirtyNodeFlags[nodeIdx] === 0) {
+                dirtyNodeFlags[nodeIdx] = 1;
+                nextDirtyNodes[nextDirtyNodeCount++] = nodeIdx;
+              }
+            }
+          }
         }
       } else {
         const prevNodeState = prevState.nodeStates?.[id];
@@ -554,78 +699,76 @@ export const stepCompiledCircuit = (
         cn.lastInternal = hasInternal ? internal : undefined;
 
         for (let p = 0; p < outputPinIndices.length; p++) {
-          nextBuf[outputPinIndices[p]] = outVals[p];
+          const pinIdx = outputPinIndices[p];
+          const newVal = outVals[p];
+          if (iter === 0 || driverBuf[pinIdx] !== newVal) {
+            driverBuf[pinIdx] = newVal;
+            const netIdx = pinToNetIdx[pinIdx];
+            if (netIdx >= 0) {
+              if (iter > 0 && dirtyNetFlags[netIdx] === 0) {
+                dirtyNetFlags[netIdx] = 1;
+                dirtyNetsList[dirtyNetCount++] = netIdx;
+              }
+            } else if (curBuf[pinIdx] !== newVal) {
+              curBuf[pinIdx] = newVal;
+              changed = true;
+              if (hasSelfFeedbackPin && dirtyNodeFlags[nodeIdx] === 0) {
+                dirtyNodeFlags[nodeIdx] = 1;
+                nextDirtyNodes[nextDirtyNodeCount++] = nodeIdx;
+              }
+            }
+          }
         }
       }
     }
 
     // 2. Propagate through wires (Net resolution: strong drivers override weak pull-up/pull-down)
-    for (let n = 0; n < activeNets.length; n++) {
-      const { allPinIndices, strongDriverIndices, weakDriverIndices } = activeNets[n];
-      let strongValue: Signal = undefined;
-      let strongCollision = false;
-
-      for (let s = 0; s < strongDriverIndices.length; s++) {
-        const val = nextBuf[strongDriverIndices[s]];
-        if (val !== undefined) {
-          if (strongValue === undefined) {
-            strongValue = val;
-          } else if (strongValue !== val) {
-            strongCollision = true;
-            break;
-          }
-        }
-      }
-
-      let finalVal: Signal;
-      if (strongCollision) {
-        finalVal = 'X';
-      } else if (strongValue !== undefined) {
-        finalVal = strongValue;
-      } else if (weakDriverIndices.length > 0) {
-        let weakValue: Signal = undefined;
-        let weakCollision = false;
-        for (let w = 0; w < weakDriverIndices.length; w++) {
-          const val = nextBuf[weakDriverIndices[w]];
-          if (val !== undefined) {
-            if (weakValue === undefined) {
-              weakValue = val;
-            } else if (weakValue !== val) {
-              weakCollision = true;
-              break;
+    if (iter === 0) {
+      for (let n = 0; n < activeNets.length; n++) {
+        const net = activeNets[n];
+        if (resolveNet(net, driverBuf, curBuf)) {
+          changed = true;
+          const fanout = net.fanoutNodeIndices;
+          for (let f = 0; f < fanout.length; f++) {
+            const fNodeIdx = fanout[f];
+            if (dirtyNodeFlags[fNodeIdx] === 0) {
+              dirtyNodeFlags[fNodeIdx] = 1;
+              nextDirtyNodes[nextDirtyNodeCount++] = fNodeIdx;
             }
           }
         }
-        finalVal = weakCollision ? 'X' : weakValue;
-      } else {
-        finalVal = undefined;
       }
-
-      for (let p = 0; p < allPinIndices.length; p++) {
-        nextBuf[allPinIndices[p]] = finalVal;
-      }
-    }
-
-    // 3. Ensure disconnected input pins remain undefined
-    for (let i = 0; i < disconnectedInputPinIndices.length; i++) {
-      nextBuf[disconnectedInputPinIndices[i]] = undefined;
-    }
-
-    // 4. Check if state settled
-    let changed = false;
-    for (let i = 0; i < totalPins; i++) {
-      if (nextBuf[i] !== curBuf[i]) {
-        changed = true;
-        break;
+    } else {
+      for (let d = 0; d < dirtyNetCount; d++) {
+        const n = dirtyNetsList[d];
+        dirtyNetFlags[n] = 0;
+        const net = activeNets[n];
+        if (resolveNet(net, driverBuf, curBuf)) {
+          changed = true;
+          const fanout = net.fanoutNodeIndices;
+          for (let f = 0; f < fanout.length; f++) {
+            const fNodeIdx = fanout[f];
+            if (dirtyNodeFlags[fNodeIdx] === 0) {
+              dirtyNodeFlags[fNodeIdx] = 1;
+              nextDirtyNodes[nextDirtyNodeCount++] = fNodeIdx;
+            }
+          }
+        }
       }
     }
 
-    // Swap buffers for next iteration without allocating
-    const tmp = curBuf;
-    curBuf = nextBuf;
-    nextBuf = tmp;
+    if (!changed || nextDirtyNodeCount === 0) {
+      for (let d = 0; d < nextDirtyNodeCount; d++) {
+        dirtyNodeFlags[nextDirtyNodes[d]] = 0;
+      }
+      break;
+    }
 
-    if (!changed) break;
+    const tmpNodes = curDirtyNodes;
+    curDirtyNodes = nextDirtyNodes;
+    nextDirtyNodes = tmpNodes;
+    curDirtyNodeCount = nextDirtyNodeCount;
+    nextDirtyNodeCount = 0;
   }
 
   const finalNodeStates: Record<string, Record<string, any>> = {};
@@ -636,14 +779,35 @@ export const stepCompiledCircuit = (
     }
   }
 
+  // On intermediate ticks of a batch (computeWireStates === false), keep curBuf in-place
+  // and defer materializing pinStates/wireStates objects until the final tick of the batch.
+  if (!computeWireStates) {
+    return {
+      tickCount: prevState.tickCount + 1,
+      pinStates: prevPinStates,
+      wireStates: prevState.wireStates,
+      nodeStates: finalNodeStates,
+      connectedPins,
+    };
+  }
+
   // Structural sharing: if no pin states changed compared to prevState.pinStates,
   // reuse prevState.pinStates and prevState.wireStates references to avoid triggering UI subscribers.
   let anyPinChangedFromPrev = prevState.tickCount === 0;
   if (!anyPinChangedFromPrev) {
-    for (let i = 0; i < totalPins; i++) {
-      if (curBuf[i] !== prevBuf[i]) {
-        anyPinChangedFromPrev = true;
-        break;
+    if (!reuseCurBuf) {
+      for (let i = 0; i < totalPins; i++) {
+        if (curBuf[i] !== prevBuf[i]) {
+          anyPinChangedFromPrev = true;
+          break;
+        }
+      }
+    } else {
+      for (let i = 0; i < totalPins; i++) {
+        if (curBuf[i] !== prevPinStates[allPinIds[i]]) {
+          anyPinChangedFromPrev = true;
+          break;
+        }
       }
     }
   }
@@ -659,9 +823,7 @@ export const stepCompiledCircuit = (
   }
 
   let finalWireStates: Record<string, Signal>;
-  if (!computeWireStates) {
-    finalWireStates = prevState.wireStates;
-  } else if (
+  if (
     !anyPinChangedFromPrev &&
     (wires.length === 0 || wires[0].id in prevState.wireStates)
   ) {
@@ -794,7 +956,7 @@ export const computeNextState = (
   savedCircuits: Record<string, { nodes: LogicNode[]; wires: Wire[] }> = EMPTY_SAVED_CIRCUITS
 ): SimulationState => {
   const compiled = getOrCompileCircuit(rootNodes, rootWires, savedCircuits);
-  return stepCompiledCircuit(compiled, prevState, true);
+  return stepCompiledCircuit(compiled, prevState, true, false);
 };
 
 export const computeNextStateBatch = (
@@ -820,7 +982,7 @@ export const computeNextStateBatch = (
       (i & 15) === 0 &&
       (typeof performance !== 'undefined' ? performance.now() : Date.now()) - startTime >= maxBudgetMs;
 
-    nextState = stepCompiledCircuit(compiled, nextState, isLast || hitBudget);
+    nextState = stepCompiledCircuit(compiled, nextState, isLast || hitBudget, i > 0);
     executed++;
     if (hitBudget) break;
   }

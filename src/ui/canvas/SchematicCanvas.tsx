@@ -1,5 +1,5 @@
 import { SchematicJunctionNode } from "./nodes/schematic/SchematicJunctionNode";
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Stage, Layer, Rect } from 'react-konva';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { Grid } from './Grid';
@@ -8,7 +8,7 @@ import { SchematicIONode } from './nodes/schematic/SchematicIONode';
 import { SchematicNetLabelNode } from './nodes/schematic/SchematicNetLabelNode';
 import { SchematicICNode } from './nodes/schematic/SchematicICNode';
 import { SchematicDipSwitchNode } from './nodes/schematic/SchematicDipSwitchNode';
-import { WireRenderer } from './wires/WireRenderer';
+import { WireRenderer, ViewportBounds } from './wires/WireRenderer';
 import { getNodeDefinition } from '../../core/engine/nodes';
 import { getSchematicDimensions, getSchematicAnchor } from '../../core/utils/schematicLayout';
 import { computeAllWirePaths } from '../../core/engine/routing';
@@ -28,9 +28,6 @@ import {
 
 let lastNodesArray: any[] = [];
 let nodeMapCache = new Map<string, any>();
-let lastSplitNodesRef: any[] | null = null;
-let cachedBgIds: string[] = [];
-let cachedFgIds: string[] = [];
 
 function getNodeById(state: any, id: string) {
   if (state.nodes !== lastNodesArray) {
@@ -41,36 +38,6 @@ function getNodeById(state: any, id: string) {
     lastNodesArray = state.nodes;
   }
   return nodeMapCache.get(id);
-}
-
-function getSplitNodeIds(nodes: LogicNode[]) {
-  if (nodes !== lastSplitNodesRef) {
-    const bg: string[] = [];
-    const fg: string[] = [];
-    for (let i = 0; i < nodes.length; i++) {
-      const n = nodes[i];
-      if (n.type === 'REGION_BOX' || n.type === 'FSM_DIAGRAM') {
-        bg.push(n.id);
-      } else {
-        fg.push(n.id);
-      }
-    }
-    // Preserve previous array reference if contents are identical
-    if (
-      bg.length !== cachedBgIds.length ||
-      bg.some((id, idx) => id !== cachedBgIds[idx])
-    ) {
-      cachedBgIds = bg;
-    }
-    if (
-      fg.length !== cachedFgIds.length ||
-      fg.some((id, idx) => id !== cachedFgIds[idx])
-    ) {
-      cachedFgIds = fg;
-    }
-    lastSplitNodesRef = nodes;
-  }
-  return { cachedBgIds, cachedFgIds };
 }
 
 import { LogicNode } from '../../core/models/types';
@@ -123,12 +90,55 @@ export const SchematicCanvas: React.FC = () => {
   const setScale = useSimulatorStore(state => state.setSchematicScale);
   const setCanvasOffset = useSimulatorStore(state => state.setCanvasOffset);
   
-  const backgroundNodeIds = useSimulatorStore(state => getSplitNodeIds(state.nodes).cachedBgIds);
-  const foregroundNodeIds = useSimulatorStore(state => getSplitNodeIds(state.nodes).cachedFgIds);
+  const nodes = useSimulatorStore(state => state.nodes);
+  const placingNodeId = useSimulatorStore(state => state.placingNodeId);
+  const pastingNodeIds = useSimulatorStore(state => state.pastingNodeIds);
   const isDrawingWire = useSimulatorStore(state => Boolean(state.draftWire));
   const updateDraftWire = useSimulatorStore(state => state.updateDraftWire);
   const select = useSimulatorStore(state => state.select);
   const settings = useSimulatorStore(state => state.settings);
+
+  const viewportBounds = useMemo<ViewportBounds | null>(() => {
+    if (dimensions.width <= 0 || dimensions.height <= 0 || scale <= 0) return null;
+    // Use a generous 1000px screen-space margin so smooth panning/zooming never causes visible pop-in
+    const pad = 1000 / scale;
+    return {
+      minX: -stagePos.x / scale - pad,
+      maxX: (dimensions.width - stagePos.x) / scale + pad,
+      minY: -stagePos.y / scale - pad,
+      maxY: (dimensions.height - stagePos.y) / scale + pad,
+    };
+  }, [dimensions.width, dimensions.height, stagePos.x, stagePos.y, scale]);
+
+  const { backgroundNodeIds, foregroundNodeIds } = useMemo(() => {
+    const bg: string[] = [];
+    const fg: string[] = [];
+    const shouldCull = Boolean(viewportBounds && nodes.length > 80);
+    const pastingSet = pastingNodeIds && pastingNodeIds.length > 0 ? new Set(pastingNodeIds) : null;
+
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
+      const isBg = n.type === 'REGION_BOX' || n.type === 'FSM_DIAGRAM';
+      if (shouldCull && viewportBounds && n.id !== placingNodeId && (!pastingSet || !pastingSet.has(n.id))) {
+        const w = isBg ? (n.properties?.width || 640) : 320;
+        const h = isBg ? (n.properties?.height || 440) : 320;
+        if (
+          n.x + w < viewportBounds.minX ||
+          n.x - 160 > viewportBounds.maxX ||
+          n.y + h < viewportBounds.minY ||
+          n.y - 160 > viewportBounds.maxY
+        ) {
+          continue;
+        }
+      }
+      if (isBg) {
+        bg.push(n.id);
+      } else {
+        fg.push(n.id);
+      }
+    }
+    return { backgroundNodeIds: bg, foregroundNodeIds: fg };
+  }, [nodes, viewportBounds, placingNodeId, pastingNodeIds]);
 
   const initializedRef = useRef(false);
   const bgLayerRef = useRef<any>(null);
@@ -652,7 +662,7 @@ export const SchematicCanvas: React.FC = () => {
         </Layer>
 
         <Layer ref={mainLayerRef}>
-          <WireRenderer />
+          <WireRenderer viewportBounds={viewportBounds} />
           {selectionBox && (
             <Rect
               x={selectionBox.width < 0 ? selectionBox.startX + selectionBox.width : selectionBox.startX}
