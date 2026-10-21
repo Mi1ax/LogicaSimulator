@@ -16,8 +16,9 @@ export interface Point {
   y: number;
 }
 
-// Persist custom dragged state positions across tab switches and share with SchematicFsmDiagramNode
+// Persist custom dragged state positions and viewport pan/zoom across tab switches
 export const customPositionsCache = new Map<string, Record<string, Point>>();
+const viewportCache = new Map<string, { pan: Point; zoom: number }>();
 
 export const FSM_CARD_WIDTH = 188;
 
@@ -101,6 +102,7 @@ export const FsmDiagramView: React.FC<FsmDiagramViewProps> = ({
     )
   );
   const theme = useSimulatorStore(state => state.theme);
+  const settings = useSimulatorStore(state => state.settings);
   const isDark = theme === 'dark';
 
   const [showAllOutputs, setShowAllOutputs] = useState(false);
@@ -108,16 +110,33 @@ export const FsmDiagramView: React.FC<FsmDiagramViewProps> = ({
   const [selectedState, setSelectedState] = useState<string | null>(null);
 
   const cacheKey = targetNodeId || 'default';
+  const viewKey = `${cacheKey}:${readOnly ? 'ro' : 'full'}`;
   const [customPositions, setCustomPositions] = useState<Record<string, Point>>(
     () => customPositionsCache.get(cacheKey) || {}
   );
 
+  const [pan, setPan] = useState<Point>(() => viewportCache.get(viewKey)?.pan || { x: 0, y: 0 });
+  const [zoom, setZoom] = useState<number>(
+    () => viewportCache.get(viewKey)?.zoom ?? (readOnly ? 0.85 : 0.95)
+  );
+  const viewRef = useRef<{ pan: Point; zoom: number }>({ pan, zoom });
+  viewRef.current = { pan, zoom };
+
   useEffect(() => {
     setCustomPositions(customPositionsCache.get(cacheKey) || {});
-  }, [cacheKey]);
+    const savedView = viewportCache.get(viewKey);
+    if (savedView) {
+      setPan(savedView.pan);
+      setZoom(savedView.zoom);
+    } else {
+      setPan({ x: 0, y: 0 });
+      setZoom(readOnly ? 0.85 : 0.95);
+    }
+  }, [cacheKey, viewKey, readOnly]);
 
-  const [pan, setPan] = useState<Point>({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState<number>(readOnly ? 0.85 : 0.95);
+  useEffect(() => {
+    viewportCache.set(viewKey, { pan, zoom });
+  }, [viewKey, pan, zoom]);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<{
@@ -154,16 +173,71 @@ export const FsmDiagramView: React.FC<FsmDiagramViewProps> = ({
 
   const handleResetLayout = useCallback(() => {
     customPositionsCache.delete(cacheKey);
+    viewportCache.delete(viewKey);
     setCustomPositions({});
     setPan({ x: 0, y: 0 });
     setZoom(readOnly ? 0.85 : 0.95);
-  }, [cacheKey, readOnly]);
+  }, [cacheKey, viewKey, readOnly]);
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.stopPropagation();
-    const factor = e.deltaY < 0 ? 1.08 : 0.92;
-    setZoom(z => Math.min(2.2, Math.max(0.35, Number((z * factor).toFixed(3)))));
-  }, []);
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const svg = svgRef.current;
+      if (!svg) return;
+
+      const { deltaX, deltaY, ctrlKey, shiftKey } = e;
+      const currentScale = viewRef.current.zoom;
+      const currentX = viewRef.current.pan.x;
+      const currentY = viewRef.current.pan.y;
+
+      const isTrackpadPinch = ctrlKey;
+      const forceZoom = isTrackpadPinch || (settings.mouseWheelBehavior === 'zoom' && !shiftKey);
+
+      if (forceZoom) {
+        const rect = svg.getBoundingClientRect();
+        const pointerX = e.clientX - rect.left;
+        const pointerY = e.clientY - rect.top;
+
+        const mousePointTo = {
+          x: (pointerX - currentX) / currentScale,
+          y: (pointerY - currentY) / currentScale,
+        };
+
+        let direction = deltaY > 0 ? -1 : 1;
+        if (settings.invertZoom) direction = -direction;
+
+        const zoomAmount = Math.max(0.01, Math.abs(deltaY) * 0.01 * settings.zoomSensitivity);
+        const scaleBy = 1 + Math.min(zoomAmount, 0.5);
+
+        const candidateScale = direction > 0 ? currentScale * scaleBy : currentScale / scaleBy;
+        if (candidateScale < 0.2 || candidateScale > 5) return;
+
+        const nextX = pointerX - mousePointTo.x * candidateScale;
+        const nextY = pointerY - mousePointTo.y * candidateScale;
+
+        viewRef.current = { pan: { x: nextX, y: nextY }, zoom: candidateScale };
+        setZoom(candidateScale);
+        setPan({ x: nextX, y: nextY });
+      } else {
+        let panX = deltaX;
+        let panY = deltaY;
+
+        if (shiftKey && !isTrackpadPinch) {
+          panX = deltaY;
+          panY = deltaX;
+        }
+
+        const nextX = currentX - panX * settings.panSpeed;
+        const nextY = currentY - panY * settings.panSpeed;
+
+        viewRef.current = { pan: { x: nextX, y: nextY }, zoom: currentScale };
+        setPan({ x: nextX, y: nextY });
+      }
+    },
+    [settings]
+  );
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
@@ -320,7 +394,13 @@ export const FsmDiagramView: React.FC<FsmDiagramViewProps> = ({
       >
         <svg ref={svgRef} className="w-full h-full">
           <defs>
-            <pattern id="fsm-grid" width="24" height="24" patternUnits="userSpaceOnUse">
+            <pattern
+              id="fsm-grid"
+              width="24"
+              height="24"
+              patternUnits="userSpaceOnUse"
+              patternTransform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}
+            >
               <circle
                 cx="2"
                 cy="2"

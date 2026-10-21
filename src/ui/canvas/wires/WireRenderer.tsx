@@ -14,6 +14,14 @@ function distToSegmentSquared(p: {x:number, y:number}, v: {x:number, y:number}, 
   return (p.x - (v.x + t * (w.x - v.x))) ** 2 + (p.y - (v.y + t * (w.y - v.y))) ** 2;
 }
 
+function pointHitFunc(ctx: any, shape: any) {
+  const sx = Math.abs(shape.scaleX()) || 1;
+  ctx.beginPath();
+  ctx.arc(0, 0, 10 / sx, 0, Math.PI * 2, false);
+  ctx.closePath();
+  ctx.fillStrokeShape(shape);
+}
+
 const SingleWire = React.memo(({
   wire,
   pathData,
@@ -32,18 +40,6 @@ const SingleWire = React.memo(({
     (state.selection?.type === 'wire' && state.selection.id === wire.id) ||
     state.multiSelection.includes(wire.id)
   );
-  const selectedWpMask = useSimulatorStore(state => {
-    if (!wire.waypoints || wire.waypoints.length === 0) return '';
-    if (state.schematicScale < 0.55 && !isSelected) return '__lod_hide__';
-    let mask = '';
-    for (let i = 0; i < wire.waypoints.length; i++) {
-      const wpId = `wp:${wire.id}:${i}`;
-      if ((state.selection?.type === 'waypoint' && state.selection.id === wpId) || state.multiSelection.includes(wpId)) {
-        mask += `${i},`;
-      }
-    }
-    return mask;
-  });
 
   let strokeColor = canvasTheme.wireColor;
   if (signal === 1) strokeColor = canvasTheme.signalHigh;
@@ -53,31 +49,34 @@ const SingleWire = React.memo(({
   if (isSelected) strokeColor = canvasTheme.selectedWireColor;
   else if (isBusWire) strokeColor = '#3b82f6';
 
-  const clickTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const wirePathElement = (
+  return (
     <Path
       data={pathData}
       stroke={strokeColor}
       strokeWidth={isBusWire ? 4 : 2}
-      hitStrokeWidth={isBusWire ? 20 : 12}
+      hitStrokeWidth={isBusWire ? 16 : 10}
       perfectDrawEnabled={false}
       shadowForStrokeEnabled={false}
       onMouseEnter={(e) => {
+        const store = useSimulatorStore.getState();
+        if (store.simRunning) return;
         const container = e.target.getStage()?.container();
         if (container) {
-          container.style.cursor = useSimulatorStore.getState().draftWire ? 'crosshair' : 'pointer';
+          container.style.cursor = store.draftWire ? 'crosshair' : 'pointer';
         }
       }}
       onMouseLeave={(e) => {
+        const store = useSimulatorStore.getState();
+        if (store.simRunning) return;
         const container = e.target.getStage()?.container();
         if (container) {
-          container.style.cursor = useSimulatorStore.getState().draftWire ? 'crosshair' : 'default';
+          container.style.cursor = store.draftWire ? 'crosshair' : 'default';
         }
       }}
       onClick={(e) => {
         e.cancelBubble = true;
         const store = useSimulatorStore.getState();
+        if (store.simRunning) return;
         if (store.draftWire) {
           const stage = e.target.getStage();
           const pointer = stage?.getPointerPosition();
@@ -107,6 +106,7 @@ const SingleWire = React.memo(({
       }}
       onDblClick={(e) => {
         e.cancelBubble = true;
+        if (useSimulatorStore.getState().simRunning) return;
         const stage = e.target.getStage();
         const pointer = stage?.getPointerPosition();
         if (!stage || !pointer || points.length < 2) return;
@@ -126,6 +126,9 @@ const SingleWire = React.memo(({
         
         const nx = Math.round(pos.x / 20) * 20;
         const ny = Math.round(pos.y / 20) * 20;
+        if (points.some(p => Math.round(p.x / 20) * 20 === nx && Math.round(p.y / 20) * 20 === ny)) {
+          return;
+        }
         
         const newWaypoints = [...(wire.waypoints || [])];
         newWaypoints.splice(minIdx, 0, { x: nx, y: ny });
@@ -135,30 +138,87 @@ const SingleWire = React.memo(({
       }}
     />
   );
+});
 
-  if (!wire.waypoints || wire.waypoints.length === 0 || selectedWpMask === '__lod_hide__') {
-    return wirePathElement;
+const SingleWireWaypoints = React.memo(({
+  wire,
+  isBusWire,
+  canvasTheme,
+}: {
+  wire: Wire;
+  isBusWire: boolean;
+  canvasTheme: any;
+}) => {
+  const signal = useSimulatorStore(state => state.simState.wireStates[wire.id]);
+  const isSelected = useSimulatorStore(state =>
+    (state.selection?.type === 'wire' && state.selection.id === wire.id) ||
+    state.multiSelection.includes(wire.id)
+  );
+  const selectedWpMask = useSimulatorStore(state => {
+    if (!wire.waypoints || wire.waypoints.length === 0) return '';
+    if (state.selection?.type !== 'waypoint' && state.multiSelection.length === 0) return '';
+    let mask = ',';
+    for (let i = 0; i < wire.waypoints.length; i++) {
+      const wpId = `wp:${wire.id}:${i}`;
+      if ((state.selection?.type === 'waypoint' && state.selection.id === wpId) || state.multiSelection.includes(wpId)) {
+        mask += `${i},`;
+      }
+    }
+    return mask;
+  });
+
+  const clickTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  if (!wire.waypoints || wire.waypoints.length === 0) {
+    return null;
   }
+
+  let strokeColor = canvasTheme.wireColor;
+  if (signal === 1) strokeColor = canvasTheme.signalHigh;
+  else if (signal === 0) strokeColor = canvasTheme.signalLow;
+  else if (signal === 'X') strokeColor = '#ef4444';
+
+  if (isSelected) strokeColor = canvasTheme.selectedWireColor;
+  else if (isBusWire) strokeColor = '#3b82f6';
 
   return (
     <Group>
-      {wirePathElement}
       {wire.waypoints.map((wp, index) => {
         const wpId = `wp:${wire.id}:${index}`;
-        const isWpSelected = isSelected || selectedWpMask.includes(`${index},`);
+        const isThisWpSelected = selectedWpMask.includes(`,${index},`);
+        const isWpSelected = isSelected || isThisWpSelected;
         
         return (
           <Circle
             key={index}
             x={wp.x}
             y={wp.y}
-            radius={5}
+            radius={isWpSelected ? 6.5 : 5}
             fill={isWpSelected ? canvasTheme.selectedWireColor : strokeColor}
-            strokeEnabled={false}
+            hitStrokeWidth={0}
+            hitFunc={pointHitFunc}
             perfectDrawEnabled={false}
+            shadowForStrokeEnabled={false}
             draggable
-            onDragStart={() => useSimulatorStore.getState().saveHistory()}
+            onDragStart={(e) => {
+              e.cancelBubble = true;
+              if (clickTimeout.current) {
+                clearTimeout(clickTimeout.current);
+                clickTimeout.current = null;
+              }
+              const store = useSimulatorStore.getState();
+              if (store.simRunning) {
+                e.target.stopDrag();
+                return;
+              }
+              if (!store.multiSelection.includes(wpId)) {
+                store.select({ type: 'waypoint', id: wpId }, e.evt.shiftKey);
+              }
+              store.saveHistory();
+            }}
             onDragMove={(e) => {
+              e.cancelBubble = true;
+              if (useSimulatorStore.getState().simRunning) return;
               const snappedX = Math.round(e.target.x() / 20) * 20;
               const snappedY = Math.round(e.target.y() / 20) * 20;
               
@@ -166,6 +226,8 @@ const SingleWire = React.memo(({
               useSimulatorStore.getState().updateNodePosition(wpId, snappedX, snappedY);
             }}
             onDragEnd={(e) => {
+              e.cancelBubble = true;
+              if (useSimulatorStore.getState().simRunning) return;
               const snappedX = Math.round(e.target.x() / 20) * 20;
               const snappedY = Math.round(e.target.y() / 20) * 20;
               e.target.position({ x: snappedX, y: snappedY });
@@ -174,12 +236,13 @@ const SingleWire = React.memo(({
             onClick={(e) => {
               e.cancelBubble = true;
               const store = useSimulatorStore.getState();
+              if (store.simRunning) return;
               if (store.draftWire) {
                 const splitWp1 = wire.waypoints?.slice(0, index);
                 const splitWp2 = wire.waypoints?.slice(index + 1);
                 store.completeWireOnWire(wire.id, wp.x, wp.y, splitWp1, splitWp2, e.evt.shiftKey);
               } else {
-                if (!isWpSelected && !e.evt.shiftKey) {
+                if (!isThisWpSelected && !e.evt.shiftKey) {
                   store.select({ type: 'waypoint', id: wpId }, false);
                 } else if (e.evt.shiftKey) {
                   store.select({ type: 'waypoint', id: wpId }, true);
@@ -193,20 +256,32 @@ const SingleWire = React.memo(({
             }}
             onDblClick={(e) => {
               e.cancelBubble = true;
-              if (clickTimeout.current) clearTimeout(clickTimeout.current);
+              if (clickTimeout.current) {
+                clearTimeout(clickTimeout.current);
+                clickTimeout.current = null;
+              }
+              const store = useSimulatorStore.getState();
+              if (store.simRunning) return;
               const newWaypoints = [...(wire.waypoints || [])];
               newWaypoints.splice(index, 1);
-              const store = useSimulatorStore.getState();
               store.saveHistory();
               store.updateWireWaypoints(wire.id, newWaypoints);
             }}
             onMouseEnter={(e) => {
+              if (useSimulatorStore.getState().simRunning) return;
               const container = e.target.getStage()?.container();
               if (container) container.style.cursor = 'crosshair';
+              e.target.scale({ x: 1.35, y: 1.35 });
             }}
             onMouseLeave={(e) => {
+              if (clickTimeout.current) {
+                clearTimeout(clickTimeout.current);
+                clickTimeout.current = null;
+              }
+              if (useSimulatorStore.getState().simRunning) return;
               const container = e.target.getStage()?.container();
               if (container) container.style.cursor = 'default';
+              e.target.scale({ x: 1, y: 1 });
             }}
           />
         );
@@ -303,6 +378,31 @@ export const WireRenderer: React.FC<{ viewportBounds?: ViewportBounds | null }> 
             wire={wire} 
             pathData={wireInfo.path} 
             points={wireInfo.points}
+            isBusWire={busPinIds.has(wire.sourcePinId)}
+            canvasTheme={canvasTheme}
+          />
+        );
+      })}
+
+      {wires.map(wire => {
+        if (!wire.waypoints || wire.waypoints.length === 0) return null;
+        const wireInfo = wirePaths.get(wire.id);
+        if (!wireInfo) return null;
+        if (
+          cullWires &&
+          viewportBounds &&
+          (wireInfo.maxX < viewportBounds.minX ||
+            wireInfo.minX > viewportBounds.maxX ||
+            wireInfo.maxY < viewportBounds.minY ||
+            wireInfo.minY > viewportBounds.maxY)
+        ) {
+          return null;
+        }
+
+        return (
+          <SingleWireWaypoints
+            key={`wp-${wire.id}`}
+            wire={wire}
             isBusWire={busPinIds.has(wire.sourcePinId)}
             canvasTheme={canvasTheme}
           />

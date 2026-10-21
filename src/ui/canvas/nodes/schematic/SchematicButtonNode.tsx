@@ -33,6 +33,11 @@ export const SchematicButtonNode: React.FC<Props> = React.memo(({ node }) => {
           updateNodeProperties(node.id, { pressed: false });
         }
       }}
+      onDragStartExtra={() => {
+        if (isPressed) {
+          updateNodeProperties(node.id, { pressed: false });
+        }
+      }}
     >
       <Rect
         x={0}
@@ -64,21 +69,14 @@ export const SchematicButtonNode: React.FC<Props> = React.memo(({ node }) => {
             updateNodeProperties(node.id, { pressed: false });
           }
         }}
-        onMouseDown={(e) => {
+        onMouseDown={() => {
           if (!isPlacing) {
-            e.cancelBubble = true;
             updateNodeProperties(node.id, { pressed: true });
           }
         }}
-        onMouseUp={(e) => {
+        onMouseUp={() => {
           if (!isPlacing) {
-            e.cancelBubble = true;
             updateNodeProperties(node.id, { pressed: false });
-          }
-        }}
-        onClick={(e) => {
-          if (!isPlacing) {
-            e.cancelBubble = true;
           }
         }}
       />

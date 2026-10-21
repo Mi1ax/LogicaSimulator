@@ -506,7 +506,6 @@ export const SchematicTextLabelNode: React.FC<Props> = React.memo(({ node }) => 
       : palette.textLight
     : canvasTheme.textColor;
 
-  const invRot = -(node.properties?.rotation || 0);
   const flipScaleX = node.properties?.flipX ? -1 : 1;
   const flipScaleY = node.properties?.flipY ? -1 : 1;
 
@@ -538,7 +537,6 @@ export const SchematicTextLabelNode: React.FC<Props> = React.memo(({ node }) => 
         lineHeight={1.25}
         scaleX={flipScaleX}
         scaleY={flipScaleY}
-        rotation={invRot !== 0 ? 0 : 0}
         listening={false}
         perfectDrawEnabled={false}
       />
@@ -548,7 +546,6 @@ export const SchematicTextLabelNode: React.FC<Props> = React.memo(({ node }) => 
 
 export const SchematicStickyNoteNode: React.FC<Props> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
-  const isLowDetail = useSimulatorStore(state => state.schematicScale < 0.45);
   const isSelected = useSimulatorStore(state =>
     (state.selection?.type === 'node' && state.selection.id === node.id) ||
     state.multiSelection.includes(node.id)
@@ -622,8 +619,8 @@ export const SchematicStickyNoteNode: React.FC<Props> = React.memo(({ node }) =>
         perfectDrawEnabled={false}
       />
 
-      {/* Multiline Body Text (skipped at strong zoom-out to avoid expensive word-wrap layout) */}
-      {!isLowDetail && bodyText && (
+      {/* Multiline Body Text */}
+      {bodyText && (
         <Text
           text={bodyText}
           x={10}
@@ -679,7 +676,6 @@ function computeArrowPoints(ex: number, ey: number, tx: number, ty: number, len 
 
 export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
-  const isLowDetail = useSimulatorStore(state => state.schematicScale < 0.55);
   const nodes = useSimulatorStore(state => state.nodes);
   const isSelected = useSimulatorStore(state =>
     (state.selection?.type === 'node' && state.selection.id === node.id) ||
@@ -955,7 +951,7 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
       />
 
       {/* Live Status Indicator in Header */}
-      {!isLowDetail && statusText && width > 320 && (
+      {statusText && width > 320 && (
         <Text
           text={statusText}
           x={width - 215}
@@ -1034,41 +1030,37 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
                       closed={true}
                       perfectDrawEnabled={false}
                     />
-                    {!isLowDetail && (
-                      <>
-                        <Rect
-                          x={t.labelX - t.pillW / 2}
-                          y={t.labelY - 10}
-                          width={t.pillW}
-                          height={19}
-                          cornerRadius={5}
-                          fill={isDark ? '#0f172a' : '#ffffff'}
-                          stroke={isLiveTransition ? '#10b981' : isDark ? '#334155' : '#cbd5e1'}
-                          strokeWidth={1}
-                          perfectDrawEnabled={false}
-                        />
-                        <Text
-                          text={t.labelStr}
-                          x={t.labelX - t.pillW / 2}
-                          y={t.labelY - 5}
-                          width={t.pillW}
-                          align="center"
-                          fontSize={9.5}
-                          fontFamily="monospace"
-                          fontStyle={isLiveTransition ? 'bold' : 'normal'}
-                          fill={
-                            isLiveTransition
-                              ? isDark
-                                ? '#34d399'
-                                : '#047857'
-                              : isDark
-                              ? '#94a3b8'
-                              : '#475569'
-                          }
-                          perfectDrawEnabled={false}
-                        />
-                      </>
-                    )}
+                    <Rect
+                      x={t.labelX - t.pillW / 2}
+                      y={t.labelY - 10}
+                      width={t.pillW}
+                      height={19}
+                      cornerRadius={5}
+                      fill={isDark ? '#0f172a' : '#ffffff'}
+                      stroke={isLiveTransition ? '#10b981' : isDark ? '#334155' : '#cbd5e1'}
+                      strokeWidth={1}
+                      perfectDrawEnabled={false}
+                    />
+                    <Text
+                      text={t.labelStr}
+                      x={t.labelX - t.pillW / 2}
+                      y={t.labelY - 5}
+                      width={t.pillW}
+                      align="center"
+                      fontSize={9.5}
+                      fontFamily="monospace"
+                      fontStyle={isLiveTransition ? 'bold' : 'normal'}
+                      fill={
+                        isLiveTransition
+                          ? isDark
+                            ? '#34d399'
+                            : '#047857'
+                          : isDark
+                          ? '#94a3b8'
+                          : '#475569'
+                      }
+                      perfectDrawEnabled={false}
+                    />
                   </Group>
                 );
               }
@@ -1087,49 +1079,45 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
                     closed={true}
                     perfectDrawEnabled={false}
                   />
-                  {!isLowDetail && (
-                    <>
-                      <Rect
-                        x={t.labelX - t.pillW / 2}
-                        y={t.labelY - 10}
-                        width={t.pillW}
-                        height={19}
-                        cornerRadius={5}
-                        fill={
-                          isLiveTransition
-                            ? isDark
-                              ? '#064e3b'
-                              : '#ecfdf5'
-                            : isDark
-                            ? '#0f172a'
-                            : '#ffffff'
-                        }
-                        stroke={isLiveTransition ? '#10b981' : isDark ? '#334155' : '#cbd5e1'}
-                        strokeWidth={isLiveTransition ? 1.5 : 1}
-                        perfectDrawEnabled={false}
-                      />
-                      <Text
-                        text={t.labelStr}
-                        x={t.labelX - t.pillW / 2}
-                        y={t.labelY - 5}
-                        width={t.pillW}
-                        align="center"
-                        fontSize={9.5}
-                        fontFamily="monospace"
-                        fontStyle="bold"
-                        fill={
-                          isLiveTransition
-                            ? isDark
-                              ? '#34d399'
-                              : '#047857'
-                            : isDark
-                            ? '#cbd5e1'
-                            : '#334155'
-                        }
-                        perfectDrawEnabled={false}
-                      />
-                    </>
-                  )}
+                  <Rect
+                    x={t.labelX - t.pillW / 2}
+                    y={t.labelY - 10}
+                    width={t.pillW}
+                    height={19}
+                    cornerRadius={5}
+                    fill={
+                      isLiveTransition
+                        ? isDark
+                          ? '#064e3b'
+                          : '#ecfdf5'
+                        : isDark
+                        ? '#0f172a'
+                        : '#ffffff'
+                    }
+                    stroke={isLiveTransition ? '#10b981' : isDark ? '#334155' : '#cbd5e1'}
+                    strokeWidth={isLiveTransition ? 1.5 : 1}
+                    perfectDrawEnabled={false}
+                  />
+                  <Text
+                    text={t.labelStr}
+                    x={t.labelX - t.pillW / 2}
+                    y={t.labelY - 5}
+                    width={t.pillW}
+                    align="center"
+                    fontSize={9.5}
+                    fontFamily="monospace"
+                    fontStyle="bold"
+                    fill={
+                      isLiveTransition
+                        ? isDark
+                          ? '#34d399'
+                          : '#047857'
+                        : isDark
+                        ? '#cbd5e1'
+                        : '#334155'
+                    }
+                    perfectDrawEnabled={false}
+                  />
                 </Group>
               );
             })}
@@ -1269,93 +1257,89 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
                     perfectDrawEnabled={false}
                   />
 
-                  {/* Bit Encoding Badge & Output Compartment Rows (hidden at zoom-out to save fillText calls) */}
-                  {!isLowDetail && (
-                    <>
-                      <Rect
-                        x={FSM_CARD_WIDTH - 48}
-                        y={7}
-                        width={38}
-                        height={18}
-                        cornerRadius={4}
-                        fill={isDark ? '#090d16' : '#ffffff'}
-                        stroke={isDark ? '#334155' : '#cbd5e1'}
-                        strokeWidth={1}
-                        perfectDrawEnabled={false}
-                      />
-                      <Text
-                        text={st.code}
-                        x={FSM_CARD_WIDTH - 48}
-                        y={11}
-                        width={38}
-                        align="center"
-                        fontSize={10}
-                        fontFamily="monospace"
-                        fill={isDark ? '#94a3b8' : '#64748b'}
-                        perfectDrawEnabled={false}
-                      />
+                  {/* Bit Encoding Badge & Output Compartment Rows */}
+                  <Rect
+                    x={FSM_CARD_WIDTH - 48}
+                    y={7}
+                    width={38}
+                    height={18}
+                    cornerRadius={4}
+                    fill={isDark ? '#090d16' : '#ffffff'}
+                    stroke={isDark ? '#334155' : '#cbd5e1'}
+                    strokeWidth={1}
+                    perfectDrawEnabled={false}
+                  />
+                  <Text
+                    text={st.code}
+                    x={FSM_CARD_WIDTH - 48}
+                    y={11}
+                    width={38}
+                    align="center"
+                    fontSize={10}
+                    fontFamily="monospace"
+                    fill={isDark ? '#94a3b8' : '#64748b'}
+                    perfectDrawEnabled={false}
+                  />
 
-                      {visibleOutputs.length === 0 ? (
-                        <Text
-                          text="all outputs = 0"
-                          x={12}
-                          y={42}
-                          width={FSM_CARD_WIDTH - 24}
-                          fontSize={10.5}
-                          fontStyle="italic"
-                          fontFamily="sans-serif"
-                          fill={isDark ? '#64748b' : '#94a3b8'}
-                          perfectDrawEnabled={false}
-                        />
-                      ) : (
-                        visibleOutputs.map((out, rIdx) => {
-                          const rowY = 40 + rIdx * 22;
-                          const valColor =
-                            out.value === '1'
-                              ? isDark
-                                ? '#34d399'
-                                : '#047857'
-                              : out.value === '0'
-                              ? isDark
-                                ? '#fb7185'
-                                : '#be123c'
-                              : isDark
-                              ? '#fbbf24'
-                              : '#b45309';
-                          return (
-                            <Group key={out.name} y={rowY}>
-                              <Text
-                                text={out.name}
-                                x={12}
-                                y={2}
-                                width={FSM_CARD_WIDTH - 76}
-                                fontSize={11}
-                                fontStyle="bold"
-                                fontFamily="monospace"
-                                fill={isDark ? '#cbd5e1' : '#334155'}
-                                wrap="none"
-                                ellipsis={true}
-                                perfectDrawEnabled={false}
-                              />
-                              <Text
-                                text={`= ${out.value}`}
-                                x={FSM_CARD_WIDTH - 64}
-                                y={2}
-                                width={52}
-                                align="right"
-                                fontSize={10.5}
-                                fontStyle="bold"
-                                fontFamily="monospace"
-                                fill={valColor}
-                                wrap="none"
-                                ellipsis={true}
-                                perfectDrawEnabled={false}
-                              />
-                            </Group>
-                          );
-                        })
-                      )}
-                    </>
+                  {visibleOutputs.length === 0 ? (
+                    <Text
+                      text="all outputs = 0"
+                      x={12}
+                      y={42}
+                      width={FSM_CARD_WIDTH - 24}
+                      fontSize={10.5}
+                      fontStyle="italic"
+                      fontFamily="sans-serif"
+                      fill={isDark ? '#64748b' : '#94a3b8'}
+                      perfectDrawEnabled={false}
+                    />
+                  ) : (
+                    visibleOutputs.map((out, rIdx) => {
+                      const rowY = 40 + rIdx * 22;
+                      const valColor =
+                        out.value === '1'
+                          ? isDark
+                            ? '#34d399'
+                            : '#047857'
+                          : out.value === '0'
+                          ? isDark
+                            ? '#fb7185'
+                            : '#be123c'
+                          : isDark
+                          ? '#fbbf24'
+                          : '#b45309';
+                      return (
+                        <Group key={out.name} y={rowY}>
+                          <Text
+                            text={out.name}
+                            x={12}
+                            y={2}
+                            width={FSM_CARD_WIDTH - 76}
+                            fontSize={11}
+                            fontStyle="bold"
+                            fontFamily="monospace"
+                            fill={isDark ? '#cbd5e1' : '#334155'}
+                            wrap="none"
+                            ellipsis={true}
+                            perfectDrawEnabled={false}
+                          />
+                          <Text
+                            text={`= ${out.value}`}
+                            x={FSM_CARD_WIDTH - 64}
+                            y={2}
+                            width={52}
+                            align="right"
+                            fontSize={10.5}
+                            fontStyle="bold"
+                            fontFamily="monospace"
+                            fill={valColor}
+                            wrap="none"
+                            ellipsis={true}
+                            perfectDrawEnabled={false}
+                          />
+                        </Group>
+                      );
+                    })
                   )}
                 </Group>
               );

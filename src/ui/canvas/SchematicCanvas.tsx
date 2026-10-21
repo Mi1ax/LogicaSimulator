@@ -1,11 +1,12 @@
 import { SchematicJunctionNode } from "./nodes/schematic/SchematicJunctionNode";
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { Stage, Layer, Rect } from 'react-konva';
-import { useSimulatorStore } from '../../store/useSimulatorStore';
+import { Tag, X, RotateCcw } from 'lucide-react';
+import { useSimulatorStore, formatLabelFromPattern } from '../../store/useSimulatorStore';
 import { Grid } from './Grid';
 import { SchematicGateNode } from './nodes/schematic/SchematicGateNode';
 import { SchematicIONode } from './nodes/schematic/SchematicIONode';
-import { SchematicNetLabelNode } from './nodes/schematic/SchematicNetLabelNode';
+import { SchematicNetLabelNode, getNetLabelTextWidth } from './nodes/schematic/SchematicNetLabelNode';
 import { SchematicICNode } from './nodes/schematic/SchematicICNode';
 import { SchematicDipSwitchNode } from './nodes/schematic/SchematicDipSwitchNode';
 import { WireRenderer, ViewportBounds } from './wires/WireRenderer';
@@ -28,6 +29,7 @@ import {
 
 let lastNodesArray: any[] = [];
 let nodeMapCache = new Map<string, any>();
+let hasInitializedSchematicViewport = false;
 
 function getNodeById(state: any, id: string) {
   if (state.nodes !== lastNodesArray) {
@@ -80,15 +82,158 @@ const ConnectedNode = React.memo(({ id }: { id: string }) => {
   return <SchematicGateNode node={node} />;
 });
 
+const QuickLabelOverlay: React.FC = React.memo(() => {
+  const labelTool = useSimulatorStore(s => s.labelTool);
+  const setLabelTool = useSimulatorStore(s => s.setLabelTool);
+  const applyLabelToolToSelection = useSimulatorStore(s => s.applyLabelToolToSelection);
+  const multiSelection = useSimulatorStore(s => s.multiSelection);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const prevPrefixRef = useRef<string>('');
+
+  useEffect(() => {
+    if (labelTool.active) {
+      prevPrefixRef.current = labelTool.pattern.split(/[#\[]/)[0];
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      });
+    }
+  }, [labelTool.active]);
+
+  if (!labelTool.active) return null;
+
+  const nextPreview = formatLabelFromPattern(labelTool.pattern, labelTool.nextIndex);
+
+  return (
+    <div
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/95 dark:bg-slate-800/95 backdrop-blur border border-blue-400/60 dark:border-blue-500/50 shadow-lg text-xs select-none"
+    >
+      <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-semibold pr-1 border-r border-gray-200 dark:border-slate-700">
+        <Tag size={13} />
+        <span>Quick Label</span>
+      </div>
+
+      <label className="flex items-center gap-1.5">
+        <span className="text-[11px] text-gray-500 dark:text-slate-400">Pattern:</span>
+        <input
+          ref={inputRef}
+          type="text"
+          value={labelTool.pattern}
+          onChange={(e) => {
+            const val = e.target.value;
+            const newPrefix = val.split(/[#\[]/)[0];
+            const shouldReset = newPrefix !== prevPrefixRef.current;
+            prevPrefixRef.current = newPrefix;
+            setLabelTool({
+              pattern: val,
+              ...(shouldReset ? { nextIndex: 0 } : {}),
+            });
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              setLabelTool({ active: false });
+            } else if (e.key === 'Enter') {
+              e.preventDefault();
+              if (multiSelection.length > 1) {
+                applyLabelToolToSelection();
+              } else {
+                e.currentTarget.blur();
+              }
+            }
+          }}
+          placeholder="IP[#]"
+          className="w-28 px-2 py-1 text-xs font-mono rounded bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+      </label>
+
+      <label className="flex items-center gap-1">
+        <span className="text-[11px] text-gray-500 dark:text-slate-400">#</span>
+        <input
+          type="number"
+          min={0}
+          value={labelTool.nextIndex}
+          onChange={(e) =>
+            setLabelTool({ nextIndex: Math.max(0, parseInt(e.target.value, 10) || 0) })
+          }
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              setLabelTool({ active: false });
+            } else if (e.key === 'Enter') {
+              e.currentTarget.blur();
+            }
+          }}
+          className="w-12 px-1.5 py-1 text-xs font-mono text-center rounded bg-gray-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          title="Current index for #"
+        />
+      </label>
+
+      <button
+        type="button"
+        onClick={() => setLabelTool({ nextIndex: 0 })}
+        className="p-1 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 rounded hover:bg-gray-100 dark:hover:bg-slate-700"
+        title="Reset # to 0"
+      >
+        <RotateCcw size={12} />
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setLabelTool({ step: labelTool.step === 1 ? -1 : 1 })}
+        className="px-1.5 py-0.5 text-[11px] font-mono rounded bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600"
+        title="Toggle increment (+1) or decrement (-1)"
+      >
+        {labelTool.step === 1 ? '+1' : '-1'}
+      </button>
+
+      <div
+        className="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/70 text-[11px] font-mono text-blue-700 dark:text-blue-300"
+        title="Click any Net Label or I/O node on the canvas to assign this name"
+      >
+        Next: <span className="font-bold">{nextPreview}</span>
+      </div>
+
+      {multiSelection.length > 1 && (
+        <button
+          type="button"
+          onClick={applyLabelToolToSelection}
+          className="px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white font-medium text-[11px] transition-colors"
+          title="Number all currently selected nodes (top-to-bottom, left-to-right)"
+        >
+          Label Selected ({multiSelection.length})
+        </button>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setLabelTool({ active: false })}
+        className="p-1 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 rounded hover:bg-gray-100 dark:hover:bg-slate-700 ml-0.5"
+        title="Close Quick Label tool (Esc)"
+      >
+        <X size={14} />
+      </button>
+    </div>
+  );
+});
+
 export const SchematicCanvas: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [selectionBox, setSelectionBox] = useState<{ startX: number, startY: number, width: number, height: number } | null>(null);
-  const stagePos = useSimulatorStore(state => state.schematicPos);
-  const setStagePos = useSimulatorStore(state => state.setSchematicPos);
-  const scale = useSimulatorStore(state => state.schematicScale);
-  const setScale = useSimulatorStore(state => state.setSchematicScale);
-  const setCanvasOffset = useSimulatorStore(state => state.setCanvasOffset);
+  const initialStore = useSimulatorStore.getState();
+  const viewRef = useRef({
+    x: initialStore.schematicPos.x,
+    y: initialStore.schematicPos.y,
+    scale: initialStore.schematicScale,
+  });
+  const [cullView, setCullView] = useState(() => ({
+    x: initialStore.schematicPos.x,
+    y: initialStore.schematicPos.y,
+    scale: initialStore.schematicScale,
+  }));
   
   const nodes = useSimulatorStore(state => state.nodes);
   const placingNodeId = useSimulatorStore(state => state.placingNodeId);
@@ -98,22 +243,58 @@ export const SchematicCanvas: React.FC = () => {
   const select = useSimulatorStore(state => state.select);
   const settings = useSimulatorStore(state => state.settings);
 
+  const shouldUseViewportCulling = nodes.length > 2000;
+  const shouldUseViewportCullingRef = useRef(shouldUseViewportCulling);
+  shouldUseViewportCullingRef.current = shouldUseViewportCulling;
+
+  const bgLayerRef = useRef<any>(null);
+  const mainLayerRef = useRef<any>(null);
+  const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wheelRafRef = useRef<number | null>(null);
+  const pendingViewRef = useRef<{ x: number; y: number; scale: number } | null>(null);
+  const isWheelPanningRef = useRef(false);
+  const forceHitDrawRef = useRef(false);
+  const lastMousePosRef = useRef({ x: 0, y: 0 });
+
+  const refreshLayerHits = () => {
+    forceHitDrawRef.current = true;
+    bgLayerRef.current?.drawHit();
+    mainLayerRef.current?.drawHit();
+    forceHitDrawRef.current = false;
+  };
+
+  const syncCommittedView = (nextX: number, nextY: number, nextScale: number) => {
+    viewRef.current = { x: nextX, y: nextY, scale: nextScale };
+    isWheelPanningRef.current = false;
+    refreshLayerHits();
+    const st = useSimulatorStore.getState();
+    if (st.schematicPos.x !== nextX || st.schematicPos.y !== nextY) {
+      st.setSchematicPos({ x: nextX, y: nextY });
+    }
+    if (st.schematicScale !== nextScale) {
+      st.setSchematicScale(nextScale);
+    }
+    if (shouldUseViewportCullingRef.current) {
+      setCullView({ x: nextX, y: nextY, scale: nextScale });
+    }
+  };
+
   const viewportBounds = useMemo<ViewportBounds | null>(() => {
-    if (dimensions.width <= 0 || dimensions.height <= 0 || scale <= 0) return null;
+    if (!shouldUseViewportCulling || dimensions.width <= 0 || dimensions.height <= 0 || cullView.scale <= 0) return null;
     // Use a generous 1000px screen-space margin so smooth panning/zooming never causes visible pop-in
-    const pad = 1000 / scale;
+    const pad = 1000 / cullView.scale;
     return {
-      minX: -stagePos.x / scale - pad,
-      maxX: (dimensions.width - stagePos.x) / scale + pad,
-      minY: -stagePos.y / scale - pad,
-      maxY: (dimensions.height - stagePos.y) / scale + pad,
+      minX: -cullView.x / cullView.scale - pad,
+      maxX: (dimensions.width - cullView.x) / cullView.scale + pad,
+      minY: -cullView.y / cullView.scale - pad,
+      maxY: (dimensions.height - cullView.y) / cullView.scale + pad,
     };
-  }, [dimensions.width, dimensions.height, stagePos.x, stagePos.y, scale]);
+  }, [shouldUseViewportCulling, dimensions.width, dimensions.height, cullView.x, cullView.y, cullView.scale]);
 
   const { backgroundNodeIds, foregroundNodeIds } = useMemo(() => {
     const bg: string[] = [];
     const fg: string[] = [];
-    const shouldCull = Boolean(viewportBounds && nodes.length > 80);
+    const shouldCull = Boolean(viewportBounds);
     const pastingSet = pastingNodeIds && pastingNodeIds.length > 0 ? new Set(pastingNodeIds) : null;
 
     for (let i = 0; i < nodes.length; i++) {
@@ -140,65 +321,22 @@ export const SchematicCanvas: React.FC = () => {
     return { backgroundNodeIds: bg, foregroundNodeIds: fg };
   }, [nodes, viewportBounds, placingNodeId, pastingNodeIds]);
 
-  const initializedRef = useRef(false);
-  const bgLayerRef = useRef<any>(null);
-  const mainLayerRef = useRef<any>(null);
-  const bgHitDirtyRef = useRef(true);
-  const hitDirtyRef = useRef(true);
-  const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const wheelRafRef = useRef<number | null>(null);
-  const pendingViewRef = useRef<{ x: number; y: number; scale: number } | null>(null);
-  const isInteractingViewRef = useRef(false);
-  const lastMousePosRef = useRef({ x: 0, y: 0 });
-
   useEffect(() => {
-    bgHitDirtyRef.current = true;
-    hitDirtyRef.current = true;
-  }, [dimensions.width, dimensions.height, stagePos.x, stagePos.y, scale]);
-
-  useEffect(() => {
-    const unsub = useSimulatorStore.subscribe((state, prevState) => {
-      if (
-        state.nodes !== prevState.nodes ||
-        state.wires !== prevState.wires ||
-        state.schematicPos !== prevState.schematicPos ||
-        state.schematicScale !== prevState.schematicScale ||
-        state.theme !== prevState.theme
-      ) {
-        bgHitDirtyRef.current = true;
-        hitDirtyRef.current = true;
-      }
-    });
-    return unsub;
-  }, []);
-
-  useEffect(() => {
-    const attachHitOpt = (layer: any, dirtyRef: React.MutableRefObject<boolean>) => {
-      if (!layer || layer._hitOptimized) return () => {};
-      layer._hitOptimized = true;
+    const patchLayerDrawHit = (layer: any) => {
+      if (!layer || layer._logicaPatchedDrawHit) return;
       const origDrawHit = layer.drawHit.bind(layer);
-      layer.drawHit = function (...args: any[]) {
-        if (!dirtyRef.current) {
-          return this;
+      layer._logicaPatchedDrawHit = true;
+      layer.drawHit = function (can?: any, top?: any) {
+        if (!forceHitDrawRef.current) {
+          if (isWheelPanningRef.current || useSimulatorStore.getState().simRunning) {
+            return this;
+          }
         }
-        dirtyRef.current = false;
-        return origDrawHit(...args);
-      };
-      const markDirty = () => {
-        dirtyRef.current = true;
-      };
-      layer.on('dragmove.hitopt dragend.hitopt', markDirty);
-      return () => {
-        layer.off('dragmove.hitopt dragend.hitopt', markDirty);
+        return origDrawHit(can, top);
       };
     };
-
-    const cleanBg = attachHitOpt(bgLayerRef.current, bgHitDirtyRef);
-    const cleanMain = attachHitOpt(mainLayerRef.current, hitDirtyRef);
-    return () => {
-      cleanBg();
-      cleanMain();
-    };
+    patchLayerDrawHit(bgLayerRef.current);
+    patchLayerDrawHit(mainLayerRef.current);
   }, [dimensions.width, dimensions.height]);
 
   useEffect(() => {
@@ -209,11 +347,14 @@ export const SchematicCanvas: React.FC = () => {
         const w = containerRef.current.offsetWidth;
         const h = containerRef.current.offsetHeight;
         setDimensions({ width: w, height: h });
-        const rect = containerRef.current.getBoundingClientRect();
-        setCanvasOffset({ x: rect.left, y: rect.top });
-        if (!initializedRef.current && w > 0 && h > 0) {
-          setStagePos({ x: w / 2, y: h / 2 });
-          initializedRef.current = true;
+        if (!hasInitializedSchematicViewport && w > 0 && h > 0) {
+          const cur = useSimulatorStore.getState().schematicPos;
+          if (cur.x === 0 && cur.y === 0) {
+            viewRef.current.x = w / 2;
+            viewRef.current.y = h / 2;
+            useSimulatorStore.getState().setSchematicPos({ x: w / 2, y: h / 2 });
+          }
+          hasInitializedSchematicViewport = true;
         }
       }
     });
@@ -223,6 +364,31 @@ export const SchematicCanvas: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const flushPendingWheelView = () => {
+      isWheelPanningRef.current = false;
+      if (wheelRafRef.current !== null) {
+        cancelAnimationFrame(wheelRafRef.current);
+        wheelRafRef.current = null;
+      }
+      if (pendingViewRef.current) {
+        const pending = pendingViewRef.current;
+        pendingViewRef.current = null;
+        if (wheelTimeoutRef.current) {
+          clearTimeout(wheelTimeoutRef.current);
+          wheelTimeoutRef.current = null;
+        }
+        viewRef.current = { x: pending.x, y: pending.y, scale: pending.scale };
+      }
+      const st = useSimulatorStore.getState();
+      const cur = viewRef.current;
+      if (st.schematicPos.x !== cur.x || st.schematicPos.y !== cur.y) {
+        st.setSchematicPos({ x: cur.x, y: cur.y });
+      }
+      if (st.schematicScale !== cur.scale) {
+        st.setSchematicScale(cur.scale);
+      }
+    };
+
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
       if (
@@ -232,14 +398,21 @@ export const SchematicCanvas: React.FC = () => {
       ) {
         return;
       }
+
+      // If a button in the Toolbox/Topbar still holds focus, blur it so key events don't trigger button/scroll defaults
+      if (document.activeElement instanceof HTMLButtonElement) {
+        document.activeElement.blur();
+      }
       
       const store = useSimulatorStore.getState();
+      if (store.simRunning) return;
       const code = e.code;
       const key = e.key.toLowerCase();
       
       if (e.ctrlKey || e.metaKey) {
         if (code === 'KeyZ' || key === 'z') {
           e.preventDefault();
+          flushPendingWheelView();
           if (e.shiftKey) {
             store.redo();
           } else {
@@ -249,14 +422,18 @@ export const SchematicCanvas: React.FC = () => {
         }
         if (code === 'KeyY' || key === 'y') {
           e.preventDefault();
+          flushPendingWheelView();
           store.redo();
           return;
         }
         if (code === 'KeyC' || key === 'c') {
+          e.preventDefault();
           store.copySelection();
           return;
         }
         if (code === 'KeyV' || key === 'v') {
+          e.preventDefault();
+          flushPendingWheelView();
           const { x, y } = lastMousePosRef.current;
           const gridX = Math.round(x / 20) * 20;
           const gridY = Math.round(y / 20) * 20;
@@ -268,14 +445,25 @@ export const SchematicCanvas: React.FC = () => {
       if (e.key === 'Shift') {
         if (store.draftWire) store.setDraftWireManhattan(true);
       } else if (e.key === 'Escape') {
+        e.preventDefault();
+        flushPendingWheelView();
         if (store.draftWire) store.cancelWire();
         if (store.placingNodeId) store.cancelPlacingNode();
         if (store.pastingNodeIds) store.cancelPastingNodes();
+        if (store.labelTool.active) store.setLabelTool({ active: false });
+      } else if ((code === 'KeyL' || key === 'l') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        flushPendingWheelView();
+        store.setLabelTool({ active: !store.labelTool.active });
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        flushPendingWheelView();
         store.deleteSelection();
       } else if ((code === 'KeyX' || key === 'x') && !e.ctrlKey && !e.metaKey) {
         const targetNodeId = store.placingNodeId || (store.selection?.type === 'node' ? store.selection.id : null);
         if (targetNodeId) {
+          e.preventDefault();
+          flushPendingWheelView();
           const node = store.nodes.find(n => n.id === targetNodeId);
           if (node && !getNodeDefinition(node.type)?.disableTransform) {
             const currentFlipX = node.properties?.flipX || false;
@@ -285,15 +473,19 @@ export const SchematicCanvas: React.FC = () => {
       } else if ((code === 'KeyY' || key === 'y') && !e.ctrlKey && !e.metaKey) {
         const targetNodeId = store.placingNodeId || (store.selection?.type === 'node' ? store.selection.id : null);
         if (targetNodeId) {
+          e.preventDefault();
+          flushPendingWheelView();
           const node = store.nodes.find(n => n.id === targetNodeId);
           if (node && !getNodeDefinition(node.type)?.disableTransform) {
             const currentFlipY = node.properties?.flipY || false;
             store.updateNodeProperties(node.id, { flipY: !currentFlipY });
           }
         }
-      } else if ((code === 'KeyR' || key === 'r') && !e.ctrlKey && !e.metaKey) {
+      } else if (((code === 'KeyR' || key === 'r') || e.key === 'Tab') && !e.ctrlKey && !e.metaKey) {
         const targetNodeId = store.placingNodeId || (store.selection?.type === 'node' ? store.selection.id : null);
         if (targetNodeId) {
+          e.preventDefault();
+          flushPendingWheelView();
           const node = store.nodes.find(n => n.id === targetNodeId);
           if (node && !getNodeDefinition(node.type)?.disableTransform) {
             const currentRot = node.properties?.rotation || 0;
@@ -314,6 +506,8 @@ export const SchematicCanvas: React.FC = () => {
           }
         }
         if (lastType && getNodeDefinition(lastType)) {
+          e.preventDefault();
+          flushPendingWheelView();
           store.startPlacingNode(lastType);
           const updatedStore = useSimulatorStore.getState();
           if (updatedStore.placingNodeId) {
@@ -336,6 +530,7 @@ export const SchematicCanvas: React.FC = () => {
     window.addEventListener('keydown', handleGlobalKeyDown);
     window.addEventListener('keyup', handleGlobalKeyUp);
     return () => {
+      flushPendingWheelView();
       window.removeEventListener('keydown', handleGlobalKeyDown);
       window.removeEventListener('keyup', handleGlobalKeyUp);
     };
@@ -344,37 +539,28 @@ export const SchematicCanvas: React.FC = () => {
   return (
     <div 
       ref={containerRef} 
-      className="flex-1 h-full bg-slate-50 dark:bg-slate-900 overflow-hidden outline-none"
+      className="flex-1 h-full bg-slate-50 dark:bg-slate-900 overflow-hidden outline-none relative"
       tabIndex={0}
     >
+      <QuickLabelOverlay />
       {dimensions.width > 0 && dimensions.height > 0 && (
         <Stage
           width={dimensions.width}
           height={dimensions.height}
-        draggable={!isDrawingWire && !selectionBox} // Disable stage dragging while drawing wire or selecting
-        x={stagePos.x}
-        y={stagePos.y}
-        scaleX={scale}
-        scaleY={scale}
-        onDragStart={(e) => {
+        draggable={!isDrawingWire && !selectionBox && !placingNodeId && !pastingNodeIds} // Disable stage dragging while drawing wire, selecting, or placing/pasting
+        x={viewRef.current.x}
+        y={viewRef.current.y}
+        scaleX={viewRef.current.scale}
+        scaleY={viewRef.current.scale}
+        onDragMove={(e) => {
           if (e.target === e.target.getStage()) {
-            if (!isInteractingViewRef.current) {
-              isInteractingViewRef.current = true;
-              bgLayerRef.current?.listening(false);
-              mainLayerRef.current?.listening(false);
-            }
+            viewRef.current.x = e.target.x();
+            viewRef.current.y = e.target.y();
           }
         }}
         onDragEnd={(e) => {
           if (e.target === e.target.getStage()) {
-            if (isInteractingViewRef.current) {
-              isInteractingViewRef.current = false;
-              bgLayerRef.current?.listening(true);
-              bgLayerRef.current?.drawHit();
-              mainLayerRef.current?.listening(true);
-              mainLayerRef.current?.drawHit();
-            }
-            setStagePos({ x: e.target.x(), y: e.target.y() });
+            syncCommittedView(e.target.x(), e.target.y(), viewRef.current.scale);
           }
         }}
         onWheel={(e) => {
@@ -430,11 +616,16 @@ export const SchematicCanvas: React.FC = () => {
           }
 
           pendingViewRef.current = { x: nextX, y: nextY, scale: nextScale };
+          viewRef.current = { x: nextX, y: nextY, scale: nextScale };
+          isWheelPanningRef.current = true;
 
-          if (!isInteractingViewRef.current) {
-            isInteractingViewRef.current = true;
-            bgLayerRef.current?.listening(false);
-            mainLayerRef.current?.listening(false);
+          const pointer = stage.getPointerPosition();
+          if (pointer) {
+            const worldPos = {
+              x: (pointer.x - nextX) / nextScale,
+              y: (pointer.y - nextY) / nextScale,
+            };
+            lastMousePosRef.current = worldPos;
           }
 
           if (wheelRafRef.current === null) {
@@ -455,6 +646,23 @@ export const SchematicCanvas: React.FC = () => {
               } else {
                 applyTransform();
               }
+
+              const store = useSimulatorStore.getState();
+              if (!store.simRunning) {
+                const pos = lastMousePosRef.current;
+                if (store.draftWire) {
+                  updateDraftWire(Math.round(pos.x / 20) * 20, Math.round(pos.y / 20) * 20, shiftKey);
+                } else if (store.pastingNodeIds) {
+                  store.updatePastingNodes(Math.round(pos.x / 20) * 20, Math.round(pos.y / 20) * 20);
+                } else if (store.placingNodeId) {
+                  const node = store.nodes.find(n => n.id === store.placingNodeId);
+                  const anchor = node ? getSchematicAnchor(node) : { x: 0, y: 0 };
+                  store.updatePlacingNode(
+                    Math.round((pos.x - anchor.x) / 20) * 20,
+                    Math.round((pos.y - anchor.y) / 20) * 20
+                  );
+                }
+              }
             });
           }
 
@@ -462,23 +670,14 @@ export const SchematicCanvas: React.FC = () => {
           wheelTimeoutRef.current = setTimeout(() => {
             const finalView = pendingViewRef.current;
             pendingViewRef.current = null;
-            if (isInteractingViewRef.current) {
-              isInteractingViewRef.current = false;
-              bgLayerRef.current?.listening(true);
-              bgLayerRef.current?.drawHit();
-              mainLayerRef.current?.listening(true);
-              mainLayerRef.current?.drawHit();
-            }
             if (finalView) {
-              setStagePos({ x: finalView.x, y: finalView.y });
-              if (finalView.scale !== scale) {
-                setScale(finalView.scale);
-              }
+              syncCommittedView(finalView.x, finalView.y, finalView.scale);
             }
           }, 150);
         }}
         onMouseMove={(e) => {
           const store = useSimulatorStore.getState();
+          if (store.simRunning) return;
           const stage = e.target.getStage();
           if (!stage) return;
           const pointer = stage.getPointerPosition();
@@ -526,6 +725,13 @@ export const SchematicCanvas: React.FC = () => {
             const store = useSimulatorStore.getState();
             const selectedIds: string[] = [];
             store.nodes.forEach(node => {
+              if (node.type === 'JUNCTION' || node.type === 'NC') {
+                if (node.x >= x1 - 6 && node.x <= x2 + 6 && node.y >= y1 - 6 && node.y <= y2 + 6) {
+                  selectedIds.push(node.id);
+                }
+                return;
+              }
+
               const { width, height } = getSchematicDimensions(node);
               const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
               
@@ -545,10 +751,21 @@ export const SchematicCanvas: React.FC = () => {
                 return { x: node.x + anchorX + rx, y: node.y + anchorY + ry };
               };
 
-              const p1 = getPt(0, 0);
-              const p2 = getPt(width, 0);
-              const p3 = getPt(0, height);
-              const p4 = getPt(width, height);
+              let lx1 = 0, ly1 = 0, lx2 = width, ly2 = height;
+              if (node.type === 'NET_LABEL' || node.type.startsWith('SUB_')) {
+                const isInputSide = node.type === 'SUB_OUT' || (node.type === 'SUB_IO' && node.properties?.flipX);
+                const name = String(node.properties?.label || (node.type === 'SUB_IN' ? 'IN' : node.type === 'SUB_OUT' ? 'OUT' : node.type === 'SUB_IO' ? 'I/O' : 'NET'));
+                const tw = getNetLabelTextWidth(name, node.type.startsWith('SUB_'));
+                lx1 = isInputSide ? 0 : (width - 10) - tw;
+                lx2 = isInputSide ? 10 + tw : width;
+                ly1 = height / 2 - 10;
+                ly2 = height / 2 + 10;
+              }
+
+              const p1 = getPt(lx1, ly1);
+              const p2 = getPt(lx2, ly1);
+              const p3 = getPt(lx1, ly2);
+              const p4 = getPt(lx2, ly2);
 
               const minX = Math.min(p1.x, p2.x, p3.x, p4.x);
               const maxX = Math.max(p1.x, p2.x, p3.x, p4.x);
@@ -622,7 +839,24 @@ export const SchematicCanvas: React.FC = () => {
         }}
         onMouseDown={(e) => {
           const store = useSimulatorStore.getState();
-          if (e.target === e.target.getStage() && e.evt.shiftKey && !store.draftWire && (!store.placingNodeId && !store.pastingNodeIds)) {
+          if (e.evt.button === 2) {
+            // Right click
+            if (store.draftWire) store.cancelWire();
+            if (store.placingNodeId) store.cancelPlacingNode();
+            if (store.pastingNodeIds) store.cancelPastingNodes();
+            return;
+          }
+          if (e.evt.button === 0) {
+            if (store.pastingNodeIds) {
+              store.finishPastingNodes();
+              return;
+            }
+            if (store.placingNodeId) {
+              store.finishPlacingNode();
+              return;
+            }
+          }
+          if (e.target === e.target.getStage() && e.evt.shiftKey && !store.simRunning && !store.draftWire && (!store.placingNodeId && !store.pastingNodeIds)) {
             const stage = e.target.getStage();
             const pointer = stage?.getPointerPosition();
             if (stage && pointer) {
@@ -631,12 +865,6 @@ export const SchematicCanvas: React.FC = () => {
               setSelectionBox({ startX: pos.x, startY: pos.y, width: 0, height: 0 });
               select(null);
             }
-            return;
-          }
-          if (e.evt.button === 2) {
-            // Right click
-            if (store.draftWire) store.cancelWire();
-            if (store.pastingNodeIds) store.cancelPastingNodes();
             return;
           }
           if (e.target === e.target.getStage()) {

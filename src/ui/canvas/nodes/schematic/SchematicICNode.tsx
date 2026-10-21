@@ -47,7 +47,6 @@ function parsePinLabel(rawName?: string): ParsedPinLabel {
 
 export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
-  const isLowDetail = useSimulatorStore(state => state.schematicScale < 0.55);
   const isSelected = useSimulatorStore(state =>
     (state.selection?.type === 'node' && state.selection.id === node.id) ||
     state.multiSelection.includes(node.id)
@@ -104,7 +103,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
     }
 
     const { cleanName, isInverted, overbar, isClock } = parsePinLabel(pin.name);
-    const bubbleOffset = !isLowDetail && isInverted ? bubbleRadius * 2 : 0;
+    const bubbleOffset = isInverted ? bubbleRadius * 2 : 0;
 
     let legX = 0, legY = 0, toX = 0, toY = 0;
     let bubbleX = 0, bubbleY = 0;
@@ -153,13 +152,11 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
 
     combinedLegsPath += `M ${legX} ${legY} L ${toX} ${toY} `;
 
-    if (!isLowDetail) {
-      if (isInverted) {
-        bubbles.push({ id: pin.id, x: bubbleX, y: bubbleY });
-      }
-      if (isClock && side === 'left') {
-        combinedWedgesPath += `M 0 ${legY - 4.5} L 6.5 ${legY} L 0 ${legY + 4.5} `;
-      }
+    if (isInverted) {
+      bubbles.push({ id: pin.id, x: bubbleX, y: bubbleY });
+    }
+    if (isClock && side === 'left') {
+      combinedWedgesPath += `M 0 ${legY - 4.5} L 6.5 ${legY} L 0 ${legY + 4.5} `;
     }
 
     const effectiveAlign = node.properties?.flipX
@@ -186,10 +183,10 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
       type: pin.type,
       pinX,
       pinY,
-      safePin: isLowDetail ? undefined : getSafePinNumber(node.type, pin),
+      safePin: getSafePinNumber(node.type, pin),
       numX,
       numY,
-      cleanName: isLowDetail ? '' : cleanName,
+      cleanName,
       labelX,
       labelY,
       effectiveAlign,
@@ -201,7 +198,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
   const partLabel = def?.type?.startsWith('SUBCIRCUIT:') ? def.label : (def?.type || 'IC');
 
   // Cache static IC body + legs + wedges + bubbles + 30-50 pin texts into a single offscreen bitmap
-  // so simulation frames perform 1 fast drawImage() blit per IC instead of 40+ CPU fillText() calls.
+  // so simulation and zoom frames perform 1 fast drawImage() blit per IC instead of 40+ CPU fillText() calls.
   useLayoutEffect(() => {
     const grp = staticGroupRef.current;
     if (!grp || width <= 0 || height <= 0) return;
@@ -211,7 +208,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
         y: -28,
         width: width + 56,
         height: height + 56,
-        pixelRatio: isLowDetail ? 1 : 2,
+        pixelRatio: 2,
       });
     } catch {
       // Fallback to uncached rendering if offscreen canvas creation fails
@@ -221,7 +218,6 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
     height,
     theme,
     isSelected,
-    isLowDetail,
     invRot,
     flipScaleX,
     flipScaleY,
@@ -270,7 +266,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
         )}
 
         {/* Combined IEEE Clock Input Wedges */}
-        {!isLowDetail && combinedWedgesPath && (
+        {combinedWedgesPath && (
           <Path
             data={combinedWedgesPath}
             stroke={canvasTheme.nodeBorder}
@@ -282,7 +278,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
         )}
 
         {/* Active-Low Inversion Bubbles */}
-        {!isLowDetail && bubbles.map(b => (
+        {bubbles.map(b => (
           <Circle
             key={`b-${b.id}`}
             x={b.x}
@@ -318,7 +314,7 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
         </Group>
 
         {/* Pin Numbers, Labels, and Overbars */}
-        {!isLowDetail && pinConfigs.map(cfg => (
+        {pinConfigs.map(cfg => (
           <React.Fragment key={`lbl-${cfg.id}`}>
             {cfg.safePin !== undefined && (
               <Text

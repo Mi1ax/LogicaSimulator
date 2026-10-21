@@ -18,8 +18,6 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
     (state.selection?.type === 'node' && state.selection.id === node.id) ||
     state.multiSelection.includes(node.id)
   );
-  // LOD: skip tiny switch number labels at strong zoom-out
-  const isLowDetail = useSimulatorStore(state => state.schematicScale < 0.55);
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getSchematicDimensions(node);
@@ -64,23 +62,21 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
       />
 
       {/* Label */}
-      {!isLowDetail && (
-        <Group x={width / 2} y={9} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
-          <Text
-            text="ON"
-            x={-width / 2}
-            y={-5}
-            width={width}
-            align="center"
-            fontSize={10}
-            fontFamily="monospace"
-            fontStyle="bold"
-            fill="#ffffff"
-            perfectDrawEnabled={false}
-            listening={false}
-          />
-        </Group>
-      )}
+      <Group x={width / 2} y={9} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
+        <Text
+          text="ON"
+          x={-width / 2}
+          y={-5}
+          width={width}
+          align="center"
+          fontSize={10}
+          fontFamily="monospace"
+          fontStyle="bold"
+          fill="#ffffff"
+          perfectDrawEnabled={false}
+          listening={false}
+        />
+      </Group>
 
       {/* Render Switches */}
       {node.outputs.map((pin, i) => {
@@ -125,19 +121,17 @@ export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => 
               }}
             />
             {/* Number Label */}
-            {!isLowDetail && (
-              <Group x={10} y={yOffset} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
-                <Text
-                  text={String(i + 1)}
-                  x={-5}
-                  y={-5}
-                  fontSize={10}
-                  fill="#ffffff"
-                  perfectDrawEnabled={false}
-                  listening={false}
-                />
-              </Group>
-            )}
+            <Group x={10} y={yOffset} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
+              <Text
+                text={String(i + 1)}
+                x={-5}
+                y={-5}
+                fontSize={10}
+                fill="#ffffff"
+                perfectDrawEnabled={false}
+                listening={false}
+              />
+            </Group>
             
             {/* The actual connection pin */}
             <Pin

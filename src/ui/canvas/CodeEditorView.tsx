@@ -201,7 +201,10 @@ Show_Value = S0 # S1 # S4;
 const HEADER_KW_REGEX = /^(Name|PartNo|Date|Revision|Rev|Designer|Company|Assembly|Location|Device|Format)\b/i;
 
 // Preserve uncompiled draft code across tab switches (Schematic <-> Code Editor)
-const editorDraftCache = new Map<string, { code: string; isDirty: boolean; result: PldCompileResult }>();
+const editorDraftCache = new Map<
+  string,
+  { code: string; isDirty: boolean; result: PldCompileResult; baseSource?: string }
+>();
 
 /**
  * Tokenizes WinCUPL .pld source code into syntax-highlighted React spans
@@ -405,6 +408,8 @@ function highlightPldCode(source: string): React.ReactNode[] {
 
 export const CodeEditorView: React.FC = () => {
   const nodes = useSimulatorStore((state) => state.nodes);
+  const activeSubcircuitId = useSimulatorStore((state) => state.activeSubcircuitId);
+  const selection = useSimulatorStore((state) => state.selection);
   const selectedMemoryNodeId = useSimulatorStore((state) => state.selectedMemoryNodeId);
   const setSelectedMemoryNodeId = useSimulatorStore((state) => state.setSelectedMemoryNodeId);
   const setAppMode = useSimulatorStore((state) => state.setAppMode);
@@ -417,29 +422,39 @@ export const CodeEditorView: React.FC = () => {
   );
 
   const activeGalNode = useMemo(
-    () => galNodes.find((n) => n.id === selectedMemoryNodeId) || galNodes[0] || null,
-    [galNodes, selectedMemoryNodeId]
+    () =>
+      galNodes.find((n) => n.id === selectedMemoryNodeId) ||
+      (selection?.type === 'node' ? galNodes.find((n) => n.id === selection.id) : undefined) ||
+      galNodes[0] ||
+      null,
+    [galNodes, selectedMemoryNodeId, selection]
   );
 
-  const cacheKey = activeGalNode?.id || '__global__';
+  const nodePldSource =
+    typeof activeGalNode?.properties?.pldSource === 'string'
+      ? activeGalNode.properties.pldSource
+      : undefined;
+
+  const cacheKey = activeGalNode ? `${activeSubcircuitId}:${activeGalNode.id}` : `${activeSubcircuitId}:__global__`;
 
   const [code, setCode] = useState<string>(() => {
     const cached = editorDraftCache.get(cacheKey);
+    if (cached && cached.baseSource === nodePldSource) return cached.code;
+    if (nodePldSource !== undefined) return nodePldSource;
     if (cached) return cached.code;
-    if (activeGalNode?.properties?.pldSource) {
-      return activeGalNode.properties.pldSource;
-    }
     return PLD_TEMPLATES[0].code;
   });
 
   const [lastSyncedKey, setLastSyncedKey] = useState<string>(cacheKey);
+  const [lastBaseSource, setLastBaseSource] = useState<string | undefined>(nodePldSource);
   const [compileResult, setCompileResult] = useState<PldCompileResult>(() => {
     const cached = editorDraftCache.get(cacheKey);
-    return cached ? cached.result : compilePldToJedec(code);
+    if (cached && cached.baseSource === nodePldSource) return cached.result;
+    return compilePldToJedec(code);
   });
   const [isDirty, setIsDirty] = useState<boolean>(() => {
     const cached = editorDraftCache.get(cacheKey);
-    return cached ? cached.isDirty : false;
+    return cached && cached.baseSource === nodePldSource ? cached.isDirty : false;
   });
   const [isRightPanelOpen, setIsRightPanelOpen] = useState<boolean>(false);
   const [rightTab, setRightTab] = useState<'summary' | 'jedec' | 'reference'>('summary');
@@ -458,28 +473,51 @@ export const CodeEditorView: React.FC = () => {
   const menuContainerRef = useRef<HTMLDivElement>(null);
   const [cursorPos, setCursorPos] = useState<{ line: number; col: number }>({ line: 1, col: 1 });
 
-  // Keep draft cache updated so switching Schematic <-> Code Editor never loses work
+  // Sync editor source when user switches to a different GAL22V10 node or loads a new circuit (must run before cache write)
   useEffect(() => {
-    editorDraftCache.set(cacheKey, { code, isDirty, result: compileResult });
-  }, [cacheKey, code, isDirty, compileResult]);
-
-  // Sync editor source when user switches to a different GAL22V10 node
-  useEffect(() => {
-    if (cacheKey !== lastSyncedKey) {
+    if (cacheKey !== lastSyncedKey || nodePldSource !== lastBaseSource) {
       setLastSyncedKey(cacheKey);
+      setLastBaseSource(nodePldSource);
       const cached = editorDraftCache.get(cacheKey);
-      if (cached) {
+
+      if (cached && cached.baseSource === nodePldSource) {
         setCode(cached.code);
         setCompileResult(cached.result);
         setIsDirty(cached.isDirty);
-      } else if (typeof activeGalNode?.properties?.pldSource === 'string') {
-        const src = activeGalNode.properties.pldSource;
-        setCode(src);
-        setCompileResult(compilePldToJedec(src));
+      } else if (nodePldSource !== undefined) {
+        setCode(nodePldSource);
+        setCompileResult(compilePldToJedec(nodePldSource));
+        setIsDirty(false);
+      } else if (cached) {
+        setCode(cached.code);
+        setCompileResult(cached.result);
+        setIsDirty(cached.isDirty);
+      } else {
+        const fallback = PLD_TEMPLATES[0].code;
+        setCode(fallback);
+        setCompileResult(compilePldToJedec(fallback));
         setIsDirty(false);
       }
+
+      if (textareaRef.current) {
+        textareaRef.current.scrollTop = 0;
+        textareaRef.current.scrollLeft = 0;
+      }
+      setCursorPos({ line: 1, col: 1 });
     }
-  }, [cacheKey, lastSyncedKey, activeGalNode]);
+  }, [cacheKey, lastSyncedKey, nodePldSource, lastBaseSource]);
+
+  // Keep draft cache updated only for the already-synced chip so switching never overwrites the target chip's cache
+  useEffect(() => {
+    if (cacheKey === lastSyncedKey && nodePldSource === lastBaseSource) {
+      editorDraftCache.set(cacheKey, {
+        code,
+        isDirty,
+        result: compileResult,
+        baseSource: nodePldSource,
+      });
+    }
+  }, [cacheKey, lastSyncedKey, nodePldSource, lastBaseSource, code, isDirty, compileResult]);
 
   // Close dropdown menus on outside click
   useEffect(() => {

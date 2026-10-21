@@ -24,6 +24,8 @@ export const PropertiesPanel: React.FC = () => {
     setLocalLabel(node?.properties?.label || '');
   }, [node?.id, node?.properties?.label]);
 
+  if (appMode !== 'schematic' || simRunning) return null;
+
   if (multiSelection && multiSelection.length > 1) return null;
 
   if (!node || node.type === 'JUNCTION') return null;
@@ -657,7 +659,7 @@ export const PropertiesPanel: React.FC = () => {
 
         {/* GAL22V10 JEDEC Loader & Code Editor */}
         {node.type === 'GAL22V10' && (
-          <div className="mt-4 space-y-2">
+          <div className="mt-4 pt-3 border-t border-gray-200 dark:border-slate-700 space-y-2">
             <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
               PLD / JEDEC Programming
             </label>
@@ -667,7 +669,7 @@ export const PropertiesPanel: React.FC = () => {
                 store.setSelectedMemoryNodeId(node.id);
                 store.setAppMode('code');
               }}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded transition-colors text-sm"
+              className="w-full bg-slate-800 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 text-white dark:text-slate-100 border border-slate-700 dark:border-slate-600 font-medium py-1.5 px-3 rounded-md transition-colors text-xs"
             >
               Open Code Editor (.pld)
             </button>
@@ -683,7 +685,7 @@ export const PropertiesPanel: React.FC = () => {
                   });
                 }
               }}
-              className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-1.5 px-4 rounded transition-colors text-xs"
+              className="w-full bg-gray-50 hover:bg-gray-100 dark:bg-slate-900 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-700 font-medium py-1.5 px-3 rounded-md transition-colors text-xs"
             >
               Place FSM Diagram on Schematic
             </button>
@@ -710,12 +712,12 @@ export const PropertiesPanel: React.FC = () => {
             />
             <button
               onClick={() => document.getElementById('jedec-upload')?.click()}
-              className="w-full bg-slate-600 hover:bg-slate-700 text-white font-medium py-1.5 px-4 rounded transition-colors text-xs"
+              className="w-full bg-gray-50 hover:bg-gray-100 dark:bg-slate-900 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-700 font-medium py-1.5 px-3 rounded-md transition-colors text-xs"
             >
               Load .jed File Directly
             </button>
             {node.properties?.jedecString && (
-              <div className="mt-1 text-[10px] text-green-600 dark:text-green-400 text-center">
+              <div className="pt-0.5 text-[11px] font-mono text-gray-500 dark:text-slate-400 text-center">
                 ✓ JEDEC Loaded
               </div>
             )}

@@ -16,7 +16,6 @@ const SELECTION_DASH = [2, 2];
 
 export const SchematicBusNode: React.FC<BusProps> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
-  const isLowDetail = useSimulatorStore(state => state.schematicScale < 0.55);
   const isSelected = useSimulatorStore(state =>
     (state.selection?.type === 'node' && state.selection.id === node.id) ||
     state.multiSelection.includes(node.id)
@@ -87,7 +86,7 @@ export const SchematicBusNode: React.FC<BusProps> = React.memo(({ node }) => {
       
       {pinLayouts.map(({ pin, side, pinX, pinY }) => (
         <React.Fragment key={pin.id}>
-          {!isLowDetail && side === 'left' && (
+          {side === 'left' && (
             <Group x={pinX + 10} y={pinY - 9} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
               <Text 
                 x={-6}

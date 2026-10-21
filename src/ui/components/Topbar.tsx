@@ -139,6 +139,9 @@ export const Topbar: React.FC = () => {
         return;
       }
       if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyS' || e.key.toLowerCase() === 's')) {
+        if (useSimulatorStore.getState().appMode === 'hex') {
+          return;
+        }
         e.preventDefault();
         handleSave();
       }
@@ -296,7 +299,6 @@ export const Topbar: React.FC = () => {
                       <button onClick={() => loadExample('04_62256_sram.logica')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700">04. 62256 SRAM Chip</button>
                       <button onClick={() => loadExample('05_74LS273_register.logica')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700">05. 74LS273 Octal Register</button>
                       <button onClick={() => loadExample('06_74LS08_quad_and.logica')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700">06. 74LS08 Quad AND Gate</button>
-                      <button onClick={() => loadExample('mqc.logica')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700">07. MQC CPU Computer</button>
                     </div>
                   )}
                 </div>

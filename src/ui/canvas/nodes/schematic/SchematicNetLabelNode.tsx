@@ -1,5 +1,5 @@
 import React from 'react';
-import { Rect, Text, Path } from 'react-konva';
+import { Rect, Text, Line } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore } from '../../../../store/useSimulatorStore';
 import { Pin } from '../../primitives/Pin';
@@ -12,6 +12,21 @@ interface NetLabelProps {
 }
 
 const SELECTION_DASH = [2, 2];
+
+let netLabelMeasureCtx: CanvasRenderingContext2D | null = null;
+export function getNetLabelTextWidth(name: string, bold = false): number {
+  if (typeof document !== 'undefined') {
+    if (!netLabelMeasureCtx) {
+      const canvas = document.createElement('canvas');
+      netLabelMeasureCtx = canvas.getContext('2d');
+    }
+    if (netLabelMeasureCtx) {
+      netLabelMeasureCtx.font = `${bold ? 'bold ' : ''}10px sans-serif`;
+      return Math.max(24, Math.ceil(netLabelMeasureCtx.measureText(name).width + 8));
+    }
+  }
+  return Math.max(24, Math.ceil(name.length * 6.5 + 8));
+}
 
 export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
@@ -26,9 +41,12 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
 
   const isInputSide = node.type === 'SUB_OUT' || (node.type === 'SUB_IO' && node.properties?.flipX);
   const name = String(node.properties?.label || (node.type === 'SUB_IN' ? 'IN' : node.type === 'SUB_OUT' ? 'OUT' : node.type === 'SUB_IO' ? 'I/O' : 'NET'));
-  const textWidth = Math.max(width - 10, name.length * 7 + 8);
+  const isBold = node.type.startsWith('SUB_');
+  const textWidth = getNetLabelTextWidth(name, isBold);
   const boxX = isInputSide ? 10 : (width - 10) - textWidth;
   const boxCenterX = boxX + textWidth / 2;
+  const hitX = isInputSide ? 0 : boxX;
+  const hitWidth = textWidth + 10;
 
   return (
     <SchematicNodeWrapper
@@ -48,8 +66,17 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
         }
       }}
     >
-      <Path
-        data={isInputSide ? `M 0 ${height / 2} L 10 ${height / 2}` : `M ${width - 10} ${height / 2} L ${width} ${height / 2}`}
+      <Rect
+        x={hitX}
+        y={height / 2 - 10}
+        width={hitWidth}
+        height={20}
+        fill="transparent"
+        perfectDrawEnabled={false}
+      />
+
+      <Line
+        points={isInputSide ? [0, height / 2, 10, height / 2] : [width - 10, height / 2, width, height / 2]}
         stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
         strokeWidth={2}
         listening={false}
@@ -71,15 +98,16 @@ export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node
         verticalAlign="middle"
         fontSize={10}
         fontFamily="sans-serif"
-        fontStyle={node.type.startsWith('SUB_') ? 'bold' : 'normal'}
+        fontStyle={isBold ? 'bold' : 'normal'}
         fill={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.textColor}
+        listening={false}
         perfectDrawEnabled={false}
       />
       
       {isSelected && (
         <Rect
           x={boxX}
-          y={12}
+          y={height / 2 - 8}
           width={textWidth}
           height={16}
           stroke={canvasTheme.selectedNodeColor}

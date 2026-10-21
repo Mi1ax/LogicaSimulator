@@ -200,8 +200,9 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
                 if (container && !useSimulatorStore.getState().placingNodeId && !useSimulatorStore.getState().pastingNodeIds) container.style.cursor = 'grab';
               }}
               onClick={(e) => {
-                if (!isPlacing) {
-                  e.cancelBubble = true;
+                const st = useSimulatorStore.getState();
+                if (st.labelTool.active || isPlacing) return;
+                if (!e.evt.shiftKey) {
                   toggleInputNode(node.id);
                 }
               }}
@@ -251,8 +252,8 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
               }}
               onClick={(e) => {
                 const st = useSimulatorStore.getState();
-                if (!isPlacing && st.simRunning && node.properties?.mode === 'manual') {
-                  e.cancelBubble = true;
+                if (st.labelTool.active || isPlacing) return;
+                if (!e.evt.shiftKey && st.simRunning && node.properties?.mode === 'manual') {
                   toggleInputNode(node.id);
                 }
               }}

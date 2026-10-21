@@ -8,6 +8,14 @@ interface Props {
   node: LogicNode;
 }
 
+function junctionHitFunc(ctx: any, shape: any) {
+  const sx = Math.abs(shape.scaleX()) || 1;
+  ctx.beginPath();
+  ctx.arc(0, 0, 10 / sx, 0, Math.PI * 2, false);
+  ctx.closePath();
+  ctx.fillStrokeShape(shape);
+}
+
 export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
   const isSelected = useSimulatorStore(state =>
@@ -31,17 +39,17 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
     <Circle
       x={node.x}
       y={node.y}
-      radius={isSelected ? 6 : 4}
+      radius={isSelected ? 6.5 : 5}
       fill={color}
-      stroke={color}
-      strokeWidth={1}
-      hitStrokeWidth={16}
+      hitStrokeWidth={0}
+      hitFunc={junctionHitFunc}
       perfectDrawEnabled={false}
       shadowForStrokeEnabled={false}
-      draggable={true}
+      draggable
       onClick={(e) => {
         e.cancelBubble = true;
         const store = useSimulatorStore.getState();
+        if (store.simRunning) return;
         if (store.pastingNodeIds && store.pastingNodeIds.includes(node.id)) {
           store.finishPastingNodes();
           return;
@@ -73,36 +81,62 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
       }}
       onDblClick={(e) => {
         e.cancelBubble = true;
-        if (clickTimeout.current) clearTimeout(clickTimeout.current);
+        if (clickTimeout.current) {
+          clearTimeout(clickTimeout.current);
+          clickTimeout.current = null;
+        }
         const store = useSimulatorStore.getState();
+        if (store.simRunning) return;
         store.select({ type: 'node', id: node.id }, e.evt.shiftKey);
         store.deleteSelection();
       }}
       onDragStart={(e) => {
         e.cancelBubble = true;
+        if (clickTimeout.current) {
+          clearTimeout(clickTimeout.current);
+          clickTimeout.current = null;
+        }
         const store = useSimulatorStore.getState();
-        store.select({ type: 'node', id: node.id }, e.evt.shiftKey);
+        if (store.simRunning) {
+          e.target.stopDrag();
+          return;
+        }
+        if (!store.multiSelection.includes(node.id)) {
+          store.select({ type: 'node', id: node.id }, e.evt.shiftKey);
+        }
         store.saveHistory();
       }}
       onDragMove={(e) => {
+        e.cancelBubble = true;
+        if (useSimulatorStore.getState().simRunning) return;
         const localX = Math.round(e.target.x() / 20) * 20;
         const localY = Math.round(e.target.y() / 20) * 20;
         e.target.position({ x: localX, y: localY });
         useSimulatorStore.getState().updateNodePosition(node.id, localX, localY);
       }}
       onDragEnd={(e) => {
+        e.cancelBubble = true;
+        if (useSimulatorStore.getState().simRunning) return;
         const localX = Math.round(e.target.x() / 20) * 20;
         const localY = Math.round(e.target.y() / 20) * 20;
         e.target.position({ x: localX, y: localY });
         useSimulatorStore.getState().updateNodePosition(node.id, localX, localY, true);
       }}
       onMouseEnter={(e) => {
+        if (useSimulatorStore.getState().simRunning) return;
         const container = e.target.getStage()?.container();
         if (container) container.style.cursor = 'crosshair';
+        e.target.scale({ x: 1.35, y: 1.35 });
       }}
       onMouseLeave={(e) => {
+        if (clickTimeout.current) {
+          clearTimeout(clickTimeout.current);
+          clickTimeout.current = null;
+        }
+        if (useSimulatorStore.getState().simRunning) return;
         const container = e.target.getStage()?.container();
         if (container) container.style.cursor = 'default';
+        e.target.scale({ x: 1, y: 1 });
       }}
     />
   );

@@ -42,16 +42,18 @@ interface PinProps {
   opacity?: number;
 }
 
+function pinHitFunc(ctx: any, shape: any) {
+  const sx = Math.abs(shape.scaleX()) || 1;
+  ctx.beginPath();
+  ctx.arc(0, 0, 10 / sx, 0, Math.PI * 2, false);
+  ctx.closePath();
+  ctx.fillStrokeShape(shape);
+}
+
 export const Pin: React.FC<PinProps> = React.memo(({ x, y, type, id, nodeId, opacity }) => {
-  // At strong zoom-out (< 0.45) when not actively drawing a wire, pins are < 2px and covered by wires.
-  // Returning undefined here prevents 300+ Pin components from re-rendering on simulation ticks while zoomed out.
-  const pinState = useSimulatorStore(state =>
-    state.schematicScale < 0.45 && !state.draftWire ? undefined : state.simState.pinStates[id]
-  );
-  // Pack theme (bit 0), isConnected (bit 1), isConnectedToNC (bit 2), hiddenAtZoomOut (bit 3) into a single primitive integer selector
+  const pinState = useSimulatorStore(state => state.simState.pinStates[id]);
+  // Pack theme (bit 0), isConnected (bit 1), isConnectedToNC (bit 2) into a single primitive integer selector
   const metaMask = useSimulatorStore(state => {
-    const hiddenByLod = state.schematicScale < 0.45 && !state.draftWire;
-    if (hiddenByLod) return 8;
     const sets = getPinConnectionSets(state.wires, state.nodes);
     return (
       (state.theme === 'dark' ? 1 : 0) |
@@ -63,9 +65,8 @@ export const Pin: React.FC<PinProps> = React.memo(({ x, y, type, id, nodeId, opa
   const isDark = (metaMask & 1) !== 0;
   const isConnected = (metaMask & 2) !== 0;
   const isConnectedToNC = (metaMask & 4) !== 0;
-  const hiddenByLod = (metaMask & 8) !== 0;
 
-  if (hiddenByLod || isConnectedToNC || opacity === 0) {
+  if (isConnectedToNC || opacity === 0) {
     return null;
   }
 
@@ -98,9 +99,16 @@ export const Pin: React.FC<PinProps> = React.memo(({ x, y, type, id, nodeId, opa
       fill={isConnected ? fill : canvasTheme.nodeBg}
       stroke={isConnected && pinState !== undefined ? fill : stroke}
       strokeWidth={strokeWidth}
-      hitStrokeWidth={12}
+      hitStrokeWidth={0}
+      hitFunc={pinHitFunc}
       onMouseEnter={(e) => {
         const store = useSimulatorStore.getState();
+        if (store.simRunning) return;
+        if (store.labelTool.active) {
+          const container = e.target.getStage()?.container();
+          if (container) container.style.cursor = 'copy';
+          return;
+        }
         const node = store.nodes.find(n => n.id === nodeId);
         if (node?.type === 'NC') return;
         
@@ -110,6 +118,7 @@ export const Pin: React.FC<PinProps> = React.memo(({ x, y, type, id, nodeId, opa
       }}
       onMouseLeave={(e) => {
         const store = useSimulatorStore.getState();
+        if (store.simRunning) return;
         const node = store.nodes.find(n => n.id === nodeId);
         if (node?.type === 'NC') return;
         
@@ -117,9 +126,21 @@ export const Pin: React.FC<PinProps> = React.memo(({ x, y, type, id, nodeId, opa
         if (container) container.style.cursor = 'default';
         e.target.scale({ x: 1, y: 1 });
       }}
+      onMouseDown={(e) => {
+        const state = useSimulatorStore.getState();
+        if (state.simRunning) return;
+        if (e.evt.button === 0 && state.labelTool.active) {
+          e.cancelBubble = true;
+          state.applyLabelToolToNode(nodeId);
+        }
+      }}
       onClick={(e) => {
         const state = useSimulatorStore.getState();
-        if (state.placingNodeId) return;
+        if (state.simRunning || state.placingNodeId) return;
+        if (state.labelTool.active) {
+          e.cancelBubble = true;
+          return;
+        }
 
         const node = state.nodes.find(n => n.id === nodeId);
         

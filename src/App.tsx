@@ -14,7 +14,14 @@ function App() {
   const simRunning = useSimulatorStore(state => state.simRunning);
   const simSpeed = useSimulatorStore(state => state.simSpeed);
   const stepSimulationBatch = useSimulatorStore(state => state.stepSimulationBatch);
-  const [analyzerOpen, setAnalyzerOpen] = useState<boolean>(true);
+  const lastTriggeredBpId = useSimulatorStore(state => state.lastTriggeredBreakpointId);
+  const [analyzerOpen, setAnalyzerOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (lastTriggeredBpId) {
+      setAnalyzerOpen(true);
+    }
+  }, [lastTriggeredBpId]);
 
   // Theme Sync
   useEffect(() => {

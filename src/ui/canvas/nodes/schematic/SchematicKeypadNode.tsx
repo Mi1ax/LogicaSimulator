@@ -28,8 +28,6 @@ export const SchematicKeypadNode: React.FC<Props> = React.memo(({ node }) => {
   const isPlacing = useSimulatorStore(
     state => state.placingNodeId === node.id || Boolean(state.pastingNodeIds && state.pastingNodeIds.includes(node.id))
   );
-  // LOD: skip tiny 8px pin labels and faint internal grid lines at strong zoom-out
-  const isLowDetail = useSimulatorStore(state => state.schematicScale < 0.55);
 
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getSchematicDimensions(node);
@@ -46,18 +44,23 @@ export const SchematicKeypadNode: React.FC<Props> = React.memo(({ node }) => {
   for (let r = 0; r < 4; r++) {
     const y = 20 + r * 40;
     legsPath += `M 0 ${y} L -20 ${y} `;
-    if (!isLowDetail) matrixGridPath += `M 0 ${y} L 100 ${y} `;
+    matrixGridPath += `M 0 ${y} L 100 ${y} `;
   }
   for (let c = 0; c < 3; c++) {
     const x = 20 + c * 40;
     legsPath += `M ${x} 0 L ${x} -20 `;
-    if (!isLowDetail) matrixGridPath += `M ${x} 0 L ${x} 140 `;
+    matrixGridPath += `M ${x} 0 L ${x} 140 `;
   }
 
   return (
     <SchematicNodeWrapper
       node={node}
       onMouseLeaveExtra={() => {
+        if (pressedKey !== null && !node.properties?.latched) {
+          updateNodeProperties(node.id, { pressedKey: null });
+        }
+      }}
+      onDragStartExtra={() => {
         if (pressedKey !== null && !node.properties?.latched) {
           updateNodeProperties(node.id, { pressedKey: null });
         }
@@ -86,16 +89,14 @@ export const SchematicKeypadNode: React.FC<Props> = React.memo(({ node }) => {
       />
 
       {/* Internal Matrix Row/Col Lines */}
-      {!isLowDetail && (
-        <Path
-          data={matrixGridPath}
-          stroke={canvasTheme.nodeBorder}
-          strokeWidth={1}
-          opacity={0.25}
-          perfectDrawEnabled={false}
-          listening={false}
-        />
-      )}
+      <Path
+        data={matrixGridPath}
+        stroke={canvasTheme.nodeBorder}
+        strokeWidth={1}
+        opacity={0.25}
+        perfectDrawEnabled={false}
+        listening={false}
+      />
 
       {/* Custom Label */}
       {node.properties?.label && (
@@ -156,7 +157,6 @@ export const SchematicKeypadNode: React.FC<Props> = React.memo(({ node }) => {
               }}
               onMouseDown={(e) => {
                 if (isPlacing) return;
-                e.cancelBubble = true;
                 if (e.evt.shiftKey) {
                   // Shift+Click latches/unlatches key so you can step clock while key stays held
                   if (isActive && node.properties?.latched) {
@@ -170,37 +170,29 @@ export const SchematicKeypadNode: React.FC<Props> = React.memo(({ node }) => {
               }}
               onMouseUp={(e) => {
                 if (isPlacing) return;
-                e.cancelBubble = true;
                 if (!e.evt.shiftKey && !node.properties?.latched) {
                   updateNodeProperties(node.id, { pressedKey: null });
                 }
               }}
-              onClick={(e) => {
-                if (!isPlacing) {
-                  e.cancelBubble = true;
-                }
-              }}
             />
-            {!isLowDetail && (
-              <Text
-                text={label}
-                x={cx}
-                y={cy}
-                offsetX={13}
-                offsetY={6}
-                rotation={invRot}
-                scaleX={flipScaleX}
-                scaleY={flipScaleY}
-                width={26}
-                align="center"
-                fontSize={12}
-                fontFamily="monospace"
-                fontStyle="bold"
-                fill={isActive ? '#ffffff' : canvasTheme.textColor}
-                perfectDrawEnabled={false}
-                listening={false}
-              />
-            )}
+            <Text
+              text={label}
+              x={cx}
+              y={cy}
+              offsetX={13}
+              offsetY={6}
+              rotation={invRot}
+              scaleX={flipScaleX}
+              scaleY={flipScaleY}
+              width={26}
+              align="center"
+              fontSize={12}
+              fontFamily="monospace"
+              fontStyle="bold"
+              fill={isActive ? '#ffffff' : canvasTheme.textColor}
+              perfectDrawEnabled={false}
+              listening={false}
+            />
           </React.Fragment>
         );
       })}
@@ -217,25 +209,23 @@ export const SchematicKeypadNode: React.FC<Props> = React.memo(({ node }) => {
               y={y}
               type={pin.type}
             />
-            {!isLowDetail && (
-              <Text
-                text={`R${r + 1}`}
-                x={-11}
-                y={y - 10}
-                offsetX={10}
-                offsetY={4}
-                rotation={invRot}
-                scaleX={flipScaleX}
-                scaleY={flipScaleY}
-                width={20}
-                align="center"
-                fontSize={8}
-                fontFamily="monospace"
-                fill={canvasTheme.nodeBorder}
-                perfectDrawEnabled={false}
-                listening={false}
-              />
-            )}
+            <Text
+              text={`R${r + 1}`}
+              x={-11}
+              y={y - 10}
+              offsetX={10}
+              offsetY={4}
+              rotation={invRot}
+              scaleX={flipScaleX}
+              scaleY={flipScaleY}
+              width={20}
+              align="center"
+              fontSize={8}
+              fontFamily="monospace"
+              fill={canvasTheme.nodeBorder}
+              perfectDrawEnabled={false}
+              listening={false}
+            />
           </React.Fragment>
         );
       })}
@@ -252,25 +242,23 @@ export const SchematicKeypadNode: React.FC<Props> = React.memo(({ node }) => {
               y={-20}
               type={pin.type}
             />
-            {!isLowDetail && (
-              <Text
-                text={`C${c + 1}`}
-                x={x + 12}
-                y={-10}
-                offsetX={10}
-                offsetY={4}
-                rotation={invRot}
-                scaleX={flipScaleX}
-                scaleY={flipScaleY}
-                width={20}
-                align="center"
-                fontSize={8}
-                fontFamily="monospace"
-                fill={canvasTheme.nodeBorder}
-                perfectDrawEnabled={false}
-                listening={false}
-              />
-            )}
+            <Text
+              text={`C${c + 1}`}
+              x={x + 12}
+              y={-10}
+              offsetX={10}
+              offsetY={4}
+              rotation={invRot}
+              scaleX={flipScaleX}
+              scaleY={flipScaleY}
+              width={20}
+              align="center"
+              fontSize={8}
+              fontFamily="monospace"
+              fill={canvasTheme.nodeBorder}
+              perfectDrawEnabled={false}
+              listening={false}
+            />
           </React.Fragment>
         );
       })}

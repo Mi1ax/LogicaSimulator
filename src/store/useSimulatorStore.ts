@@ -74,8 +74,6 @@ interface SimulatorState {
   setSchematicPos: (pos: { x: number, y: number }) => void;
   schematicScale: number;
   setSchematicScale: (scale: number) => void;
-  canvasOffset: { x: number, y: number };
-  setCanvasOffset: (offset: { x: number, y: number }) => void;
 
   // UI state for node placement
   placingNodeId: string | null;
@@ -100,8 +98,6 @@ interface SimulatorState {
   simSpeed: number; // Hz (ticks per second)
   
   // View State
-
-  addNode: (type: NodeType, x: number, y: number) => void;
   updateNodePosition: (id: string, x: number, y: number, finalize?: boolean, extraIds?: string[]) => void;
   updateNodeProperties: (id: string, props: Record<string, any>) => void;
   clearNodes: () => void;
@@ -130,12 +126,41 @@ interface SimulatorState {
   setTrapShortCircuit: (trap: boolean) => void;
   clearAnalyzerHistory: () => void;
 
+  // Quick Sequential Net Labeler Tool (Hotkey: L)
+  labelTool: {
+    active: boolean;
+    pattern: string;
+    nextIndex: number;
+    step: 1 | -1;
+  };
+  setLabelTool: (
+    patch: Partial<{
+      active: boolean;
+      pattern: string;
+      nextIndex: number;
+      step: 1 | -1;
+    }>
+  ) => void;
+  applyLabelToolToNode: (nodeId: string) => void;
+  applyLabelToolToSelection: () => void;
+
   // Undo / Redo
   history: { nodes: LogicNode[], wires: Wire[] }[];
   future: { nodes: LogicNode[], wires: Wire[] }[];
   undo: () => void;
   redo: () => void;
   saveHistory: () => void;
+}
+
+export function formatLabelFromPattern(pattern: string, index: number): string {
+  const raw = pattern.trim() || 'NET[#]';
+  if (raw.includes('#')) {
+    return raw.replace(/#/g, String(index));
+  }
+  if (raw.includes('[]')) {
+    return raw.replace(/\[\]/g, `[${index}]`);
+  }
+  return raw;
 }
 
 let cachedChannelsRef: AnalyzerChannel[] | null = null;
@@ -384,16 +409,16 @@ export const useSimulatorStore = create<SimulatorState>()(
   draftWire: null,
   selection: null,
   multiSelection: [],
-  setMultiSelection: (ids) => set({ multiSelection: ids, selection: ids.length > 0 ? { type: 'node', id: ids[0] } : null }),
+  setMultiSelection: (ids) => set((state) => {
+    if (state.simRunning && ids.length > 0) return state;
+    return { multiSelection: ids, selection: ids.length > 0 ? { type: 'node', id: ids[0] } : null };
+  }),
   selectedMemoryNodeId: null,
   setSelectedMemoryNodeId: (id) => set({ selectedMemoryNodeId: id }),
   schematicPos: { x: 0, y: 0 },
   setSchematicPos: (pos) => set({ schematicPos: pos }),
   schematicScale: 1,
   setSchematicScale: (scale) => set({ schematicScale: scale }),
-  canvasOffset: { x: 0, y: 0 },
-  setCanvasOffset: (offset) => set({ canvasOffset: offset }),
-  
 
   simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} },
   simRunning: false,
@@ -405,7 +430,7 @@ export const useSimulatorStore = create<SimulatorState>()(
   saveHistory: () => set((state) => pushHistory(state)),
 
   undo: () => set((state) => {
-    if (state.history.length === 0) return state;
+    if (state.simRunning || state.history.length === 0) return state;
     const previous = state.history[state.history.length - 1];
     return {
       ...state,
@@ -428,7 +453,7 @@ export const useSimulatorStore = create<SimulatorState>()(
   }),
 
   redo: () => set((state) => {
-    if (state.future.length === 0) return state;
+    if (state.simRunning || state.future.length === 0) return state;
     const next = state.future[0];
     return {
       ...state,
@@ -445,7 +470,11 @@ export const useSimulatorStore = create<SimulatorState>()(
   }),
 
   select: (selection, append = false) => set((state) => {
-    if (!selection) return { selection: null, multiSelection: [] };
+    if (!selection) {
+      if (!state.selection && state.multiSelection.length === 0) return state;
+      return { selection: null, multiSelection: [] };
+    }
+    if (state.simRunning) return state;
     const currentMulti = state.multiSelection || [];
     if (append) {
       const isSelected = currentMulti.includes(selection.id);
@@ -465,6 +494,7 @@ export const useSimulatorStore = create<SimulatorState>()(
   }),
 
   deleteSelection: () => set((state) => {
+    if (state.simRunning) return state;
     const currentMulti = state.multiSelection || [];
     const idsToDelete = currentMulti.length > 0 ? currentMulti : (state.selection ? [state.selection.id] : []);
     if (idsToDelete.length === 0) return state;
@@ -535,6 +565,7 @@ export const useSimulatorStore = create<SimulatorState>()(
   clipboard: null,
   
   startPlacingNode: (type) => set((state) => {
+    if (state.simRunning) return state;
     let baseState: SimulatorState = state;
     let historyToUse = pushHistory(state);
     if (state.placingNodeId) {
@@ -585,7 +616,7 @@ export const useSimulatorStore = create<SimulatorState>()(
   }),
 
   pasteClipboard: (x: number, y: number) => set((state) => {
-    if (!state.clipboard || state.clipboard.nodes.length === 0) return state;
+    if (state.simRunning || !state.clipboard || state.clipboard.nodes.length === 0) return state;
 
     const idMap: Record<string, string> = {};
     const newNodes: any[] = [];
@@ -694,23 +725,69 @@ export const useSimulatorStore = create<SimulatorState>()(
     };
   }),
 
-  addNode: (type, x, y) => set((state) => ({ ...circuit.addNode(state, type, x, y), ...pushHistory(state) })),
   updateNodePosition: (id, x, y, finalize, extraIds) => set((state) => {
     const isMulti = state.multiSelection.includes(id);
     const baseIds = isMulti ? state.multiSelection : [id];
-    const ids = extraIds && extraIds.length > 0
+    const combined = extraIds && extraIds.length > 0
       ? Array.from(new Set([...baseIds, ...extraIds]))
-      : baseIds;
-    let nextState = { ...state, ...circuit.moveSelection(state, ids, id, x, y) };
+      : [...baseIds];
+
+    const movedSet = new Set(combined);
+    const nodeById = new Map(state.nodes.map(n => [n.id, n]));
+    const hasMovedComponent = combined.some(cid => {
+      if (cid.startsWith('wp:')) return false;
+      const n = nodeById.get(cid);
+      return Boolean(n && n.type !== 'NET_LABEL' && n.type !== 'NC');
+    });
+
+    if (hasMovedComponent) {
+      // Find NET_LABEL / NC nodes connected directly to pins of moved components
+      for (let i = 0; i < state.wires.length; i++) {
+        const w = state.wires[i];
+        const srcMoved = movedSet.has(w.sourceNodeId);
+        const tgtMoved = movedSet.has(w.targetNodeId);
+        if (srcMoved === tgtMoved) continue;
+
+        const movedNodeId = srcMoved ? w.sourceNodeId : w.targetNodeId;
+        const otherNodeId = srcMoved ? w.targetNodeId : w.sourceNodeId;
+        const movedNode = nodeById.get(movedNodeId);
+        const otherNode = nodeById.get(otherNodeId);
+
+        if (
+          movedNode &&
+          movedNode.type !== 'NET_LABEL' &&
+          movedNode.type !== 'NC' &&
+          otherNode &&
+          (otherNode.type === 'NET_LABEL' || otherNode.type === 'NC')
+        ) {
+          // Ensure this NET_LABEL / NC is not wired to any stationary node outside movedSet
+          const wiredToStationary = state.wires.some(
+            ow =>
+              ow.id !== w.id &&
+              ((ow.sourceNodeId === otherNode.id && !movedSet.has(ow.targetNodeId)) ||
+                (ow.targetNodeId === otherNode.id && !movedSet.has(ow.sourceNodeId)))
+          );
+          if (!wiredToStationary) {
+            combined.push(otherNode.id);
+            combined.push(w.id);
+            movedSet.add(otherNode.id);
+            movedSet.add(w.id);
+          }
+        }
+      }
+    }
+
+    let nextState = { ...state, ...circuit.moveSelection(state, combined, id, x, y) };
     
     if (finalize) {
-      nextState = applyAutoConnect(nextState, ids);
+      const movedNodeIdsOnly = combined.filter(cid => !cid.startsWith('wp:') && nodeById.has(cid));
+      nextState = applyAutoConnect(nextState, movedNodeIdsOnly);
     }
     
     return nextState;
   }), // History saved on drag start
   updateNodeProperties: (id, props) => set((state) => {
-    if (state.placingNodeId === id) {
+    if (state.placingNodeId === id || state.simRunning) {
       return circuit.updateNodeProperties(state, id, props);
     }
     return { ...circuit.updateNodeProperties(state, id, props), ...pushHistory(state) };
@@ -753,6 +830,100 @@ export const useSimulatorStore = create<SimulatorState>()(
     globalAnalyzerBuffer.clear();
     notifyTickListeners(useSimulatorStore.getState().simState.tickCount);
   },
+
+  // Quick Sequential Net Labeler Tool (Hotkey: L)
+  labelTool: {
+    active: false,
+    pattern: 'IP[#]',
+    nextIndex: 0,
+    step: 1,
+  },
+
+  setLabelTool: (patch) =>
+    set((state) => ({
+      labelTool: { ...state.labelTool, ...patch },
+    })),
+
+  applyLabelToolToNode: (nodeId) =>
+    set((state) => {
+      if (!state.labelTool.active) return state;
+      const node = state.nodes.find((n) => n.id === nodeId);
+      if (!node || node.type === 'JUNCTION' || node.type === 'VCC' || node.type === 'GND') {
+        return state;
+      }
+      const nextLabel = formatLabelFromPattern(
+        state.labelTool.pattern,
+        state.labelTool.nextIndex
+      );
+      const hasCounter =
+        state.labelTool.pattern.includes('#') || state.labelTool.pattern.includes('[]');
+      const nextIdx = hasCounter
+        ? Math.max(0, state.labelTool.nextIndex + state.labelTool.step)
+        : state.labelTool.nextIndex;
+
+      return {
+        ...circuit.updateNodeProperties(state, nodeId, { label: nextLabel }),
+        ...pushHistory(state),
+        labelTool: {
+          ...state.labelTool,
+          nextIndex: nextIdx,
+        },
+      };
+    }),
+
+  applyLabelToolToSelection: () =>
+    set((state) => {
+      const ids =
+        state.multiSelection.length > 0
+          ? state.multiSelection
+          : state.selection?.type === 'node'
+          ? [state.selection.id]
+          : [];
+      if (ids.length === 0) return state;
+
+      const idSet = new Set(ids);
+      const selectedNodes = state.nodes
+        .filter(
+          (n) =>
+            idSet.has(n.id) &&
+            n.type !== 'JUNCTION' &&
+            n.type !== 'VCC' &&
+            n.type !== 'GND'
+        )
+        .sort((a, b) => (a.y !== b.y ? a.y - b.y : a.x - b.x));
+
+      if (selectedNodes.length === 0) return state;
+
+      const hasCounter =
+        state.labelTool.pattern.includes('#') || state.labelTool.pattern.includes('[]');
+      let curIdx = state.labelTool.nextIndex;
+      const labelById = new Map<string, string>();
+      for (const n of selectedNodes) {
+        labelById.set(n.id, formatLabelFromPattern(state.labelTool.pattern, curIdx));
+        if (hasCounter) {
+          curIdx = Math.max(0, curIdx + state.labelTool.step);
+        }
+      }
+
+      const nextNodes = state.nodes.map((n) => {
+        const lbl = labelById.get(n.id);
+        if (lbl === undefined) return n;
+        return {
+          ...n,
+          properties: { ...n.properties, label: lbl },
+        };
+      });
+
+      return {
+        ...state,
+        ...pushHistory(state),
+        nodes: nextNodes,
+        labelTool: {
+          ...state.labelTool,
+          nextIndex: curIdx,
+        },
+      };
+    }),
 
   // Undoable: the cleared circuit is pushed onto the history stack first.
   clearNodes: () => {
@@ -930,9 +1101,40 @@ export const useSimulatorStore = create<SimulatorState>()(
   },
 
   setSimRunning: (running) =>
-    set({
-      simRunning: running,
-      ...(running ? { lastTriggeredBreakpointId: null } : {}),
+    set((state) => {
+      if (!running) {
+        return { simRunning: false };
+      }
+      let nextNodes = state.nodes;
+      let nextWires = state.wires;
+      let nextHistory = state.history;
+      if (state.placingNodeId) {
+        const deleted = circuit.deleteNode(state, state.placingNodeId);
+        nextNodes = deleted.nodes;
+        nextWires = deleted.wires;
+        nextHistory = state.history.slice(0, -1);
+      } else if (state.pastingNodeIds && state.pastingNodeIds.length > 0) {
+        const pastingSet = new Set(state.pastingNodeIds);
+        nextNodes = state.nodes.filter((n) => !pastingSet.has(n.id));
+        nextWires = state.wires.filter(
+          (w) => !(pastingSet.has(w.sourceNodeId) && w.targetNodeId && pastingSet.has(w.targetNodeId))
+        );
+        nextHistory = state.history.slice(0, -1);
+      }
+      return {
+        simRunning: true,
+        lastTriggeredBreakpointId: null,
+        selection: null,
+        multiSelection: state.multiSelection.length === 0 ? state.multiSelection : [],
+        draftWire: null,
+        placingNodeId: null,
+        pastingNodeIds: null,
+        pastingBasePoint: null,
+        nodes: nextNodes,
+        wires: nextWires,
+        history: nextHistory,
+        labelTool: state.labelTool.active ? { ...state.labelTool, active: false } : state.labelTool,
+      };
     }),
   setSimSpeed: (hz) => set({ simSpeed: hz }),
 
@@ -951,9 +1153,12 @@ export const useSimulatorStore = create<SimulatorState>()(
     return state;
   }),
 
-  startWire: (nodeId, pinId, pinType, x, y, manhattan = false) => set({
-    draftWire: { sourceNodeId: nodeId, sourcePinId: pinId, sourceType: pinType, endX: x, endY: y, waypoints: [], manhattan },
-    selection: null
+  startWire: (nodeId, pinId, pinType, x, y, manhattan = false) => set((state) => {
+    if (state.simRunning) return state;
+    return {
+      draftWire: { sourceNodeId: nodeId, sourcePinId: pinId, sourceType: pinType, endX: x, endY: y, waypoints: [], manhattan },
+      selection: null
+    };
   }),
 
   updateDraftWire: (x, y, manhattan) => set((state) => {
@@ -1086,11 +1291,17 @@ export const useSimulatorStore = create<SimulatorState>()(
     const finalX = Math.round((dropX ?? endX) / 20) * 20;
     const finalY = Math.round((dropY ?? endY) / 20) * 20;
 
-    const waypoints = [...(state.draftWire.waypoints || [])];
+    const notAtJunction = (wp: { x: number; y: number }) =>
+      Math.round(wp.x / 20) * 20 !== finalX || Math.round(wp.y / 20) * 20 !== finalY;
+
+    const cleanSplitWp1 = splitWp1?.filter(notAtJunction);
+    const cleanSplitWp2 = splitWp2?.filter(notAtJunction);
+
+    const rawWaypoints = [...(state.draftWire.waypoints || [])];
     const isManhattan = manhattan ?? state.draftWire.manhattan;
     if (isManhattan) {
       let lastPt: { x: number; y: number; nx?: number; ny?: number } | undefined =
-        waypoints[waypoints.length - 1];
+        rawWaypoints[rawWaypoints.length - 1];
       if (!lastPt) {
         const srcNode = state.nodes.find(n => n.id === sourceNodeId);
         if (srcNode) {
@@ -1100,10 +1311,11 @@ export const useSimulatorStore = create<SimulatorState>()(
       if (lastPt) {
         const elbow = computeManhattanElbow(lastPt, { x: finalX, y: finalY });
         if (elbow) {
-          waypoints.push(elbow);
+          rawWaypoints.push(elbow);
         }
       }
     }
+    const waypoints = rawWaypoints.filter(notAtJunction);
 
     if (sourceType === 'input') {
       let nextState = circuit.addNode(state, 'JUNCTION', finalX, finalY);
@@ -1122,13 +1334,13 @@ export const useSimulatorStore = create<SimulatorState>()(
         jInPin.id
       );
 
-      if (splitWp1 && splitWp1.length > 0) {
-        nextState.wires[nextState.wires.length - 1].waypoints = splitWp1;
+      if (cleanSplitWp1 && cleanSplitWp1.length > 0) {
+        nextState.wires[nextState.wires.length - 1].waypoints = cleanSplitWp1;
       }
 
       nextState.wires = nextState.wires.map(w => {
         if (w.id === targetWire.id) {
-          return { ...w, sourceNodeId: junctionNode.id, sourcePinId: jOutPin.id, waypoints: splitWp2 };
+          return { ...w, sourceNodeId: junctionNode.id, sourcePinId: jOutPin.id, waypoints: cleanSplitWp2 };
         }
         return w;
       });
@@ -1163,13 +1375,13 @@ export const useSimulatorStore = create<SimulatorState>()(
         jInPin.id
       );
 
-      if (splitWp1 && splitWp1.length > 0) {
-        nextState.wires[nextState.wires.length - 1].waypoints = splitWp1;
+      if (cleanSplitWp1 && cleanSplitWp1.length > 0) {
+        nextState.wires[nextState.wires.length - 1].waypoints = cleanSplitWp1;
       }
 
       nextState.wires = nextState.wires.map(w => {
         if (w.id === targetWire.id) {
-          return { ...w, sourceNodeId: junctionNode.id, sourcePinId: jOutPin.id, waypoints: splitWp2 };
+          return { ...w, sourceNodeId: junctionNode.id, sourcePinId: jOutPin.id, waypoints: cleanSplitWp2 };
         }
         return w;
       });
@@ -1191,6 +1403,7 @@ export const useSimulatorStore = create<SimulatorState>()(
   }),
 
   startWireFromWaypoint: (wireId: string, waypointIndex: number) => set((state) => {
+    if (state.simRunning) return state;
     const targetWire = state.wires.find(w => w.id === wireId);
     if (!targetWire || !targetWire.waypoints || waypointIndex >= targetWire.waypoints.length) return state;
 
@@ -1334,10 +1547,7 @@ export const useSimulatorStore = create<SimulatorState>()(
             cachedPartial.theme === state.theme &&
             cachedPartial.appMode === state.appMode &&
             cachedPartial.savedCircuits === state.savedCircuits &&
-            cachedPartial.activeSubcircuitId === state.activeSubcircuitId &&
-            cachedPartial.schematicPos === state.schematicPos &&
-            cachedPartial.schematicScale === state.schematicScale &&
-            cachedPartial.canvasOffset === state.canvasOffset
+            cachedPartial.activeSubcircuitId === state.activeSubcircuitId
           ) {
             return cachedPartial;
           }
@@ -1349,10 +1559,7 @@ export const useSimulatorStore = create<SimulatorState>()(
             theme: state.theme,
             appMode: state.appMode,
             savedCircuits: state.savedCircuits,
-            activeSubcircuitId: state.activeSubcircuitId,
-            schematicPos: state.schematicPos,
-            schematicScale: state.schematicScale,
-            canvasOffset: state.canvasOffset,
+            activeSubcircuitId: state.activeSubcircuitId
           };
           return cachedPartial;
         };
