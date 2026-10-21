@@ -50,6 +50,16 @@ vi.mock('../nodes', () => {
           evaluate: () => []
         };
       }
+      if (type === 'BUTTON') {
+        return {
+          type: 'BUTTON',
+          numInputs: 0,
+          numOutputs: 1,
+          evaluate: (_inputs: any[], props: any) => [
+            props?.activeLow ? (props?.pressed ? 0 : 1) : (props?.pressed ? 1 : 0)
+          ]
+        };
+      }
       return null;
     })
   };
@@ -255,5 +265,42 @@ describe('Simulation Engine', () => {
     };
     const next = computeNextState(savedCircuits.subA.nodes, [], { tickCount: 0, pinStates: {}, wireStates: {} }, savedCircuits);
     expect(next.tickCount).toBe(1);
+  });
+
+  it('should allow multiple BUTTON nodes on the same net without X collision when one is pressed', () => {
+    const btn1: LogicNode = {
+      id: 'btn1', type: 'BUTTON', x: 0, y: 0,
+      inputs: [],
+      outputs: [{ id: 'btn1-out', nodeId: 'btn1', type: 'output', index: 0 }],
+      properties: { pressed: false, activeLow: false }
+    };
+
+    const btn2: LogicNode = {
+      id: 'btn2', type: 'BUTTON', x: 0, y: 40,
+      inputs: [],
+      outputs: [{ id: 'btn2-out', nodeId: 'btn2', type: 'output', index: 0 }],
+      properties: { pressed: false, activeLow: false }
+    };
+
+    const wires: Wire[] = [
+      { id: 'w-btns', sourceNodeId: 'btn1', sourcePinId: 'btn1-out', targetNodeId: 'btn2', targetPinId: 'btn2-out' }
+    ];
+
+    // Both unpressed -> weak 0, net is 0
+    const s1 = computeNextState([btn1, btn2], wires, { tickCount: 0, pinStates: {}, wireStates: {} });
+    expect(s1.pinStates['btn1-out']).toBe(0);
+    expect(s1.pinStates['btn2-out']).toBe(0);
+
+    // Press btn1 -> strong 1 overrides weak 0 of btn2 (no 'X')
+    btn1.properties = { pressed: true, activeLow: false };
+    const s2 = computeNextState([btn1, btn2], wires, s1);
+    expect(s2.pinStates['btn1-out']).toBe(1);
+    expect(s2.pinStates['btn2-out']).toBe(1);
+
+    // Release btn1 -> back to weak 0
+    btn1.properties = { pressed: false, activeLow: false };
+    const s3 = computeNextState([btn1, btn2], wires, s2);
+    expect(s3.pinStates['btn1-out']).toBe(0);
+    expect(s3.pinStates['btn2-out']).toBe(0);
   });
 });

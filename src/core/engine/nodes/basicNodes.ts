@@ -1,10 +1,20 @@
-import { NodeDefinition } from './NodeDefinition';
+import { NodeDefinition, PinDefinition } from './NodeDefinition';
 import { Signal } from '../../models/types';
+import { getBusBreakoutBitCount } from '../../utils/schematicLayout';
 
 const OUT_0: Signal[] = [0];
 const OUT_1: Signal[] = [1];
 const OUT_U: Signal[] = [undefined];
 const OUT_EMPTY: Signal[] = [];
+const OUT_U_BY_LEN: Signal[][] = [];
+const getUndefinedArray = (len: number): Signal[] => {
+  let arr = OUT_U_BY_LEN[len];
+  if (!arr) {
+    arr = new Array<Signal>(len);
+    OUT_U_BY_LEN[len] = arr;
+  }
+  return arr;
+};
 
 export const AndNode: NodeDefinition = {
   type: 'AND',
@@ -351,24 +361,20 @@ export const BusBreakoutNode: NodeDefinition = {
   renderAs: 'BUS',
   defaultProperties: { label: 'DB[7..0]', bits: 8 },
   generatePins: (props) => {
-    let bits = props?.bits;
-    if (typeof bits !== 'number' || bits < 1) bits = 8;
-    
-    const match = String(props?.label || '').match(/\[(\d+)\.\.(\d+)\]/);
-    if (match) {
-      const high = parseInt(match[1], 10);
-      const low = parseInt(match[2], 10);
-      bits = Math.abs(high - low) + 1;
-    }
-
-    const pins: any[] = [];
+    const bits = getBusBreakoutBitCount(props);
+    const pins: PinDefinition[] = new Array(bits + 1);
     for (let i = 0; i < bits; i++) {
-      pins.push({ name: String(i), type: 'bidir', schematicSide: 'left', schematicRow: i + 1 });
+      pins[i] = { name: String(i), type: 'bidir', schematicSide: 'left', schematicRow: i + 1 };
     }
-    pins.push({ name: 'BUS', type: 'bidir', schematicSide: 'right', schematicRow: Math.max(1, Math.round((bits + 1) / 2)) });
+    pins[bits] = {
+      name: 'BUS',
+      type: 'bidir',
+      schematicSide: 'right',
+      schematicRow: Math.max(1, Math.round((bits + 1) / 2)),
+    };
     return pins;
   },
-  evaluate: (inputs) => new Array(inputs.length)
+  evaluate: (inputs) => getUndefinedArray(inputs.length)
 };
 
 

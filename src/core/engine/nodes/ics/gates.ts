@@ -5,7 +5,7 @@ export const IC74LS08: NodeDefinition = {
   type: '74LS08',
   label: '74LS08 (Quad AND)',
   category: 'Integrated Circuits/Logic Gates',
-  tags: ["gate","and","logic"],
+  tags: ['gate', 'and', 'logic'],
   renderAs: 'DIP',
   numInputs: 10,
   numOutputs: 4,
@@ -26,25 +26,24 @@ export const IC74LS08: NodeDefinition = {
     { name: 'VCC', type: 'input', pinNumber: 14 }, // Pin 14 VCC
   ],
   evaluate: (inputs): Signal[] => {
-    const out1Y = (inputs[0] === 1 && inputs[1] === 1) ? 1 : 0;
-    const out2Y = (inputs[2] === 1 && inputs[3] === 1) ? 1 : 0;
-    const out4Y = (inputs[5] === 1 && inputs[6] === 1) ? 1 : 0;
-    const out3Y = (inputs[7] === 1 && inputs[8] === 1) ? 1 : 0;
-
-    const res1 = (inputs[0] === undefined || inputs[1] === undefined) ? undefined : out1Y;
-    const res2 = (inputs[2] === undefined || inputs[3] === undefined) ? undefined : out2Y;
-    const res4 = (inputs[5] === undefined || inputs[6] === undefined) ? undefined : out4Y;
-    const res3 = (inputs[7] === undefined || inputs[8] === undefined) ? undefined : out3Y;
+    const res1: Signal = inputs[0] === undefined || inputs[1] === undefined ? undefined : inputs[0] === 1 && inputs[1] === 1 ? 1 : 0;
+    const res2: Signal = inputs[2] === undefined || inputs[3] === undefined ? undefined : inputs[2] === 1 && inputs[3] === 1 ? 1 : 0;
+    const res4: Signal = inputs[5] === undefined || inputs[6] === undefined ? undefined : inputs[5] === 1 && inputs[6] === 1 ? 1 : 0;
+    const res3: Signal = inputs[7] === undefined || inputs[8] === undefined ? undefined : inputs[7] === 1 && inputs[8] === 1 ? 1 : 0;
 
     return [res1, res2, res4, res3];
-  }
+  },
 };
 
-const createQuad2InputGate = (type: string, label: string, fn: (a: number, b: number) => Signal): NodeDefinition => ({
+const createQuad2InputGate = (
+  type: string,
+  label: string,
+  fn: (a: number, b: number) => Signal
+): NodeDefinition => ({
   type,
   label,
   category: 'Integrated Circuits/Logic Gates',
-  tags: ["logic", "gate"],
+  tags: ['logic', 'gate'],
   numInputs: 0,
   numOutputs: 0,
   renderAs: 'DIP',
@@ -62,9 +61,9 @@ const createQuad2InputGate = (type: string, label: string, fn: (a: number, b: nu
     { type: 'output', name: '4Y', pinNumber: 11, schematicSide: 'right', schematicRow: 10 },
     { type: 'input', name: '4A', pinNumber: 12, schematicSide: 'left', schematicRow: 10 },
     { type: 'input', name: '4B', pinNumber: 13, schematicSide: 'left', schematicRow: 11 },
-    { type: 'input', name: 'VCC', pinNumber: 14 }
+    { type: 'input', name: 'VCC', pinNumber: 14 },
   ],
-  evaluate: (inputs: any[]): Signal[] => {
+  evaluate: (inputs): Signal[] => {
     const i1a = inputs[0] === 1 ? 1 : 0;
     const i1b = inputs[1] === 1 ? 1 : 0;
     const i2a = inputs[2] === 1 ? 1 : 0;
@@ -74,22 +73,17 @@ const createQuad2InputGate = (type: string, label: string, fn: (a: number, b: nu
     const i4a = inputs[7] === 1 ? 1 : 0;
     const i4b = inputs[8] === 1 ? 1 : 0;
 
-    return [
-      fn(i1a, i1b),
-      fn(i2a, i2b),
-      fn(i3a, i3b),
-      fn(i4a, i4b)
-    ];
-  }
+    return [fn(i1a, i1b), fn(i2a, i2b), fn(i3a, i3b), fn(i4a, i4b)];
+  },
 });
 
-export const IC74LS00 = createQuad2InputGate('74LS00', '74LS00 (Quad NAND)', (a, b) => (a && b) ? 0 : 1);
+export const IC74LS00 = createQuad2InputGate('74LS00', '74LS00 (Quad NAND)', (a, b) => (a && b ? 0 : 1));
 
 export const IC74LS02: NodeDefinition = {
   type: '74LS02',
   label: '74LS02 (Quad NOR)',
   category: 'Integrated Circuits/Logic Gates',
-  tags: ["logic", "gate"],
+  tags: ['logic', 'gate'],
   numInputs: 0,
   numOutputs: 0,
   renderAs: 'DIP',
@@ -107,9 +101,9 @@ export const IC74LS02: NodeDefinition = {
     { type: 'input', name: '4A', pinNumber: 11, schematicSide: 'left', schematicRow: 10 },
     { type: 'input', name: '4B', pinNumber: 12, schematicSide: 'left', schematicRow: 11 },
     { type: 'output', name: '4Y', pinNumber: 13, schematicSide: 'right', schematicRow: 10 },
-    { type: 'input', name: 'VCC', pinNumber: 14 }
+    { type: 'input', name: 'VCC', pinNumber: 14 },
   ],
-  evaluate: (inputs: any[]) => {
+  evaluate: (inputs): Signal[] => {
     const i1a = inputs[0] === 1 ? 1 : 0;
     const i1b = inputs[1] === 1 ? 1 : 0;
     const i2a = inputs[2] === 1 ? 1 : 0;
@@ -118,21 +112,20 @@ export const IC74LS02: NodeDefinition = {
     const i3b = inputs[6] === 1 ? 1 : 0;
     const i4a = inputs[7] === 1 ? 1 : 0;
     const i4b = inputs[8] === 1 ? 1 : 0;
-    const fn = (a: number, b: number) => (a || b) ? 0 : 1;
     return [
-      fn(i1a, i1b),
-      fn(i2a, i2b),
-      fn(i3a, i3b),
-      fn(i4a, i4b)
+      i1a || i1b ? 0 : 1,
+      i2a || i2b ? 0 : 1,
+      i3a || i3b ? 0 : 1,
+      i4a || i4b ? 0 : 1,
     ];
-  }
+  },
 };
 
 export const IC74LS04: NodeDefinition = {
   type: '74LS04',
   label: '74LS04 (Hex NOT)',
   category: 'Integrated Circuits/Logic Gates',
-  tags: ["logic", "gate"],
+  tags: ['logic', 'gate'],
   numInputs: 0,
   numOutputs: 0,
   renderAs: 'DIP',
@@ -150,52 +143,35 @@ export const IC74LS04: NodeDefinition = {
     { type: 'input', name: '5A', pinNumber: 11, schematicSide: 'left', schematicRow: 9 },
     { type: 'output', name: '6Y', pinNumber: 12, schematicSide: 'right', schematicRow: 11 },
     { type: 'input', name: '6A', pinNumber: 13, schematicSide: 'left', schematicRow: 11 },
-    { type: 'input', name: 'VCC', pinNumber: 14 }
+    { type: 'input', name: 'VCC', pinNumber: 14 },
   ],
-  evaluate: (inputs: any[]) => {
-    const i1a = inputs[0] === 1 ? 1 : 0;
-    const i2a = inputs[1] === 1 ? 1 : 0;
-    const i3a = inputs[2] === 1 ? 1 : 0;
-    const i4a = inputs[4] === 1 ? 1 : 0;
-    const i5a = inputs[5] === 1 ? 1 : 0;
-    const i6a = inputs[6] === 1 ? 1 : 0;
-    return [
-      i1a ? 0 : 1,
-      i2a ? 0 : 1,
-      i3a ? 0 : 1,
-      i4a ? 0 : 1,
-      i5a ? 0 : 1,
-      i6a ? 0 : 1
-    ];
-  }
+  evaluate: (inputs): Signal[] => [
+    inputs[0] === 1 ? 0 : 1,
+    inputs[1] === 1 ? 0 : 1,
+    inputs[2] === 1 ? 0 : 1,
+    inputs[4] === 1 ? 0 : 1,
+    inputs[5] === 1 ? 0 : 1,
+    inputs[6] === 1 ? 0 : 1,
+  ],
 };
 
 export const IC74LS30: NodeDefinition = {
   type: '74LS30',
   label: '74LS30 (8-Input NAND Gate)',
   category: 'Integrated Circuits/Logic Gates',
-  tags: ["logic", "gate", "nand", "8-input"],
+  tags: ['logic', 'gate', 'nand', '8-input'],
   numInputs: 8,
   numOutputs: 1,
-  evaluate: (inputs) => {
-    const a = inputs[0] ?? 1;
-    const b = inputs[1] ?? 1;
-    const c = inputs[2] ?? 1;
-    const d = inputs[3] ?? 1;
-    const e = inputs[4] ?? 1;
-    const f = inputs[5] ?? 1;
-    const g = inputs[6] ?? 1;
-    const h = inputs[7] ?? 1;
-
-    if (a === 'X' || b === 'X' || c === 'X' || d === 'X' || e === 'X' || f === 'X' || g === 'X' || h === 'X') {
-       if (a === 0 || b === 0 || c === 0 || d === 0 || e === 0 || f === 0 || g === 0 || h === 0) return [1];
-       return ['X' as any];
+  evaluate: (inputs): Signal[] => {
+    let hasX = false;
+    for (let i = 0; i < 8; i++) {
+      const v = inputs[i] ?? 1;
+      if (v === 0) return [1];
+      if (v === 'X') hasX = true;
     }
-
-    const allHigh = (a === 1 && b === 1 && c === 1 && d === 1 && e === 1 && f === 1 && g === 1 && h === 1);
-    return [allHigh ? 0 : 1];
-  }
+    return [hasX ? 'X' : 0];
+  },
 };
 
-export const IC74LS32 = createQuad2InputGate('74LS32', '74LS32 (Quad OR)', (a, b) => (a || b) ? 1 : 0);
-export const IC74LS86 = createQuad2InputGate('74LS86', '74LS86 (Quad XOR)', (a, b) => (a ^ b) ? 1 : 0);
+export const IC74LS32 = createQuad2InputGate('74LS32', '74LS32 (Quad OR)', (a, b) => (a || b ? 1 : 0));
+export const IC74LS86 = createQuad2InputGate('74LS86', '74LS86 (Quad XOR)', (a, b) => (a ^ b ? 1 : 0));

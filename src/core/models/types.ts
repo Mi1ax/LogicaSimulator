@@ -1,8 +1,8 @@
 export type BuiltinNodeType =
   | 'AND' | 'OR' | 'NOR' | 'NAND' | 'NOT' | 'XOR' | 'XNOR' | 'BUFFER'
-  | 'INPUT' | 'OUTPUT' | 'CLOCK' | 'VCC' | 'GND' | 'JUNCTION' | 'NC'
+  | 'INPUT' | 'OUTPUT' | 'CLOCK' | 'VCC' | 'GND' | 'PULL_UP' | 'PULL_DOWN' | 'JUNCTION' | 'NC'
   | 'SUB_IN' | 'SUB_OUT' | 'SUB_IO'
-  | 'DIP_SWITCH' | 'BUTTON' | 'LED_BAR' | '7_SEG_DISPLAY'
+  | 'DIP_SWITCH' | 'BUTTON' | 'KEYPAD' | 'LED_BAR' | '7_SEG_DISPLAY'
   | 'NET_LABEL' | 'BUS_BREAKOUT'
   | 'REGION_BOX' | 'TEXT_LABEL' | 'STICKY_NOTE' | 'FSM_DIAGRAM';
 // Allows IDE autocomplete for built-ins, but accepts ANY string for custom ICs
@@ -27,7 +27,6 @@ export interface Wire {
   targetPinId: string;
   waypoints?: { x: number; y: number }[];
 }
-
 
 export interface DraftWire {
   sourceNodeId: string;
