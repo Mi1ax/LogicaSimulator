@@ -1,11 +1,13 @@
 import { NodeDefinition } from '../NodeDefinition';
 import { Signal } from '../../../models/types';
 
+const bit = (v: Signal): number => (v === 1 ? 1 : 0);
+
 export const IC_74LS283: NodeDefinition = {
   type: '74LS283',
   label: '74LS283 (4-bit Adder)',
   category: 'Integrated Circuits/Arithmetic & ALU',
-  tags: ["adder", "alu", "math"],
+  tags: ['adder', 'alu', 'math'],
   renderAs: 'DIP',
   numInputs: 11,
   numOutputs: 5,
@@ -27,31 +29,26 @@ export const IC_74LS283: NodeDefinition = {
     { name: 'A3', type: 'input', pinNumber: 15, schematicSide: 'left', schematicRow: 3 },
     { name: 'VCC', type: 'input', pinNumber: 16 },
   ],
-  evaluate: (inputs) => {
-    const getVal = (v: Signal) => v === 1 ? 1 : 0;
-    const A = [getVal(inputs[2]), getVal(inputs[1]), getVal(inputs[9]), getVal(inputs[7])];
-    const B = [getVal(inputs[3]), getVal(inputs[0]), getVal(inputs[8]), getVal(inputs[6])];
-    const C0 = getVal(inputs[4]);
+  evaluate: (inputs): Signal[] => {
+    const valA = bit(inputs[2]) | (bit(inputs[1]) << 1) | (bit(inputs[9]) << 2) | (bit(inputs[7]) << 3);
+    const valB = bit(inputs[3]) | (bit(inputs[0]) << 1) | (bit(inputs[8]) << 2) | (bit(inputs[6]) << 3);
+    const sum = valA + valB + bit(inputs[4]);
 
-    const valA = A[0] | (A[1] << 1) | (A[2] << 2) | (A[3] << 3);
-    const valB = B[0] | (B[1] << 1) | (B[2] << 2) | (B[3] << 3);
-    const sum = valA + valB + C0;
-
-    const S1 = ((sum >> 0) & 1) as Signal;
-    const S2 = ((sum >> 1) & 1) as Signal;
-    const S3 = ((sum >> 2) & 1) as Signal;
-    const S4 = ((sum >> 3) & 1) as Signal;
-    const C4 = ((sum >> 4) & 1) as Signal;
+    const S1: Signal = (sum & 1) ? 1 : 0;
+    const S2: Signal = (sum & 2) ? 1 : 0;
+    const S3: Signal = (sum & 4) ? 1 : 0;
+    const S4: Signal = (sum & 8) ? 1 : 0;
+    const C4: Signal = (sum & 16) ? 1 : 0;
 
     return [S2, S1, C4, S4, S3];
-  }
+  },
 };
 
 export const IC74LS181: NodeDefinition = {
   type: '74LS181',
   label: '74LS181 (4-bit ALU)',
   category: 'Integrated Circuits/Arithmetic & ALU',
-  tags: ["alu","arithmetic","logic"],
+  tags: ['alu', 'arithmetic', 'logic'],
   numInputs: 0,
   numOutputs: 0,
   renderAs: 'DIP',
@@ -79,17 +76,17 @@ export const IC74LS181: NodeDefinition = {
     { type: 'input', name: 'A2', pinNumber: 21, schematicSide: 'left', schematicRow: 3 },
     { type: 'input', name: 'B3', pinNumber: 22, schematicSide: 'left', schematicRow: 9 },
     { type: 'input', name: 'A3', pinNumber: 23, schematicSide: 'left', schematicRow: 4 },
-    { type: 'input', name: 'VCC', pinNumber: 24 }
+    { type: 'input', name: 'VCC', pinNumber: 24 },
   ],
-  evaluate: (inputs: any[]): Signal[] => {
-    const A = ((inputs[1]===1?1:0)) | ((inputs[18]===1?1:0)<<1) | ((inputs[20]===1?1:0)<<2) | ((inputs[22]===1?1:0)<<3);
-    const B = ((inputs[0]===1?1:0)) | ((inputs[17]===1?1:0)<<1) | ((inputs[19]===1?1:0)<<2) | ((inputs[21]===1?1:0)<<3);
-    const S = ((inputs[5]===1?1:0)) | ((inputs[4]===1?1:0)<<1) | ((inputs[3]===1?1:0)<<2) | ((inputs[2]===1?1:0)<<3);
-    const M = inputs[7] === 1 ? 1 : 0;
+  evaluate: (inputs): Signal[] => {
+    const A = bit(inputs[1]) | (bit(inputs[18]) << 1) | (bit(inputs[20]) << 2) | (bit(inputs[22]) << 3);
+    const B = bit(inputs[0]) | (bit(inputs[17]) << 1) | (bit(inputs[19]) << 2) | (bit(inputs[21]) << 3);
+    const S = bit(inputs[5]) | (bit(inputs[4]) << 1) | (bit(inputs[3]) << 2) | (bit(inputs[2]) << 3);
+    const M = bit(inputs[7]);
     const Cn = inputs[6] === 0 ? 1 : 0; // Active LOW carry in
 
     let F = 0;
-    let cout = 0;
+    let cout: Signal = 0;
 
     if (M === 1) {
       switch (S) {
@@ -112,31 +109,32 @@ export const IC74LS181: NodeDefinition = {
       }
       F &= 15;
     } else {
-      let op1 = 0, op2 = 0;
+      let op1 = 0;
+      let op2 = 0;
       switch (S) {
         case 0: op1 = A; op2 = Cn; break;
         case 1: op1 = A | B; op2 = Cn; break;
         case 2: op1 = A | (~B); op2 = Cn; break;
         case 3: op1 = -1; op2 = Cn; break;
         case 4: op1 = A; op2 = (A & ~B) + Cn; break;
-        case 5: op1 = (A | B); op2 = (A & ~B) + Cn; break;
+        case 5: op1 = A | B; op2 = (A & ~B) + Cn; break;
         case 6: op1 = A; op2 = -B - 1 + Cn; break;
-        case 7: op1 = (A & ~B); op2 = -1 + Cn; break;
+        case 7: op1 = A & ~B; op2 = -1 + Cn; break;
         case 8: op1 = A; op2 = (A & B) + Cn; break;
         case 9: op1 = A + B; op2 = Cn; break;
-        case 10: op1 = (A | ~B); op2 = (A & B) + Cn; break;
-        case 11: op1 = (A & B); op2 = -1 + Cn; break;
+        case 10: op1 = A | ~B; op2 = (A & B) + Cn; break;
+        case 11: op1 = A & B; op2 = -1 + Cn; break;
         case 12: op1 = A; op2 = A + Cn; break;
-        case 13: op1 = (A | B); op2 = A + Cn; break;
-        case 14: op1 = (A | ~B); op2 = A + Cn; break;
+        case 13: op1 = A | B; op2 = A + Cn; break;
+        case 14: op1 = A | ~B; op2 = A + Cn; break;
         case 15: op1 = A; op2 = -1 + Cn; break;
       }
       const sum = (op1 & 15) + (op2 & 15);
       F = sum & 15;
-      cout = (sum > 15) ? 0 : 1;
+      cout = sum > 15 ? 0 : 1;
     }
 
-    const eq = ((F === 15) ? 1 : 0) as Signal;
+    const eq: Signal = F === 15 ? 1 : 0;
 
     return [
       (F & 1) ? 1 : 0,
@@ -144,9 +142,9 @@ export const IC74LS181: NodeDefinition = {
       (F & 4) ? 1 : 0,
       (F & 8) ? 1 : 0,
       eq,
-      "X",
-      cout as Signal,
-      "X"
-    ] as Signal[];
-  }
+      'X',
+      cout,
+      'X',
+    ];
+  },
 };

@@ -49,8 +49,13 @@ export const flattenCircuit = (
         flatNodes.push(...flattened.nodes);
         flatWires.push(...flattened.wires);
 
+        const subNodeById = new Map<string, LogicNode>();
+        for (let i = 0; i < sub.nodes.length; i++) {
+          subNodeById.set(sub.nodes[i].id, sub.nodes[i]);
+        }
+
         node.inputs.forEach((chipPin) => {
-          const internalNode = sub.nodes.find((n) => n.id === chipPin.internalNodeId);
+          const internalNode = chipPin.internalNodeId ? subNodeById.get(chipPin.internalNodeId) : undefined;
           if (internalNode) {
             const internalPin = internalNode.outputs[0] || internalNode.inputs[0];
             if (internalPin) {
@@ -66,7 +71,7 @@ export const flattenCircuit = (
         });
 
         node.outputs.forEach((chipPin) => {
-          const internalNode = sub.nodes.find((n) => n.id === chipPin.internalNodeId);
+          const internalNode = chipPin.internalNodeId ? subNodeById.get(chipPin.internalNodeId) : undefined;
           if (internalNode && internalNode.inputs[0]) {
             flatWires.push({
               id: `vw_subout_${prefix}${chipPin.id}`,
@@ -118,6 +123,7 @@ interface CompiledNode {
   id: string;
   selfIndex: number;
   hasSelfFeedbackPin: boolean;
+  isButton: boolean;
   sourceNode: LogicNode;
   isFlattened: boolean;
   def: NodeDefinition;
@@ -128,7 +134,6 @@ interface CompiledNode {
   inValsBuf: Signal[];
   prevInValsBuf: Signal[];
   lastInValsBuf: Signal[];
-  lastOutVals: Signal[] | undefined;
   lastInternal: Record<string, any> | undefined;
   lastHasInternal: boolean;
   vccInputIdx: number;
@@ -136,9 +141,6 @@ interface CompiledNode {
 }
 
 interface CompiledNet {
-  allPins: string[];
-  strongDrivers: string[];
-  weakDrivers: string[];
   allPinIndices: Int32Array;
   strongDriverIndices: Int32Array;
   weakDriverIndices: Int32Array;
@@ -150,7 +152,6 @@ export interface CompiledCircuit {
   wires: Wire[];
   activeNets: CompiledNet[];
   connectedPins: Set<string>;
-  disconnectedInputPinIds: string[];
   disconnectedInputPinIndices: Int32Array;
   pinToNetIdx: Int32Array;
   dirtyNetFlags: Uint8Array;
@@ -162,6 +163,7 @@ export interface CompiledCircuit {
   pinIdToIdx: Map<string, number>;
   curBuf: Signal[];
   driverBuf: Signal[];
+  isWeakBuf: Uint8Array;
   prevBuf: Signal[];
 }
 
@@ -297,6 +299,7 @@ export const compileCircuit = (
 
   const outputPins = new Set<string>();
   const weakOutputPins = new Set<string>();
+  const dynamicWeakOutputPins = new Set<string>();
   const pinIndexMap = new Map<string, number>();
   const allPinIds: string[] = [];
 
@@ -318,6 +321,7 @@ export const compileCircuit = (
       continue;
     }
     const isWeak = n.type === 'PULL_UP' || n.type === 'PULL_DOWN';
+    const isButton = n.type === 'BUTTON';
     const inputPinIds: string[] = new Array(n.inputs.length);
     const outputPinIds: string[] = new Array(n.outputs.length);
     const inputPinIndices = new Int32Array(n.inputs.length);
@@ -339,6 +343,7 @@ export const compileCircuit = (
       outputPinIndices[p] = getOrAssignPinIdx(pin.id);
       outputPins.add(pin.id);
       if (isWeak) weakOutputPins.add(pin.id);
+      if (isButton) dynamicWeakOutputPins.add(pin.id);
     }
 
     const def = getNodeDefinition(n.type);
@@ -362,6 +367,7 @@ export const compileCircuit = (
         id: n.id,
         selfIndex: compiledNodes.length,
         hasSelfFeedbackPin,
+        isButton,
         sourceNode: n,
         isFlattened: Boolean(n.properties?._isFlattened),
         def,
@@ -372,7 +378,6 @@ export const compileCircuit = (
         inValsBuf: new Array(n.inputs.length),
         prevInValsBuf: new Array(n.inputs.length),
         lastInValsBuf: new Array(n.inputs.length),
-        lastOutVals: undefined,
         lastInternal: undefined,
         lastHasInternal: false,
         vccInputIdx,
@@ -387,48 +392,39 @@ export const compileCircuit = (
 
   for (let i = 0; i < rawActiveNets.length; i++) {
     const netPins = rawActiveNets[i];
-    const strongDrivers: string[] = [];
-    const weakDrivers: string[] = [];
+    const strongDrivers: number[] = [];
+    const weakDrivers: number[] = [];
     const allPinIndices = new Int32Array(netPins.length);
     for (let p = 0; p < netPins.length; p++) {
       const pid = netPins[p];
-      allPinIndices[p] = getOrAssignPinIdx(pid);
+      const pinIdx = getOrAssignPinIdx(pid);
+      allPinIndices[p] = pinIdx;
       connectedPins.add(pid);
       if (outputPins.has(pid)) {
         if (weakOutputPins.has(pid)) {
-          weakDrivers.push(pid);
+          weakDrivers.push(pinIdx);
+        } else if (dynamicWeakOutputPins.has(pid)) {
+          strongDrivers.push(pinIdx);
+          weakDrivers.push(pinIdx);
         } else {
-          strongDrivers.push(pid);
+          strongDrivers.push(pinIdx);
         }
       }
     }
-    const strongDriverIndices = new Int32Array(strongDrivers.length);
-    for (let s = 0; s < strongDrivers.length; s++) {
-      strongDriverIndices[s] = getOrAssignPinIdx(strongDrivers[s]);
-    }
-    const weakDriverIndices = new Int32Array(weakDrivers.length);
-    for (let w = 0; w < weakDrivers.length; w++) {
-      weakDriverIndices[w] = getOrAssignPinIdx(weakDrivers[w]);
-    }
     activeNets[i] = {
-      allPins: netPins,
-      strongDrivers,
-      weakDrivers,
       allPinIndices,
-      strongDriverIndices,
-      weakDriverIndices,
+      strongDriverIndices: Int32Array.from(strongDrivers),
+      weakDriverIndices: Int32Array.from(weakDrivers),
       fanoutNodeIndices: new Int32Array(0),
     };
   }
 
-  const disconnectedInputPinIds: string[] = [];
   const disconnectedIndicesList: number[] = [];
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
     for (let p = 0; p < n.inputs.length; p++) {
       const pid = n.inputs[p].id;
       if (!connectedPins.has(pid) && !outputPins.has(pid)) {
-        disconnectedInputPinIds.push(pid);
         disconnectedIndicesList.push(getOrAssignPinIdx(pid));
       }
     }
@@ -459,12 +455,17 @@ export const compileCircuit = (
     activeNets[i].fanoutNodeIndices = Int32Array.from(netFanoutSets[i]);
   }
 
+  const isWeakBuf = new Uint8Array(totalPins);
+  weakOutputPins.forEach((pid) => {
+    const idx = pinIndexMap.get(pid);
+    if (idx !== undefined) isWeakBuf[idx] = 1;
+  });
+
   return {
     compiledNodes,
     wires,
     activeNets,
     connectedPins,
-    disconnectedInputPinIds,
     disconnectedInputPinIndices: Int32Array.from(disconnectedIndicesList),
     pinToNetIdx,
     dirtyNetFlags: new Uint8Array(activeNets.length),
@@ -476,9 +477,12 @@ export const compileCircuit = (
     pinIdToIdx: pinIndexMap,
     curBuf: new Array(totalPins),
     driverBuf: new Array(totalPins),
+    isWeakBuf,
     prevBuf: new Array(totalPins),
   };
 };
+
+let scratchEmptyInternal: Record<string, any> = {};
 
 const cloneInternalState = (raw?: Record<string, any>): Record<string, any> => {
   if (!raw) return {};
@@ -501,6 +505,7 @@ const cloneInternalState = (raw?: Record<string, any>): Record<string, any> => {
 function resolveNet(
   net: CompiledNet,
   driverBuf: Signal[],
+  isWeakBuf: Uint8Array,
   curBuf: Signal[]
 ): boolean {
   const { allPinIndices, strongDriverIndices, weakDriverIndices } = net;
@@ -508,7 +513,9 @@ function resolveNet(
   let strongCollision = false;
 
   for (let s = 0; s < strongDriverIndices.length; s++) {
-    const val = driverBuf[strongDriverIndices[s]];
+    const pinIdx = strongDriverIndices[s];
+    if (isWeakBuf[pinIdx]) continue;
+    const val = driverBuf[pinIdx];
     if (val !== undefined) {
       if (strongValue === undefined) {
         strongValue = val;
@@ -528,7 +535,9 @@ function resolveNet(
     let weakValue: Signal = undefined;
     let weakCollision = false;
     for (let w = 0; w < weakDriverIndices.length; w++) {
-      const val = driverBuf[weakDriverIndices[w]];
+      const pinIdx = weakDriverIndices[w];
+      if (!isWeakBuf[pinIdx]) continue;
+      const val = driverBuf[pinIdx];
       if (val !== undefined) {
         if (weakValue === undefined) {
           weakValue = val;
@@ -576,6 +585,7 @@ export const stepCompiledCircuit = (
   const totalPins = allPinIds.length;
   const curBuf = compiled.curBuf;
   const driverBuf = compiled.driverBuf;
+  const isWeakBuf = compiled.isWeakBuf;
   const prevBuf = compiled.prevBuf;
   const prevPinStates = prevState.pinStates;
   let curDirtyNodes = compiled.dirtyNodesA;
@@ -658,7 +668,6 @@ export const stepCompiledCircuit = (
       if (!isPowered) {
         cn.lastHasInternal = false;
         cn.lastInternal = undefined;
-        cn.lastOutVals = undefined;
         for (let p = 0; p < outputPinIndices.length; p++) {
           const pinIdx = outputPinIndices[p];
           if (iter === 0 || driverBuf[pinIdx] !== undefined) {
@@ -681,7 +690,7 @@ export const stepCompiledCircuit = (
         }
       } else {
         const prevNodeState = prevState.nodeStates?.[id];
-        const internal = prevNodeState ? cloneInternalState(prevNodeState) : {};
+        const internal = prevNodeState ? cloneInternalState(prevNodeState) : scratchEmptyInternal;
         const outVals = def.evaluate(
           inValsBuf,
           sourceNode.properties,
@@ -689,7 +698,6 @@ export const stepCompiledCircuit = (
           internal,
           prevInValsBuf
         );
-        cn.lastOutVals = outVals;
         let hasInternal = false;
         for (const k in internal) {
           if (Object.prototype.hasOwnProperty.call(internal, k)) {
@@ -697,12 +705,19 @@ export const stepCompiledCircuit = (
             break;
           }
         }
+        if (hasInternal && internal === scratchEmptyInternal) {
+          scratchEmptyInternal = {};
+        }
         cn.lastHasInternal = hasInternal;
         cn.lastInternal = hasInternal ? internal : undefined;
 
+        const isWeakOut = cn.isButton ? (sourceNode.properties?.pressed ? 0 : 1) : -1;
         for (let p = 0; p < outputPinIndices.length; p++) {
           const pinIdx = outputPinIndices[p];
           const newVal = outVals[p];
+          if (isWeakOut >= 0) {
+            isWeakBuf[pinIdx] = isWeakOut;
+          }
           if (iter === 0 || driverBuf[pinIdx] !== newVal) {
             driverBuf[pinIdx] = newVal;
             const netIdx = pinToNetIdx[pinIdx];
@@ -728,7 +743,7 @@ export const stepCompiledCircuit = (
     if (iter === 0) {
       for (let n = 0; n < activeNets.length; n++) {
         const net = activeNets[n];
-        if (resolveNet(net, driverBuf, curBuf)) {
+        if (resolveNet(net, driverBuf, isWeakBuf, curBuf)) {
           changed = true;
           const fanout = net.fanoutNodeIndices;
           for (let f = 0; f < fanout.length; f++) {
@@ -745,7 +760,7 @@ export const stepCompiledCircuit = (
         const n = dirtyNetsList[d];
         dirtyNetFlags[n] = 0;
         const net = activeNets[n];
-        if (resolveNet(net, driverBuf, curBuf)) {
+        if (resolveNet(net, driverBuf, isWeakBuf, curBuf)) {
           changed = true;
           const fanout = net.fanoutNodeIndices;
           for (let f = 0; f < fanout.length; f++) {

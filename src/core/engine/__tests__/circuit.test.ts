@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { addNode, deleteNode, addWire, CircuitState, setNodeInputCount } from '../circuit';
-import { computeManhattanElbow, computeAllWirePaths } from '../routing';
+import { computeManhattanElbow, computeDraftWirePath } from '../routing';
 
 // Mock the node registry
 vi.mock('../nodes', () => {
@@ -71,19 +71,19 @@ describe('Circuit Store Core Mutators', () => {
     expect(computeManhattanElbow({ x: 0, y: 0 }, { x: 40, y: 100 })).toEqual({ x: 0, y: 100 });
     expect(computeManhattanElbow({ x: 0, y: 0 }, { x: 100, y: 0 })).toBeNull();
 
-    const straight = computeAllWirePaths([], [], {
+    const straight = computeDraftWirePath({
       start: { x: 0, y: 0 },
       end: { x: 100, y: 40 },
       manhattan: false
     });
-    expect(straight.draftWirePath).toBe('M 0 0 L 100 40');
+    expect(straight).toBe('M 0 0 L 100 40');
 
-    const manhattan = computeAllWirePaths([], [], {
+    const manhattan = computeDraftWirePath({
       start: { x: 0, y: 0 },
       end: { x: 100, y: 40 },
       manhattan: true
     });
-    expect(manhattan.draftWirePath).toBe('M 0 0 L 100 0 L 100 40');
+    expect(manhattan).toBe('M 0 0 L 100 0 L 100 40');
   });
 
   it('should add a node with customPins correctly mapped', () => {

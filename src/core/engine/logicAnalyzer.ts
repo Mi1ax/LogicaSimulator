@@ -84,17 +84,7 @@ export class AnalyzerRingBuffer {
     return buf;
   }
 
-  /**
-   * Zero-allocation tick recording directly from CompiledCircuit.curBuf (Signal[]).
-   */
-  public recordFromCompiledBuf(
-    tickCount: number,
-    trackedPinIds: string[],
-    pinIdToIdx: Map<string, number>,
-    curBuf: Signal[]
-  ): void {
-    if (trackedPinIds.length === 0) return;
-
+  private advanceSlot(tickCount: number): number {
     let slot: number;
     if (this.count > 0) {
       const lastSlot = (this.head - 1 + MAX_LA_HISTORY) % MAX_LA_HISTORY;
@@ -110,15 +100,29 @@ export class AnalyzerRingBuffer {
       this.head = (this.head + 1) % MAX_LA_HISTORY;
       this.count = 1;
     }
-
     this.ticks[slot] = tickCount;
+    return slot;
+  }
+
+  /**
+   * Zero-allocation tick recording directly from CompiledCircuit.curBuf (Signal[]).
+   */
+  public recordFromCompiledBuf(
+    tickCount: number,
+    trackedPinIds: string[],
+    pinIdToIdx: Map<string, number>,
+    curBuf: Signal[]
+  ): void {
+    if (trackedPinIds.length === 0) return;
+
+    const slot = this.advanceSlot(tickCount);
 
     for (let i = 0; i < trackedPinIds.length; i++) {
       const pinId = trackedPinIds[i];
       const buf = this.ensurePinBuffer(pinId);
       const idx = pinIdToIdx.get(pinId);
       const sig = idx !== undefined ? curBuf[idx] : undefined;
-      buf[slot] = sig === 0 ? LA_VAL_0 : sig === 1 ? LA_VAL_1 : sig === 'X' ? LA_VAL_X : LA_VAL_Z;
+      buf[slot] = encodeSignalByte(sig);
     }
 
     this.version++;
@@ -131,29 +135,12 @@ export class AnalyzerRingBuffer {
   ): void {
     if (trackedPinIds.length === 0) return;
 
-    let slot: number;
-    if (this.count > 0) {
-      const lastSlot = (this.head - 1 + MAX_LA_HISTORY) % MAX_LA_HISTORY;
-      if (this.ticks[lastSlot] === tickCount) {
-        slot = lastSlot;
-      } else {
-        slot = this.head;
-        this.head = (this.head + 1) % MAX_LA_HISTORY;
-        if (this.count < MAX_LA_HISTORY) this.count++;
-      }
-    } else {
-      slot = this.head;
-      this.head = (this.head + 1) % MAX_LA_HISTORY;
-      this.count = 1;
-    }
-
-    this.ticks[slot] = tickCount;
+    const slot = this.advanceSlot(tickCount);
 
     for (let i = 0; i < trackedPinIds.length; i++) {
       const pinId = trackedPinIds[i];
       const buf = this.ensurePinBuffer(pinId);
-      const sig = pinStates[pinId];
-      buf[slot] = sig === 0 ? LA_VAL_0 : sig === 1 ? LA_VAL_1 : sig === 'X' ? LA_VAL_X : LA_VAL_Z;
+      buf[slot] = encodeSignalByte(pinStates[pinId]);
     }
 
     this.version++;
@@ -208,15 +195,38 @@ export class AnalyzerRingBuffer {
 
 export const globalAnalyzerBuffer = new AnalyzerRingBuffer();
 
+const targetNumCache = new Map<string, number | null>();
+
 export function parseTargetNumber(raw?: string): number | null {
   if (!raw) return null;
+  const cached = targetNumCache.get(raw);
+  if (cached !== undefined) return cached;
+
   const s = raw.trim().replace(/_/g, '');
-  if (!s) return null;
-  if (/^0x[0-9a-f]+$/i.test(s)) return parseInt(s.slice(2), 16);
-  if (/^0b[01]+$/i.test(s)) return parseInt(s.slice(2), 2);
-  if (/^\d+$/.test(s)) return parseInt(s, 10);
-  if (/^[0-9a-f]+$/i.test(s)) return parseInt(s, 16);
-  return null;
+  let res: number | null = null;
+  if (s) {
+    if (/^0x[0-9a-f]+$/i.test(s)) res = parseInt(s.slice(2), 16);
+    else if (/^0b[01]+$/i.test(s)) res = parseInt(s.slice(2), 2);
+    else if (/^\d+$/.test(s)) res = parseInt(s, 10);
+    else if (/^[0-9a-f]+$/i.test(s)) res = parseInt(s, 16);
+  }
+  if (targetNumCache.size > 128) targetNumCache.clear();
+  targetNumCache.set(raw, res);
+  return res;
+}
+
+let cachedChannelsRef: AnalyzerChannel[] | null = null;
+let cachedChannelById = new Map<string, AnalyzerChannel>();
+
+function getChannelById(channels: AnalyzerChannel[], id: string): AnalyzerChannel | undefined {
+  if (channels !== cachedChannelsRef) {
+    cachedChannelsRef = channels;
+    cachedChannelById = new Map();
+    for (let i = 0; i < channels.length; i++) {
+      cachedChannelById.set(channels[i].id, channels[i]);
+    }
+  }
+  return cachedChannelById.get(id);
 }
 
 export function formatBusSample(
@@ -266,7 +276,7 @@ export function evaluateBreakpointsFast(
           }
         }
       } else {
-        const ch = channels.find(c => c.id === bp.targetChannelId);
+        const ch = getChannelById(channels, bp.targetChannelId);
         if (ch) {
           for (let k = 0; k < ch.pinIds.length; k++) {
             const idx = pinIdToIdx.get(ch.pinIds[k]);
@@ -279,7 +289,7 @@ export function evaluateBreakpointsFast(
       continue;
     }
 
-    const ch = channels.find(c => c.id === bp.targetChannelId);
+    const ch = getChannelById(channels, bp.targetChannelId);
     if (!ch || ch.pinIds.length === 0) continue;
 
     if (bp.conditionType === 'rising') {

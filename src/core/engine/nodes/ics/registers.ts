@@ -1,11 +1,66 @@
 import { NodeDefinition } from '../NodeDefinition';
 import { Signal } from '../../../models/types';
 
+const HIGH_Z_4: Signal[] = [undefined, undefined, undefined, undefined];
+const HIGH_Z_8: Signal[] = [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined];
+const HIGH_Z_16: Signal[] = [
+  undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+  undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+];
+
+export const IC74LS125: NodeDefinition = {
+  type: '74LS125',
+  label: '74LS125 (Quad Bus Buffer 3-State)',
+  category: 'Integrated Circuits/Registers & Buffers',
+  tags: ['buffer', 'driver', 'tri-state', '3-state', 'quad', '125'],
+  numInputs: 0,
+  numOutputs: 0,
+  renderAs: 'DIP',
+  customPins: [
+    { type: 'input', name: "1G'", pinNumber: 1, schematicSide: 'left', schematicRow: 2 },
+    { type: 'input', name: '1A', pinNumber: 2, schematicSide: 'left', schematicRow: 1 },
+    { type: 'output', name: '1Y', pinNumber: 3, schematicSide: 'right', schematicRow: 1 },
+
+    { type: 'input', name: "2G'", pinNumber: 4, schematicSide: 'left', schematicRow: 5 },
+    { type: 'input', name: '2A', pinNumber: 5, schematicSide: 'left', schematicRow: 4 },
+    { type: 'output', name: '2Y', pinNumber: 6, schematicSide: 'right', schematicRow: 4 },
+
+    { type: 'input', name: 'GND', pinNumber: 7 },
+
+    { type: 'output', name: '3Y', pinNumber: 8, schematicSide: 'right', schematicRow: 7 },
+    { type: 'input', name: '3A', pinNumber: 9, schematicSide: 'left', schematicRow: 7 },
+    { type: 'input', name: "3G'", pinNumber: 10, schematicSide: 'left', schematicRow: 8 },
+
+    { type: 'output', name: '4Y', pinNumber: 11, schematicSide: 'right', schematicRow: 10 },
+    { type: 'input', name: '4A', pinNumber: 12, schematicSide: 'left', schematicRow: 10 },
+    { type: 'input', name: "4G'", pinNumber: 13, schematicSide: 'left', schematicRow: 11 },
+
+    { type: 'input', name: 'VCC', pinNumber: 14 },
+  ],
+  evaluate: (inputs): Signal[] => {
+    const g1_n = inputs[0] ?? 1;
+    const g2_n = inputs[2] ?? 1;
+    const g3_n = inputs[6] ?? 1;
+    const g4_n = inputs[8] ?? 1;
+
+    if (g1_n !== 0 && g2_n !== 0 && g3_n !== 0 && g4_n !== 0) {
+      return HIGH_Z_4;
+    }
+
+    return [
+      g1_n === 0 ? inputs[1] : undefined,
+      g2_n === 0 ? inputs[3] : undefined,
+      g3_n === 0 ? inputs[5] : undefined,
+      g4_n === 0 ? inputs[7] : undefined,
+    ];
+  },
+};
+
 export const IC74LS173: NodeDefinition = {
   type: '74LS173',
   label: '74LS173 (4-bit Register)',
   category: 'Integrated Circuits/Registers & Buffers',
-  tags: ["register","d flip-flop","memory"],
+  tags: ['register', 'd flip-flop', 'memory'],
   numInputs: 0,
   numOutputs: 0,
   renderAs: 'DIP',
@@ -25,45 +80,45 @@ export const IC74LS173: NodeDefinition = {
     { type: 'output', name: '3Q', pinNumber: 13, schematicSide: 'right', schematicRow: 3 },
     { type: 'output', name: '2Q', pinNumber: 14, schematicSide: 'right', schematicRow: 2 },
     { type: 'output', name: '1Q', pinNumber: 15, schematicSide: 'right', schematicRow: 1 },
-    { type: 'input', name: 'VCC', pinNumber: 16 }
+    { type: 'input', name: 'VCC', pinNumber: 16 },
   ],
-  evaluate: (inputs: any[], _, __, internal, prevInputs) => {
-    if (!internal) return [undefined, undefined, undefined, undefined];
-    if (internal!.data === undefined) internal!.data = [0, 0, 0, 0];
-    
-    const pInputs = prevInputs || inputs;
+  evaluate: (inputs, _, __, internal, prevInputs): Signal[] => {
+    if (!internal) return HIGH_Z_4;
+    if (internal.data === undefined) internal.data = [0, 0, 0, 0];
 
+    const pInputs = prevInputs || inputs;
     const M1 = inputs[0] ?? 0;
     const M2 = inputs[1] ?? 0;
-    const D = [pInputs[2], pInputs[3], pInputs[4], pInputs[5]];
     const clk = inputs[6] ?? 0;
-    if (internal!.lastClk === undefined) internal!.lastClk = clk === 1 ? 1 : 0;
+    if (internal.lastClk === undefined) internal.lastClk = clk === 1 ? 1 : 0;
     const G1 = pInputs[8] ?? 0;
     const G2 = pInputs[9] ?? 0;
     const clr = inputs[10] ?? 0;
 
     if (clr === 1) {
-      internal!.data = [0, 0, 0, 0];
-    } else if (clk === 1 && internal!.lastClk === 0) {
-      if (G1 === 0 && G2 === 0) {
-        internal!.data = D.map(val => val === 1 ? 1 : 0);
-      }
+      internal.data = [0, 0, 0, 0];
+    } else if (clk === 1 && internal.lastClk === 0 && G1 === 0 && G2 === 0) {
+      internal.data = [
+        pInputs[2] === 1 ? 1 : 0,
+        pInputs[3] === 1 ? 1 : 0,
+        pInputs[4] === 1 ? 1 : 0,
+        pInputs[5] === 1 ? 1 : 0,
+      ];
     }
-    internal!.lastClk = clk;
+    internal.lastClk = clk;
 
     if (M1 === 0 && M2 === 0) {
-      return [internal!.data[3], internal!.data[2], internal!.data[1], internal!.data[0]];
-    } else {
-      return [undefined, undefined, undefined, undefined];
+      return [internal.data[3], internal.data[2], internal.data[1], internal.data[0]];
     }
-  }
+    return HIGH_Z_4;
+  },
 };
 
 export const IC74LS175: NodeDefinition = {
   type: '74LS175',
   label: '74LS175 (Quad D Flip-Flop)',
   category: 'Integrated Circuits/Registers & Buffers',
-  tags: ["register","flip-flop","dff"],
+  tags: ['register', 'flip-flop', 'dff'],
   renderAs: 'DIP',
   numInputs: 0,
   numOutputs: 0,
@@ -83,35 +138,25 @@ export const IC74LS175: NodeDefinition = {
     { name: '4D', type: 'input', pinNumber: 13, schematicSide: 'left', schematicRow: 4 },
     { name: '!4Q', type: 'output', pinNumber: 14, schematicSide: 'right', schematicRow: 8 },
     { name: '4Q', type: 'output', pinNumber: 15, schematicSide: 'right', schematicRow: 7 },
-    { name: 'VCC', type: 'input', pinNumber: 16 }
+    { name: 'VCC', type: 'input', pinNumber: 16 },
   ],
-  evaluate: (inputs, _, __, internal, prevInputs) => {
-    if (!internal) return [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined];
+  evaluate: (inputs, _, __, internal, prevInputs): Signal[] => {
+    if (!internal) return HIGH_Z_8;
     if (internal.data === undefined) internal.data = [0, 0, 0, 0];
-    
+
     const pInputs = prevInputs || inputs;
+    const clrVal = inputs[0] ?? 1; // Active LOW
+    const clkVal = inputs[4] === 1 ? 1 : 0;
 
-    const clr = inputs[0]; // Active LOW
-    const clk = inputs[4];
-    const d1 = pInputs[1];
-    const d2 = pInputs[2];
-    const d3 = pInputs[5];
-    const d4 = pInputs[6];
-
-    const clkVal = clk === 1 ? 1 : 0;
     if (internal.lastClk === undefined) internal.lastClk = clkVal;
-    const clrVal = clr ?? 1;
 
     if (clrVal === 0) {
       internal.data = [0, 0, 0, 0];
-    } else {
-      const isRisingEdge = clkVal === 1 && internal.lastClk === 0;
-      if (isRisingEdge) {
-         internal.data[0] = d1 === 1 ? 1 : 0;
-         internal.data[1] = d2 === 1 ? 1 : 0;
-         internal.data[2] = d3 === 1 ? 1 : 0;
-         internal.data[3] = d4 === 1 ? 1 : 0;
-      }
+    } else if (clkVal === 1 && internal.lastClk === 0) {
+      internal.data[0] = pInputs[1] === 1 ? 1 : 0;
+      internal.data[1] = pInputs[2] === 1 ? 1 : 0;
+      internal.data[2] = pInputs[5] === 1 ? 1 : 0;
+      internal.data[3] = pInputs[6] === 1 ? 1 : 0;
     }
     internal.lastClk = clkVal;
 
@@ -120,16 +165,16 @@ export const IC74LS175: NodeDefinition = {
       q1, q1 ? 0 : 1, // 1Q, !1Q
       q2 ? 0 : 1, q2, // !2Q, 2Q
       q3, q3 ? 0 : 1, // 3Q, !3Q
-      q4 ? 0 : 1, q4  // !4Q, 4Q
-    ] as any;
-  }
+      q4 ? 0 : 1, q4, // !4Q, 4Q
+    ];
+  },
 };
 
 export const IC74LS241: NodeDefinition = {
   type: '74LS241',
   label: '74LS241 (Octal Buffer/Line Driver)',
   category: 'Integrated Circuits/Registers & Buffers',
-  tags: ["buffer","driver","tri-state"],
+  tags: ['buffer', 'driver', 'tri-state'],
   numInputs: 0,
   numOutputs: 0,
   renderAs: 'DIP',
@@ -143,7 +188,7 @@ export const IC74LS241: NodeDefinition = {
     { type: 'input', name: '2A3', pinNumber: 15, schematicSide: 'left', schematicRow: 8 },
     { type: 'input', name: '2A4', pinNumber: 17, schematicSide: 'left', schematicRow: 9 },
 
-    { type: 'input', name: '1G\'', pinNumber: 1, schematicSide: 'left', schematicRow: 11 },
+    { type: 'input', name: "1G'", pinNumber: 1, schematicSide: 'left', schematicRow: 11 },
     { type: 'input', name: '2G', pinNumber: 19, schematicSide: 'left', schematicRow: 12 },
 
     { type: 'output', name: '1Y1', pinNumber: 18, schematicSide: 'right', schematicRow: 1 },
@@ -159,36 +204,31 @@ export const IC74LS241: NodeDefinition = {
     { type: 'input', name: 'VCC', pinNumber: 20 },
   ],
   evaluate: (inputs): Signal[] => {
-    const a1 = [inputs[0], inputs[1], inputs[2], inputs[3]];
-    const a2 = [inputs[4], inputs[5], inputs[6], inputs[7]];
     const g1_n = inputs[8] ?? 1;
     const g2 = inputs[9] ?? 0;
 
-    const outs: Signal[] = Array(8).fill(undefined);
-
-    if (g1_n === 0) {
-      outs[0] = a1[0];
-      outs[1] = a1[1];
-      outs[2] = a1[2];
-      outs[3] = a1[3];
+    if (g1_n !== 0 && g2 !== 1) {
+      return HIGH_Z_8;
     }
 
-    if (g2 === 1) {
-      outs[4] = a2[0];
-      outs[5] = a2[1];
-      outs[6] = a2[2];
-      outs[7] = a2[3];
-    }
-
-    return outs;
-  }
+    return [
+      g1_n === 0 ? inputs[0] : undefined,
+      g1_n === 0 ? inputs[1] : undefined,
+      g1_n === 0 ? inputs[2] : undefined,
+      g1_n === 0 ? inputs[3] : undefined,
+      g2 === 1 ? inputs[4] : undefined,
+      g2 === 1 ? inputs[5] : undefined,
+      g2 === 1 ? inputs[6] : undefined,
+      g2 === 1 ? inputs[7] : undefined,
+    ];
+  },
 };
 
 export const IC74LS244: NodeDefinition = {
   type: '74LS244',
   label: '74LS244 (Octal Buffer/Line Driver)',
   category: 'Integrated Circuits/Registers & Buffers',
-  tags: ["buffer","driver","tri-state"],
+  tags: ['buffer', 'driver', 'tri-state'],
   numInputs: 0,
   numOutputs: 0,
   renderAs: 'DIP',
@@ -202,8 +242,8 @@ export const IC74LS244: NodeDefinition = {
     { type: 'input', name: '2A3', pinNumber: 15, schematicSide: 'left', schematicRow: 8 },
     { type: 'input', name: '2A4', pinNumber: 17, schematicSide: 'left', schematicRow: 9 },
 
-    { type: 'input', name: '1G\'', pinNumber: 1, schematicSide: 'left', schematicRow: 11 },
-    { type: 'input', name: '2G\'', pinNumber: 19, schematicSide: 'left', schematicRow: 12 },
+    { type: 'input', name: "1G'", pinNumber: 1, schematicSide: 'left', schematicRow: 11 },
+    { type: 'input', name: "2G'", pinNumber: 19, schematicSide: 'left', schematicRow: 12 },
 
     { type: 'output', name: '1Y1', pinNumber: 18, schematicSide: 'right', schematicRow: 1 },
     { type: 'output', name: '1Y2', pinNumber: 16, schematicSide: 'right', schematicRow: 2 },
@@ -218,36 +258,31 @@ export const IC74LS244: NodeDefinition = {
     { type: 'input', name: 'VCC', pinNumber: 20 },
   ],
   evaluate: (inputs): Signal[] => {
-    const a1 = [inputs[0], inputs[1], inputs[2], inputs[3]];
-    const a2 = [inputs[4], inputs[5], inputs[6], inputs[7]];
     const g1_n = inputs[8] ?? 1;
     const g2_n = inputs[9] ?? 1;
 
-    const outs: Signal[] = Array(8).fill(undefined);
-
-    if (g1_n === 0) {
-      outs[0] = a1[0];
-      outs[1] = a1[1];
-      outs[2] = a1[2];
-      outs[3] = a1[3];
+    if (g1_n !== 0 && g2_n !== 0) {
+      return HIGH_Z_8;
     }
 
-    if (g2_n === 0) {
-      outs[4] = a2[0];
-      outs[5] = a2[1];
-      outs[6] = a2[2];
-      outs[7] = a2[3];
-    }
-
-    return outs;
-  }
+    return [
+      g1_n === 0 ? inputs[0] : undefined,
+      g1_n === 0 ? inputs[1] : undefined,
+      g1_n === 0 ? inputs[2] : undefined,
+      g1_n === 0 ? inputs[3] : undefined,
+      g2_n === 0 ? inputs[4] : undefined,
+      g2_n === 0 ? inputs[5] : undefined,
+      g2_n === 0 ? inputs[6] : undefined,
+      g2_n === 0 ? inputs[7] : undefined,
+    ];
+  },
 };
 
 export const IC_74LS245: NodeDefinition = {
   type: '74LS245',
   label: '74LS245 (Octal Bus Transceiver)',
   category: 'Integrated Circuits/Registers & Buffers',
-  tags: ["buffer", "bus", "transceiver"],
+  tags: ['buffer', 'bus', 'transceiver'],
   renderAs: 'DIP',
   numInputs: 20,
   numOutputs: 16,
@@ -270,46 +305,47 @@ export const IC_74LS245: NodeDefinition = {
     { name: 'B3', type: 'bidir', pinNumber: 16, schematicSide: 'right', schematicRow: 3 },
     { name: 'B2', type: 'bidir', pinNumber: 17, schematicSide: 'right', schematicRow: 2 },
     { name: 'B1', type: 'bidir', pinNumber: 18, schematicSide: 'right', schematicRow: 1 },
-    { name: 'OE\'', type: 'input', pinNumber: 19, schematicSide: 'left', schematicRow: 11 },
+    { name: "OE'", type: 'input', pinNumber: 19, schematicSide: 'left', schematicRow: 11 },
     { name: 'VCC', type: 'input', pinNumber: 20 },
   ],
-  evaluate: (inputs) => {
-    const DIR = inputs[0] === 0 ? 0 : 1;
+  evaluate: (inputs): Signal[] => {
     const OE_n = inputs[18] === 0 ? 0 : 1;
+    if (OE_n !== 0) {
+      return HIGH_Z_16;
+    }
 
-    const outs = Array(16).fill(undefined) as Signal[];
+    const DIR = inputs[0] === 0 ? 0 : 1;
+    const outs = new Array<Signal>(16);
 
-    if (OE_n === 0) {
-      if (DIR === 1) {
-        outs[15] = inputs[1];
-        outs[14] = inputs[2];
-        outs[13] = inputs[3];
-        outs[12] = inputs[4];
-        outs[11] = inputs[5];
-        outs[10] = inputs[6];
-        outs[9]  = inputs[7];
-        outs[8]  = inputs[8];
-      } else {
-        outs[0] = inputs[17];
-        outs[1] = inputs[16];
-        outs[2] = inputs[15];
-        outs[3] = inputs[14];
-        outs[4] = inputs[13];
-        outs[5] = inputs[12];
-        outs[6] = inputs[11];
-        outs[7] = inputs[10];
-      }
+    if (DIR === 1) {
+      outs[15] = inputs[1];
+      outs[14] = inputs[2];
+      outs[13] = inputs[3];
+      outs[12] = inputs[4];
+      outs[11] = inputs[5];
+      outs[10] = inputs[6];
+      outs[9] = inputs[7];
+      outs[8] = inputs[8];
+    } else {
+      outs[0] = inputs[17];
+      outs[1] = inputs[16];
+      outs[2] = inputs[15];
+      outs[3] = inputs[14];
+      outs[4] = inputs[13];
+      outs[5] = inputs[12];
+      outs[6] = inputs[11];
+      outs[7] = inputs[10];
     }
 
     return outs;
-  }
+  },
 };
 
 export const IC74LS273: NodeDefinition = {
   type: '74LS273',
   label: '74LS273 (Octal D Flip-Flop)',
   category: 'Integrated Circuits/Registers & Buffers',
-  tags: ["register","flip-flop","dff","memory"],
+  tags: ['register', 'flip-flop', 'dff', 'memory'],
   renderAs: 'DIP',
   numInputs: 12,
   numOutputs: 8,
@@ -333,54 +369,52 @@ export const IC74LS273: NodeDefinition = {
     { name: 'D6', type: 'input', pinNumber: 17, schematicSide: 'left', schematicRow: 7 },
     { name: 'D7', type: 'input', pinNumber: 18, schematicSide: 'left', schematicRow: 8 },
     { name: 'Q7', type: 'output', pinNumber: 19, schematicSide: 'right', schematicRow: 8 },
-    { name: 'VCC', type: 'input', pinNumber: 20 }
+    { name: 'VCC', type: 'input', pinNumber: 20 },
   ],
-  evaluate: (inputs, _props, _tick, internal = {}, prevInputs) => {
+  evaluate: (inputs, _props, _tick, internal = {}, prevInputs): Signal[] => {
     const pInputs = prevInputs || inputs;
-    const [mrN, , , , , , cp, , , , ] = inputs;
-    const [, d0, d1, d2, d3, , , d4, d5, d6, d7] = pInputs;
+    const mrN = inputs[0] ?? 1;
+    const cp = inputs[6];
 
     const st = internal;
     if (st.state === undefined) st.state = 0;
     if (st.lastClk === undefined) st.lastClk = cp === 1 ? 1 : 0;
 
-    const safeMrN = mrN ?? 1;
-
-    if (safeMrN === 0) {
+    if (mrN === 0) {
       st.state = 0;
     } else if (cp === 1 && st.lastClk === 0) {
-      const bit0 = d0 === 1 ? 1 : 0;
-      const bit1 = d1 === 1 ? 1 : 0;
-      const bit2 = d2 === 1 ? 1 : 0;
-      const bit3 = d3 === 1 ? 1 : 0;
-      const bit4 = d4 === 1 ? 1 : 0;
-      const bit5 = d5 === 1 ? 1 : 0;
-      const bit6 = d6 === 1 ? 1 : 0;
-      const bit7 = d7 === 1 ? 1 : 0;
-
-      st.state = (bit7 << 7) | (bit6 << 6) | (bit5 << 5) | (bit4 << 4) | (bit3 << 3) | (bit2 << 2) | (bit1 << 1) | bit0;
+      st.state =
+        ((pInputs[10] === 1 ? 1 : 0) << 7) |
+        ((pInputs[9] === 1 ? 1 : 0) << 6) |
+        ((pInputs[8] === 1 ? 1 : 0) << 5) |
+        ((pInputs[7] === 1 ? 1 : 0) << 4) |
+        ((pInputs[4] === 1 ? 1 : 0) << 3) |
+        ((pInputs[3] === 1 ? 1 : 0) << 2) |
+        ((pInputs[2] === 1 ? 1 : 0) << 1) |
+        (pInputs[1] === 1 ? 1 : 0);
     }
 
-    st.lastClk = cp || 0;
+    st.lastClk = cp === 1 ? 1 : 0;
 
-    const q0 = (st.state & (1 << 0)) ? 1 : 0;
-    const q1 = (st.state & (1 << 1)) ? 1 : 0;
-    const q2 = (st.state & (1 << 2)) ? 1 : 0;
-    const q3 = (st.state & (1 << 3)) ? 1 : 0;
-    const q4 = (st.state & (1 << 4)) ? 1 : 0;
-    const q5 = (st.state & (1 << 5)) ? 1 : 0;
-    const q6 = (st.state & (1 << 6)) ? 1 : 0;
-    const q7 = (st.state & (1 << 7)) ? 1 : 0;
-
-    return [q0, q1, q2, q3, q4, q5, q6, q7];
-  }
+    const val = st.state as number;
+    return [
+      (val & 1) ? 1 : 0,
+      (val & 2) ? 1 : 0,
+      (val & 4) ? 1 : 0,
+      (val & 8) ? 1 : 0,
+      (val & 16) ? 1 : 0,
+      (val & 32) ? 1 : 0,
+      (val & 64) ? 1 : 0,
+      (val & 128) ? 1 : 0,
+    ];
+  },
 };
 
 export const IC74LS373: NodeDefinition = {
   type: '74LS373',
   label: '74LS373 (Octal Transparent Latch)',
   category: 'Integrated Circuits/Registers & Buffers',
-  tags: ["latch","register","memory","3-state"],
+  tags: ['latch', 'register', 'memory', '3-state'],
   renderAs: 'DIP',
   numInputs: 0,
   numOutputs: 0,
@@ -406,11 +440,11 @@ export const IC74LS373: NodeDefinition = {
     { name: '8Q', type: 'output', pinNumber: 19, schematicSide: 'right', schematicRow: 8 },
 
     { name: 'GND', type: 'input', pinNumber: 10 },
-    { name: 'VCC', type: 'input', pinNumber: 20 }
+    { name: 'VCC', type: 'input', pinNumber: 20 },
   ],
-  evaluate: (inputs, _, __, internal) => {
-    if (!internal) return Array(8).fill(undefined);
-    if (!internal.data) internal.data = Array(8).fill(0);
+  evaluate: (inputs, _, __, internal): Signal[] => {
+    if (!internal) return HIGH_Z_8;
+    if (!internal.data) internal.data = [0, 0, 0, 0, 0, 0, 0, 0];
 
     const oe_n = inputs[0] ?? 1;
     const le = inputs[9] ?? 0;
@@ -422,18 +456,18 @@ export const IC74LS373: NodeDefinition = {
     }
 
     if (oe_n === 1) {
-      return Array(8).fill(undefined);
+      return HIGH_Z_8;
     }
 
-    return [...internal.data];
-  }
+    return internal.data.slice();
+  },
 };
 
 export const IC74LS374: NodeDefinition = {
   type: '74LS374',
   label: '74LS374 (Octal D Flip-Flop 3-State)',
   category: 'Integrated Circuits/Registers & Buffers',
-  tags: ["register", "flip-flop", "dff", "memory", "3-state", "tri-state"],
+  tags: ['register', 'flip-flop', 'dff', 'memory', '3-state', 'tri-state'],
   renderAs: 'DIP',
   numInputs: 0,
   numOutputs: 0,
@@ -459,11 +493,11 @@ export const IC74LS374: NodeDefinition = {
     { name: '8Q', type: 'output', pinNumber: 19, schematicSide: 'right', schematicRow: 8 },
 
     { name: 'GND', type: 'input', pinNumber: 10 },
-    { name: 'VCC', type: 'input', pinNumber: 20 }
+    { name: 'VCC', type: 'input', pinNumber: 20 },
   ],
-  evaluate: (inputs, _, __, internal, prevInputs) => {
-    if (!internal) return Array(8).fill(undefined);
-    if (!internal.data) internal.data = Array(8).fill(0);
+  evaluate: (inputs, _, __, internal, prevInputs): Signal[] => {
+    if (!internal) return HIGH_Z_8;
+    if (!internal.data) internal.data = [0, 0, 0, 0, 0, 0, 0, 0];
 
     const pInputs = prevInputs || inputs;
     const oe_n = inputs[0] ?? 1;
@@ -479,18 +513,18 @@ export const IC74LS374: NodeDefinition = {
     internal.lastClk = clk;
 
     if (oe_n === 1) {
-      return Array(8).fill(undefined);
+      return HIGH_Z_8;
     }
 
-    return [...internal.data];
-  }
+    return internal.data.slice();
+  },
 };
 
 export const IC74LS541: NodeDefinition = {
   type: '74LS541',
   label: '74LS541 (Octal Buffer/Line Driver)',
   category: 'Integrated Circuits/Registers & Buffers',
-  tags: ["buffer","driver","tri-state"],
+  tags: ['buffer', 'driver', 'tri-state'],
   numInputs: 0,
   numOutputs: 0,
   renderAs: 'DIP',
@@ -519,20 +553,20 @@ export const IC74LS541: NodeDefinition = {
   evaluate: (inputs): Signal[] => {
     const oe1_n = inputs[0] ?? 1;
     const oe2_n = inputs[10] ?? 1;
-    
-    const outs: Signal[] = Array(8).fill(undefined);
-    
-    if (oe1_n === 0 && oe2_n === 0) {
-      outs[0] = inputs[8]; // Y8 <- A8
-      outs[1] = inputs[7]; // Y7 <- A7
-      outs[2] = inputs[6]; // Y6 <- A6
-      outs[3] = inputs[5]; // Y5 <- A5
-      outs[4] = inputs[4]; // Y4 <- A4
-      outs[5] = inputs[3]; // Y3 <- A3
-      outs[6] = inputs[2]; // Y2 <- A2
-      outs[7] = inputs[1]; // Y1 <- A1
+
+    if (oe1_n !== 0 || oe2_n !== 0) {
+      return HIGH_Z_8;
     }
-    
-    return outs;
-  }
+
+    return [
+      inputs[8], // Y8 <- A8
+      inputs[7], // Y7 <- A7
+      inputs[6], // Y6 <- A6
+      inputs[5], // Y5 <- A5
+      inputs[4], // Y4 <- A4
+      inputs[3], // Y3 <- A3
+      inputs[2], // Y2 <- A2
+      inputs[1], // Y1 <- A1
+    ];
+  },
 };

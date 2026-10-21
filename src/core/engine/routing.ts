@@ -62,12 +62,11 @@ let lastCleanedWiresRef: Wire[] | null = null;
 
 export const computeAllWirePaths = (
   wires: Wire[],
-  nodes: LogicNode[],
-  draftWire?: { start: Point; end: Point; waypoints?: { x: number; y: number }[]; manhattan?: boolean }
+  nodes: LogicNode[]
 ) => {
   const wirePaths = new Map<string, WirePathEntry>();
 
-  if (wires.length > 0 || !draftWire) {
+  if (wires.length > 0) {
     const nodeMap = new Map<string, LogicNode>();
     for (let i = 0; i < nodes.length; i++) {
       nodeMap.set(nodes[i].id, nodes[i]);
@@ -144,7 +143,5 @@ export const computeAllWirePaths = (
     }
   }
 
-  const draftWirePath = draftWire ? computeDraftWirePath(draftWire) : '';
-
-  return { wirePaths, draftWirePath };
+  return { wirePaths };
 };

@@ -1,10 +1,15 @@
 import { NodeDefinition } from '../NodeDefinition';
+import { Signal } from '../../../models/types';
+
+const CONFLICT_6: Signal[] = ['X', 'X', 'X', 'X', 'X', 'X'];
+const OUT_0: Signal[] = [0];
+const OUT_1: Signal[] = [1];
 
 export const IC74LS161: NodeDefinition = {
   type: '74LS161',
   label: '74LS161 (4-bit Counter)',
   category: 'Integrated Circuits/Counters & Timers',
-  tags: ["counter","timer","sync"],
+  tags: ['counter', 'timer', 'sync'],
   renderAs: 'DIP',
   numInputs: 11,
   numOutputs: 5,
@@ -24,9 +29,9 @@ export const IC74LS161: NodeDefinition = {
     { name: 'QB', type: 'output', pinNumber: 13, schematicSide: 'right', schematicRow: 2 },
     { name: 'QA', type: 'output', pinNumber: 14, schematicSide: 'right', schematicRow: 1 },
     { name: 'RCO', type: 'output', pinNumber: 15, schematicSide: 'right', schematicRow: 6 },
-    { name: 'VCC', type: 'input', pinNumber: 16 }
+    { name: 'VCC', type: 'input', pinNumber: 16 },
   ],
-  evaluate: (inputs, _props, _tick, internal = {}, prevInputs) => {
+  evaluate: (inputs, _props, _tick, internal = {}, prevInputs): Signal[] => {
     const pInputs = prevInputs || inputs;
     const clrN = inputs[0]; // Async clear
     const clk = inputs[1];  // Sync trigger
@@ -51,30 +56,30 @@ export const IC74LS161: NodeDefinition = {
       st.counter = 0;
     } else if (clk === 1 && st.lastClk === 0) {
       if (safeLoadN === 0) {
-        st.counter = ((d === 1 ? 1 : 0) << 3) | ((c === 1 ? 1 : 0) << 2) | ((b === 1 ? 1 : 0) << 1) | ((a === 1 ? 1 : 0));
+        st.counter = ((d === 1 ? 1 : 0) << 3) | ((c === 1 ? 1 : 0) << 2) | ((b === 1 ? 1 : 0) << 1) | (a === 1 ? 1 : 0);
       } else if (safeEnp === 1 && safeEnt === 1) {
-        st.counter = (st.counter + 1) % 16;
+        st.counter = (st.counter + 1) & 15;
       }
     }
 
-    st.lastClk = clk || 0;
+    st.lastClk = clk === 1 ? 1 : 0;
 
-    const qa = (st.counter & 1) ? 1 : 0;
-    const qb = (st.counter & 2) ? 1 : 0;
-    const qc = (st.counter & 4) ? 1 : 0;
-    const qd = (st.counter & 8) ? 1 : 0;
+    const qa: Signal = (st.counter & 1) ? 1 : 0;
+    const qb: Signal = (st.counter & 2) ? 1 : 0;
+    const qc: Signal = (st.counter & 4) ? 1 : 0;
+    const qd: Signal = (st.counter & 8) ? 1 : 0;
     const currentEnt = inputs[9] ?? 1;
-    const rco = (st.counter === 15 && currentEnt === 1) ? 1 : 0;
+    const rco: Signal = st.counter === 15 && currentEnt === 1 ? 1 : 0;
 
     return [qd, qc, qb, qa, rco];
-  }
+  },
 };
 
 export const IC74LS191: NodeDefinition = {
   type: '74LS191',
   label: '74LS191 (Up/Down Counter)',
   category: 'Integrated Circuits/Counters & Timers',
-  tags: ["counter","up","down","timer"],
+  tags: ['counter', 'up', 'down', 'timer'],
   renderAs: 'DIP',
   numInputs: 10,
   numOutputs: 6,
@@ -94,9 +99,9 @@ export const IC74LS191: NodeDefinition = {
     { name: '~RCO', type: 'output', pinNumber: 13, schematicSide: 'right', schematicRow: 7 },
     { name: 'CLK', type: 'input', pinNumber: 14, schematicSide: 'left', schematicRow: 9 },
     { name: 'A', type: 'input', pinNumber: 15, schematicSide: 'left', schematicRow: 1 },
-    { name: 'VCC', type: 'input', pinNumber: 16 }
+    { name: 'VCC', type: 'input', pinNumber: 16 },
   ],
-  evaluate: (inputs, _props, _tick, internal = {}, prevInputs) => {
+  evaluate: (inputs, _props, _tick, internal = {}, prevInputs): Signal[] => {
     const pInputs = prevInputs || inputs;
     const b = inputs[0];
     const ctenN = pInputs[1] ?? 0;
@@ -112,48 +117,45 @@ export const IC74LS191: NodeDefinition = {
     if (st.lastClk === undefined) st.lastClk = clk === 1 ? 1 : 0;
 
     if (loadN === 0) {
-       let val = 0;
-       if (a === 1) val |= 1;
-       if (b === 1) val |= 2;
-       if (c === 1) val |= 4;
-       if (d === 1) val |= 8;
-       if (a === 'X' || b === 'X' || c === 'X' || d === 'X' || a === undefined || b === undefined || c === undefined || d === undefined) {
-           st.counter = 'X';
-       } else {
-           st.counter = val;
-       }
+      if (
+        a === 'X' || b === 'X' || c === 'X' || d === 'X' ||
+        a === undefined || b === undefined || c === undefined || d === undefined
+      ) {
+        st.counter = 'X';
+      } else {
+        st.counter = (a === 1 ? 1 : 0) | (b === 1 ? 2 : 0) | (c === 1 ? 4 : 0) | (d === 1 ? 8 : 0);
+      }
     } else {
-       const risingEdge = st.lastClk === 0 && clk === 1;
-       if (risingEdge && ctenN === 0 && st.counter !== 'X') {
-           if (du === 0) {
-               st.counter = (st.counter + 1) % 16;
-           } else if (du === 1) {
-               st.counter = (st.counter - 1 + 16) % 16;
-           }
-       }
+      const risingEdge = st.lastClk === 0 && clk === 1;
+      if (risingEdge && ctenN === 0 && st.counter !== 'X') {
+        if (du === 0) {
+          st.counter = (st.counter + 1) & 15;
+        } else if (du === 1) {
+          st.counter = (st.counter - 1) & 15;
+        }
+      }
     }
 
     if (clk === 0 || clk === 1) {
-        st.lastClk = clk;
+      st.lastClk = clk;
     }
 
-    if (st.counter === 'X') return ['X', 'X', 'X', 'X', 'X', 'X'] as any;
+    if (st.counter === 'X') return CONFLICT_6;
 
-    const val = st.counter;
-    const qa = (val & 1) ? 1 : 0;
-    const qb = (val & 2) ? 1 : 0;
-    const qc = (val & 4) ? 1 : 0;
-    const qd = (val & 8) ? 1 : 0;
+    const val = st.counter as number;
+    const qa: Signal = (val & 1) ? 1 : 0;
+    const qb: Signal = (val & 2) ? 1 : 0;
+    const qc: Signal = (val & 4) ? 1 : 0;
+    const qd: Signal = (val & 8) ? 1 : 0;
 
-    let maxMin = 0;
+    let maxMin: Signal = 0;
     if (du === 0 && val === 15) maxMin = 1;
     if (du === 1 && val === 0) maxMin = 1;
 
-    let rcoN = 1;
-    if (maxMin === 1 && ctenN === 0 && clk === 0) rcoN = 0;
+    const rcoN: Signal = maxMin === 1 && ctenN === 0 && clk === 0 ? 0 : 1;
 
-    return [qb, qa, qc, qd, maxMin, rcoN] as any;
-  }
+    return [qb, qa, qc, qd, maxMin, rcoN];
+  },
 };
 
 export const IC_NE555: NodeDefinition = {
@@ -166,9 +168,9 @@ export const IC_NE555: NodeDefinition = {
   numOutputs: 0,
   customPins: [
     { name: 'GND', type: 'input', pinNumber: 1 },
-    { name: 'TRIG\'', type: 'input', pinNumber: 2, schematicSide: 'left', schematicRow: 1 },
+    { name: "TRIG'", type: 'input', pinNumber: 2, schematicSide: 'left', schematicRow: 1 },
     { name: 'OUT', type: 'output', pinNumber: 3, schematicSide: 'right', schematicRow: 1 },
-    { name: 'RST\'', type: 'input', pinNumber: 4, schematicSide: 'left', schematicRow: 3 },
+    { name: "RST'", type: 'input', pinNumber: 4, schematicSide: 'left', schematicRow: 3 },
     { name: 'VCC', type: 'input', pinNumber: 8 },
   ],
   defaultProperties: {
@@ -186,7 +188,7 @@ export const IC_NE555: NodeDefinition = {
     vcc: 5.0,
     bypassDiode: false,
   },
-  evaluate: (inputs, props, tickCount, internal = {}) => {
+  evaluate: (inputs, props, tickCount, internal = {}): Signal[] => {
     // inputs: 0 = GND, 1 = TRIG', 2 = RST', 3 = VCC
     const trigN = inputs[1] ?? 1;
     const rstN = inputs[2] ?? 1;
@@ -196,7 +198,7 @@ export const IC_NE555: NodeDefinition = {
     if (rstN === 0) {
       st.latchQ = 0;
       st.monoRemaining = 0;
-      return [0];
+      return OUT_0;
     }
 
     if (mode === 'bistable') {
@@ -204,7 +206,7 @@ export const IC_NE555: NodeDefinition = {
       if (trigN === 0) {
         st.latchQ = 1;
       }
-      return [st.latchQ ? 1 : 0];
+      return st.latchQ ? OUT_1 : OUT_0;
     }
 
     if (mode === 'monostable') {
@@ -217,27 +219,27 @@ export const IC_NE555: NodeDefinition = {
 
       if (trigN === 0) {
         st.monoRemaining = pulseTicks;
-        return [1];
+        return OUT_1;
       }
 
       if (st.monoRemaining > 0) {
         if (tickAdvanced) {
           st.monoRemaining = Math.max(0, st.monoRemaining - 1);
         }
-        return [st.monoRemaining > 0 ? 1 : 0];
+        return st.monoRemaining > 0 ? OUT_1 : OUT_0;
       }
-      return [0];
+      return OUT_0;
     }
 
     // Default: Astable mode
     if (trigN === 0) {
-      return [1];
+      return OUT_1;
     }
 
     const highTicks = Math.max(1, props?.highTicks ?? props?.interval ?? 5);
     const lowTicks = Math.max(1, props?.lowTicks ?? props?.interval ?? 5);
     const cycleLength = highTicks + lowTicks;
-    if (cycleLength <= 0) return [0];
+    if (cycleLength <= 0) return OUT_0;
 
     const currentTick = (tickCount ?? 0) % cycleLength;
     const startHigh = props?.startHigh !== false;
@@ -245,7 +247,6 @@ export const IC_NE555: NodeDefinition = {
       ? (currentTick < highTicks ? 1 : 0)
       : (currentTick < lowTicks ? 0 : 1);
 
-    return [val];
-  }
+    return val === 1 ? OUT_1 : OUT_0;
+  },
 };
-

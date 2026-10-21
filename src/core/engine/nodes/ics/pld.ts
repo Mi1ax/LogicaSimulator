@@ -1,43 +1,7 @@
 import { NodeDefinition } from '../NodeDefinition';
+import { Signal } from '../../../models/types';
 import { parseJedec } from '../../../utils/jedecParser';
-
-const GAL22V10_COL_MAP = [
-  { pin: 0, trueCol: 0 },   // Pin 1
-  { pin: 22, trueCol: 2 },  // Pin 23
-  { pin: 1, trueCol: 4 },   // Pin 2
-  { pin: 21, trueCol: 6 },  // Pin 22
-  { pin: 2, trueCol: 8 },   // Pin 3
-  { pin: 20, trueCol: 10 }, // Pin 21
-  { pin: 3, trueCol: 12 },  // Pin 4
-  { pin: 19, trueCol: 14 }, // Pin 20
-  { pin: 4, trueCol: 16 },  // Pin 5
-  { pin: 18, trueCol: 18 }, // Pin 19
-  { pin: 5, trueCol: 20 },  // Pin 6
-  { pin: 17, trueCol: 22 }, // Pin 18
-  { pin: 6, trueCol: 24 },  // Pin 7
-  { pin: 16, trueCol: 26 }, // Pin 17
-  { pin: 7, trueCol: 28 },  // Pin 8
-  { pin: 15, trueCol: 30 }, // Pin 16
-  { pin: 8, trueCol: 32 },  // Pin 9
-  { pin: 14, trueCol: 34 }, // Pin 15
-  { pin: 9, trueCol: 36 },  // Pin 10
-  { pin: 13, trueCol: 38 }, // Pin 14
-  { pin: 10, trueCol: 40 }, // Pin 11
-  { pin: 12, trueCol: 42 }, // Pin 13
-];
-
-const GAL22V10_OLMC_MAP = [
-  { pinIndex: 13, s0Fuse: 5826, s1Fuse: 5827, startRow: 122, size: 9 },  // Pin 14
-  { pinIndex: 14, s0Fuse: 5824, s1Fuse: 5825, startRow: 111, size: 11 }, // Pin 15
-  { pinIndex: 15, s0Fuse: 5822, s1Fuse: 5823, startRow: 98, size: 13 },  // Pin 16
-  { pinIndex: 16, s0Fuse: 5820, s1Fuse: 5821, startRow: 83, size: 15 },  // Pin 17
-  { pinIndex: 17, s0Fuse: 5818, s1Fuse: 5819, startRow: 66, size: 17 },  // Pin 18
-  { pinIndex: 18, s0Fuse: 5816, s1Fuse: 5817, startRow: 49, size: 17 },  // Pin 19
-  { pinIndex: 19, s0Fuse: 5814, s1Fuse: 5815, startRow: 34, size: 15 },  // Pin 20
-  { pinIndex: 20, s0Fuse: 5812, s1Fuse: 5813, startRow: 21, size: 13 },  // Pin 21
-  { pinIndex: 21, s0Fuse: 5810, s1Fuse: 5811, startRow: 10, size: 11 },  // Pin 22
-  { pinIndex: 22, s0Fuse: 5808, s1Fuse: 5809, startRow: 1, size: 9 },    // Pin 23
-];
+import { GAL22V10_COL_MAP, GAL22V10_OLMC_MAP } from '../../../utils/cuplParser';
 
 interface CompiledJedec {
   /** null means row is permanently 0 (contradiction / unprogrammed row); number[] is list of connected columns */
@@ -111,7 +75,7 @@ const scratchOrResults = new Uint8Array(10);
 const scratchOes = new Uint8Array(10);
 
 function fillColStates(
-  sourceInputs: any[],
+  sourceInputs: Signal[],
   s1: number[],
   regs: number[],
   outColStates: Uint8Array
@@ -183,16 +147,16 @@ export const IC_GAL22V10: NodeDefinition = {
     { name: 'IO23', type: 'bidir', pinNumber: 23, schematicSide: 'right', schematicRow: 10 },
     { name: 'VCC', type: 'input', pinNumber: 24 },
   ],
-  evaluate: (inputs, properties, _, internal, prevInputs) => {
-    if (!internal!.registers) internal!.registers = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  evaluate: (inputs, properties, _, internal = {}, prevInputs): Signal[] => {
+    if (!internal.registers) internal.registers = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     const clk = inputs[0] === 1 ? 1 : 0;
-    if (internal!.lastClk === undefined) internal!.lastClk = clk;
-    const isRisingEdge = clk === 1 && internal!.lastClk === 0;
-    internal!.lastClk = clk;
+    if (internal.lastClk === undefined) internal.lastClk = clk;
+    const isRisingEdge = clk === 1 && internal.lastClk === 0;
+    internal.lastClk = clk;
 
     const compiled = getCompiledJedec(properties?.jedecString || '');
     const { rows, olmcActiveRows, s0, s1 } = compiled;
-    const regs = internal!.registers;
+    const regs = internal.registers;
 
     fillColStates(inputs, s1, regs, scratchColStates);
     const hasPrev = Boolean(isRisingEdge && prevInputs);
@@ -205,7 +169,7 @@ export const IC_GAL22V10: NodeDefinition = {
     const arPrev = hasPrev ? evaluateJedecRow(rows, 0, prevColStates) : ar;
     const spPrev = isRisingEdge ? evaluateJedecRow(rows, 131, prevColStates) : 0;
 
-    const returnOutputs = new Array(10);
+    const returnOutputs = new Array<Signal>(10);
 
     for (let i = 0; i < 10; i++) {
       const olmc = GAL22V10_OLMC_MAP[i];
@@ -242,13 +206,13 @@ export const IC_GAL22V10: NodeDefinition = {
     }
 
     for (let i = 0; i < 10; i++) {
-      let pinOutputValue = s1[i] === 0 ? regs[i] : scratchOrResults[i];
+      let pinOutputValue: Signal = s1[i] === 0 ? (regs[i] ? 1 : 0) : (scratchOrResults[i] ? 1 : 0);
       if (s0[i] === 0) {
         pinOutputValue = pinOutputValue === 1 ? 0 : 1;
       }
       returnOutputs[i] = scratchOes[i] === 1 ? pinOutputValue : undefined;
     }
 
-    return returnOutputs as any;
+    return returnOutputs;
   },
 };
