@@ -1,7 +1,4 @@
 import { NodeDefinition } from '../NodeDefinition';
-import { Signal } from '../../../models/types';
-
-const bit = (v: Signal): number => (v === 1 ? 1 : 0);
 
 export const IC_74LS283: NodeDefinition = {
   type: '74LS283',
@@ -29,19 +26,6 @@ export const IC_74LS283: NodeDefinition = {
     { name: 'A3', type: 'input', pinNumber: 15, schematicSide: 'left', schematicRow: 3 },
     { name: 'VCC', type: 'input', pinNumber: 16 },
   ],
-  evaluate: (inputs): Signal[] => {
-    const valA = bit(inputs[2]) | (bit(inputs[1]) << 1) | (bit(inputs[9]) << 2) | (bit(inputs[7]) << 3);
-    const valB = bit(inputs[3]) | (bit(inputs[0]) << 1) | (bit(inputs[8]) << 2) | (bit(inputs[6]) << 3);
-    const sum = valA + valB + bit(inputs[4]);
-
-    const S1: Signal = (sum & 1) ? 1 : 0;
-    const S2: Signal = (sum & 2) ? 1 : 0;
-    const S3: Signal = (sum & 4) ? 1 : 0;
-    const S4: Signal = (sum & 8) ? 1 : 0;
-    const C4: Signal = (sum & 16) ? 1 : 0;
-
-    return [S2, S1, C4, S4, S3];
-  },
 };
 
 export const IC74LS181: NodeDefinition = {
@@ -78,73 +62,4 @@ export const IC74LS181: NodeDefinition = {
     { type: 'input', name: 'A3', pinNumber: 23, schematicSide: 'left', schematicRow: 4 },
     { type: 'input', name: 'VCC', pinNumber: 24 },
   ],
-  evaluate: (inputs): Signal[] => {
-    const A = bit(inputs[1]) | (bit(inputs[18]) << 1) | (bit(inputs[20]) << 2) | (bit(inputs[22]) << 3);
-    const B = bit(inputs[0]) | (bit(inputs[17]) << 1) | (bit(inputs[19]) << 2) | (bit(inputs[21]) << 3);
-    const S = bit(inputs[5]) | (bit(inputs[4]) << 1) | (bit(inputs[3]) << 2) | (bit(inputs[2]) << 3);
-    const M = bit(inputs[7]);
-    const Cn = inputs[6] === 0 ? 1 : 0; // Active LOW carry in
-
-    let F = 0;
-    let cout: Signal = 0;
-
-    if (M === 1) {
-      switch (S) {
-        case 0: F = ~A; break;
-        case 1: F = ~(A & B); break;
-        case 2: F = (~A) & B; break;
-        case 3: F = 0; break;
-        case 4: F = ~(A | B); break;
-        case 5: F = ~B; break;
-        case 6: F = A ^ B; break;
-        case 7: F = A & (~B); break;
-        case 8: F = (~A) | B; break;
-        case 9: F = ~(A ^ B); break;
-        case 10: F = B; break;
-        case 11: F = A & B; break;
-        case 12: F = 15; break;
-        case 13: F = A | (~B); break;
-        case 14: F = A | B; break;
-        case 15: F = A; break;
-      }
-      F &= 15;
-    } else {
-      let op1 = 0;
-      let op2 = 0;
-      switch (S) {
-        case 0: op1 = A; op2 = Cn; break;
-        case 1: op1 = A | B; op2 = Cn; break;
-        case 2: op1 = A | (~B); op2 = Cn; break;
-        case 3: op1 = -1; op2 = Cn; break;
-        case 4: op1 = A; op2 = (A & ~B) + Cn; break;
-        case 5: op1 = A | B; op2 = (A & ~B) + Cn; break;
-        case 6: op1 = A; op2 = -B - 1 + Cn; break;
-        case 7: op1 = A & ~B; op2 = -1 + Cn; break;
-        case 8: op1 = A; op2 = (A & B) + Cn; break;
-        case 9: op1 = A + B; op2 = Cn; break;
-        case 10: op1 = A | ~B; op2 = (A & B) + Cn; break;
-        case 11: op1 = A & B; op2 = -1 + Cn; break;
-        case 12: op1 = A; op2 = A + Cn; break;
-        case 13: op1 = A | B; op2 = A + Cn; break;
-        case 14: op1 = A | ~B; op2 = A + Cn; break;
-        case 15: op1 = A; op2 = -1 + Cn; break;
-      }
-      const sum = (op1 & 15) + (op2 & 15);
-      F = sum & 15;
-      cout = sum > 15 ? 0 : 1;
-    }
-
-    const eq: Signal = F === 15 ? 1 : 0;
-
-    return [
-      (F & 1) ? 1 : 0,
-      (F & 2) ? 1 : 0,
-      (F & 4) ? 1 : 0,
-      (F & 8) ? 1 : 0,
-      eq,
-      'X',
-      cout,
-      'X',
-    ];
-  },
 };

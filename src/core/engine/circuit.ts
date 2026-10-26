@@ -138,22 +138,23 @@ export const updateNodeProperties = (
 };
 
 export const moveNode = (state: CircuitState, id: string, x: number, y: number): CircuitState => {
+  const snappedX = Math.round(x / GRID_SIZE) * GRID_SIZE;
+  const snappedY = Math.round(y / GRID_SIZE) * GRID_SIZE;
+  const target = state.nodes.find((n) => n.id === id);
+  if (!target || (target.x === snappedX && target.y === snappedY)) {
+    return state;
+  }
   return {
     ...state,
-    nodes: state.nodes.map((node) => {
-      if (node.id === id) {
-        const snappedX = Math.round(x / GRID_SIZE) * GRID_SIZE;
-        const snappedY = Math.round(y / GRID_SIZE) * GRID_SIZE;
-        return { ...node, x: snappedX, y: snappedY };
-      }
-      return node;
-    }),
+    nodes: state.nodes.map((node) =>
+      node.id === id ? { ...node, x: snappedX, y: snappedY } : node
+    ),
   };
 };
 
 export const moveSelection = (
   state: CircuitState,
-  ids: string[],
+  ids: string[] | Set<string>,
   primaryId: string,
   x: number,
   y: number
@@ -183,30 +184,51 @@ export const moveSelection = (
 
   if (dx === 0 && dy === 0) return state;
 
-  const idSet = new Set(ids);
+  const idSet = ids instanceof Set ? ids : new Set(ids);
+
+  let nodesChanged = false;
+  const nextNodes = state.nodes.map((node) => {
+    if (idSet.has(node.id)) {
+      nodesChanged = true;
+      return { ...node, x: node.x + dx, y: node.y + dy };
+    }
+    return node;
+  });
+
+  let wiresChanged = false;
+  const nextWires = state.wires.map((wire) => {
+    if (!wire.waypoints || wire.waypoints.length === 0) {
+      return wire;
+    }
+    const moveAllWps =
+      idSet.has(wire.id) ||
+      (idSet.has(wire.sourceNodeId) && Boolean(wire.targetNodeId && idSet.has(wire.targetNodeId)));
+    if (moveAllWps) {
+      wiresChanged = true;
+      return {
+        ...wire,
+        waypoints: wire.waypoints.map((wp) => ({ x: wp.x + dx, y: wp.y + dy })),
+      };
+    }
+    let wpMoved = false;
+    const nextWps = wire.waypoints.map((wp, idx) => {
+      if (idSet.has(`wp:${wire.id}:${idx}`)) {
+        wpMoved = true;
+        return { x: wp.x + dx, y: wp.y + dy };
+      }
+      return wp;
+    });
+    if (wpMoved) {
+      wiresChanged = true;
+      return { ...wire, waypoints: nextWps };
+    }
+    return wire;
+  });
 
   return {
     ...state,
-    nodes: state.nodes.map((node) => {
-      if (idSet.has(node.id)) {
-        return { ...node, x: node.x + dx, y: node.y + dy };
-      }
-      return node;
-    }),
-    wires: state.wires.map((wire) => {
-      if (idSet.has(wire.id) || wire.waypoints?.some((_, idx) => idSet.has(`wp:${wire.id}:${idx}`))) {
-        return {
-          ...wire,
-          waypoints: wire.waypoints?.map((wp, idx) => {
-            if (idSet.has(wire.id) || idSet.has(`wp:${wire.id}:${idx}`)) {
-              return { x: wp.x + dx, y: wp.y + dy };
-            }
-            return wp;
-          }),
-        };
-      }
-      return wire;
-    }),
+    nodes: nodesChanged ? nextNodes : state.nodes,
+    wires: wiresChanged ? nextWires : state.wires,
   };
 };
 

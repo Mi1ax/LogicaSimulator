@@ -73,7 +73,6 @@ export const generateSubcircuitDefinition = (id: string, name: string, nodes: Lo
 
     renderAs: 'DIP',
     customPins,
-    evaluate: () => []
   };
 };
 

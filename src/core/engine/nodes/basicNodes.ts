@@ -1,20 +1,5 @@
 import { NodeDefinition, PinDefinition } from './NodeDefinition';
-import { Signal } from '../../models/types';
 import { getBusBreakoutBitCount } from '../../utils/schematicLayout';
-
-const OUT_0: Signal[] = [0];
-const OUT_1: Signal[] = [1];
-const OUT_U: Signal[] = [undefined];
-const OUT_EMPTY: Signal[] = [];
-const OUT_U_BY_LEN: Signal[][] = [];
-const getUndefinedArray = (len: number): Signal[] => {
-  let arr = OUT_U_BY_LEN[len];
-  if (!arr) {
-    arr = new Array<Signal>(len);
-    OUT_U_BY_LEN[len] = arr;
-  }
-  return arr;
-};
 
 export const AndNode: NodeDefinition = {
   type: 'AND',
@@ -23,15 +8,6 @@ export const AndNode: NodeDefinition = {
   numInputs: 2,
   numOutputs: 1,
   variableInputs: { min: 2, max: 8 },
-  evaluate: (inputs) => {
-    let allOne = true;
-    for (let i = 0; i < inputs.length; i++) {
-      const v = inputs[i];
-      if (v === undefined) return OUT_U;
-      if (v !== 1) allOne = false;
-    }
-    return allOne ? OUT_1 : OUT_0;
-  }
 };
 
 export const OrNode: NodeDefinition = {
@@ -41,15 +17,6 @@ export const OrNode: NodeDefinition = {
   numInputs: 2,
   numOutputs: 1,
   variableInputs: { min: 2, max: 8 },
-  evaluate: (inputs) => {
-    let hasOne = false;
-    for (let i = 0; i < inputs.length; i++) {
-      const v = inputs[i];
-      if (v === undefined) return OUT_U;
-      if (v === 1) hasOne = true;
-    }
-    return hasOne ? OUT_1 : OUT_0;
-  }
 };
 
 export const NorNode: NodeDefinition = {
@@ -59,15 +26,6 @@ export const NorNode: NodeDefinition = {
   numInputs: 2,
   numOutputs: 1,
   variableInputs: { min: 2, max: 8 },
-  evaluate: (inputs) => {
-    let allZero = true;
-    for (let i = 0; i < inputs.length; i++) {
-      const v = inputs[i];
-      if (v === undefined) return OUT_U;
-      if (v !== 0) allZero = false;
-    }
-    return allZero ? OUT_1 : OUT_0;
-  }
 };
 
 export const NotNode: NodeDefinition = {
@@ -76,10 +34,6 @@ export const NotNode: NodeDefinition = {
   category: 'Basic Logic',
   numInputs: 1,
   numOutputs: 1,
-  evaluate: (inputs) => {
-    if (inputs[0] === undefined) return OUT_U;
-    return inputs[0] === 1 ? OUT_0 : OUT_1;
-  }
 };
 
 export const XorNode: NodeDefinition = {
@@ -89,15 +43,6 @@ export const XorNode: NodeDefinition = {
   numInputs: 2,
   numOutputs: 1,
   variableInputs: { min: 2, max: 8 },
-  evaluate: (inputs) => {
-    let count = 0;
-    for (let i = 0; i < inputs.length; i++) {
-      const v = inputs[i];
-      if (v === undefined) return OUT_U;
-      if (v === 1) count++;
-    }
-    return (count & 1) === 1 ? OUT_1 : OUT_0;
-  }
 };
 
 export const NandNode: NodeDefinition = {
@@ -107,15 +52,6 @@ export const NandNode: NodeDefinition = {
   numInputs: 2,
   numOutputs: 1,
   variableInputs: { min: 2, max: 8 },
-  evaluate: (inputs) => {
-    let allOne = true;
-    for (let i = 0; i < inputs.length; i++) {
-      const v = inputs[i];
-      if (v === undefined) return OUT_U;
-      if (v !== 1) allOne = false;
-    }
-    return allOne ? OUT_0 : OUT_1;
-  }
 };
 
 export const XnorNode: NodeDefinition = {
@@ -125,15 +61,6 @@ export const XnorNode: NodeDefinition = {
   numInputs: 2,
   numOutputs: 1,
   variableInputs: { min: 2, max: 8 },
-  evaluate: (inputs) => {
-    let count = 0;
-    for (let i = 0; i < inputs.length; i++) {
-      const v = inputs[i];
-      if (v === undefined) return OUT_U;
-      if (v === 1) count++;
-    }
-    return (count & 1) === 1 ? OUT_0 : OUT_1;
-  }
 };
 
 export const BufferNode: NodeDefinition = {
@@ -142,10 +69,6 @@ export const BufferNode: NodeDefinition = {
   category: 'Basic Logic',
   numInputs: 1,
   numOutputs: 1,
-  evaluate: (inputs) => {
-    if (inputs[0] === undefined) return OUT_U;
-    return inputs[0] === 1 ? OUT_1 : OUT_0;
-  }
 };
 
 export const NcNode: NodeDefinition = {
@@ -156,7 +79,6 @@ export const NcNode: NodeDefinition = {
   numInputs: 1,
   numOutputs: 0,
   disableTransform: true,
-  evaluate: () => OUT_EMPTY
 };
 
 export const InputNode: NodeDefinition = {
@@ -167,7 +89,6 @@ export const InputNode: NodeDefinition = {
   numInputs: 0,
   numOutputs: 1,
   defaultProperties: { value: 0 },
-  evaluate: (_, props) => (props?.value === 1 ? OUT_1 : OUT_0)
 };
 
 export const OutputNode: NodeDefinition = {
@@ -177,7 +98,6 @@ export const OutputNode: NodeDefinition = {
   tags: ['output', 'led', 'light', 'indicator'],
   numInputs: 1,
   numOutputs: 0,
-  evaluate: () => OUT_EMPTY
 };
 
 export const SubInNode: NodeDefinition = {
@@ -186,9 +106,6 @@ export const SubInNode: NodeDefinition = {
   numInputs: 0,
   numOutputs: 1,
   defaultProperties: { value: 0 },
-  evaluate: (_, props) => {
-    return props?._isFlattened ? OUT_U : (props?.value === 1 ? OUT_1 : OUT_0);
-  }
 };
 
 export const SubOutNode: NodeDefinition = {
@@ -196,7 +113,6 @@ export const SubOutNode: NodeDefinition = {
   label: 'Subcircuit Output',
   numInputs: 1,
   numOutputs: 0,
-  evaluate: (_, props) => (props?._isFlattened ? OUT_U : (props?.value === 1 ? OUT_1 : OUT_0))
 };
 
 export const SubIoNode: NodeDefinition = {
@@ -207,7 +123,6 @@ export const SubIoNode: NodeDefinition = {
   customPins: [
     { name: 'IO', type: 'bidir', schematicSide: 'right' }
   ],
-  evaluate: (_, props) => (props?._isFlattened ? OUT_U : [props?.value])
 };
 
 export const ClockNode: NodeDefinition = {
@@ -221,30 +136,6 @@ export const ClockNode: NodeDefinition = {
     { type: 'output', name: 'OUT', pinNumber: 3 },
   ],
   defaultProperties: { highTicks: 5, lowTicks: 5, mode: 'auto', manualValue: 0, startHigh: true, label: 'CLK' },
-  evaluate: (inputs, props, tickCount) => {
-    // Support legacy saved nodes that had an EN input
-    if (inputs.length > 0) {
-      const en = inputs.length === 1 ? (inputs[0] ?? 1) : (inputs[1] ?? 1);
-      if (en === 0) return OUT_0;
-    }
-
-    if (props?.mode === 'manual') {
-      return props?.manualValue === 1 ? OUT_1 : OUT_0;
-    }
-
-    const highTicks = Math.max(1, props?.highTicks ?? props?.interval ?? 5);
-    const lowTicks = Math.max(1, props?.lowTicks ?? props?.interval ?? 5);
-    const cycleLength = highTicks + lowTicks;
-    if (cycleLength <= 0) return OUT_0;
-
-    const currentTick = (tickCount ?? 0) % cycleLength;
-    const startHigh = props?.startHigh !== false;
-    const val = startHigh
-      ? (currentTick < highTicks ? 1 : 0)
-      : (currentTick < lowTicks ? 0 : 1);
-
-    return val === 1 ? OUT_1 : OUT_0;
-  }
 };
 
 export const VccNode: NodeDefinition = {
@@ -254,7 +145,6 @@ export const VccNode: NodeDefinition = {
   tags: ['vcc', 'power', '5v', 'high', '1'],
   numInputs: 0,
   numOutputs: 1,
-  evaluate: () => OUT_1 // Always outputs 1
 };
 
 export const GndNode: NodeDefinition = {
@@ -264,7 +154,6 @@ export const GndNode: NodeDefinition = {
   tags: ['gnd', 'ground', '0v', 'low', '0'],
   numInputs: 0,
   numOutputs: 1,
-  evaluate: () => OUT_0 // Always outputs 0
 };
 
 export const PullUpNode: NodeDefinition = {
@@ -274,7 +163,6 @@ export const PullUpNode: NodeDefinition = {
   tags: ['pullup', 'pull-up', 'resistor', 'weak', 'vcc', 'high', '1'],
   numInputs: 0,
   numOutputs: 1,
-  evaluate: () => OUT_1 // Weak 1 (overridden by any strong 0/1 driver on the net)
 };
 
 export const PullDownNode: NodeDefinition = {
@@ -284,7 +172,6 @@ export const PullDownNode: NodeDefinition = {
   tags: ['pulldown', 'pull-down', 'resistor', 'weak', 'gnd', 'low', '0'],
   numInputs: 0,
   numOutputs: 1,
-  evaluate: () => OUT_0 // Weak 0 (overridden by any strong 0/1 driver on the net)
 };
 
 export const JunctionNode: NodeDefinition = {
@@ -293,10 +180,7 @@ export const JunctionNode: NodeDefinition = {
   numInputs: 1,
   numOutputs: 1,
   disableTransform: true,
-  evaluate: () => OUT_U // Evaluated purely via net union, should not drive on its own!
 };
-
-const OUT_U7: Signal[] = [undefined, undefined, undefined, undefined, undefined, undefined, undefined];
 
 export const DipSwitchNode: NodeDefinition = {
   type: 'DIP_SWITCH',
@@ -307,15 +191,6 @@ export const DipSwitchNode: NodeDefinition = {
   numOutputs: 4,
   variableOutputs: { min: 1, max: 12, label: 'Number of Outputs (Switches)' },
   defaultProperties: { switches: [0, 0, 0, 0] },
-  evaluate: (_, props) => {
-    const numOutputs = props?.numOutputs || 4;
-    const switches = props?.switches;
-    const out = new Array<Signal>(numOutputs);
-    for (let i = 0; i < numOutputs; i++) {
-      out[i] = switches?.[i] === 1 ? 1 : 0;
-    }
-    return out;
-  }
 };
 
 export const SevenSegNode: NodeDefinition = {
@@ -335,7 +210,6 @@ export const SevenSegNode: NodeDefinition = {
     { type: 'input', name: 'G', pinNumber: 7 },
     { type: 'input', name: 'DP', pinNumber: 8 }
   ],
-  evaluate: () => OUT_EMPTY
 };
 
 export const NetLabelNode: NodeDefinition = {
@@ -343,12 +217,11 @@ export const NetLabelNode: NodeDefinition = {
   label: 'Net Label',
   category: 'Power & I/O/Wiring & Labels',
   tags: ['net', 'label', 'tunnel', 'wire', 'name'],
-  numInputs: 1, // Will be mapped to a bidir pin
+  numInputs: 1,
   numOutputs: 1,
   customPins: [
     { name: 'NET', type: 'bidir', pinNumber: 1, schematicSide: 'right', schematicRow: 1 }
   ],
-  evaluate: () => OUT_U,
 };
 
 export const BusBreakoutNode: NodeDefinition = {
@@ -374,9 +247,7 @@ export const BusBreakoutNode: NodeDefinition = {
     };
     return pins;
   },
-  evaluate: (inputs) => getUndefinedArray(inputs.length)
 };
-
 
 export const PushButtonNode: NodeDefinition = {
   type: 'BUTTON',
@@ -386,11 +257,6 @@ export const PushButtonNode: NodeDefinition = {
   numInputs: 0,
   numOutputs: 1,
   defaultProperties: { pressed: false, activeLow: false },
-  evaluate: (_, props) => {
-    const isPressed = props?.pressed;
-    const isActiveLow = props?.activeLow;
-    return isActiveLow ? (isPressed ? OUT_0 : OUT_1) : (isPressed ? OUT_1 : OUT_0);
-  }
 };
 
 export const LedBarNode: NodeDefinition = {
@@ -401,7 +267,6 @@ export const LedBarNode: NodeDefinition = {
   numInputs: 8,
   numOutputs: 0,
   variableInputs: { min: 1, max: 32, label: 'Number of LEDs' },
-  evaluate: () => OUT_EMPTY
 };
 
 export const KeypadNode: NodeDefinition = {
@@ -421,7 +286,6 @@ export const KeypadNode: NodeDefinition = {
     { name: 'C3', type: 'bidir', pinNumber: 7, schematicSide: 'top', schematicRow: 3 },
   ],
   defaultProperties: { pressedKey: null, latched: false },
-  evaluate: () => OUT_U7,
 };
 
 export const RegionBoxNode: NodeDefinition = {
@@ -440,7 +304,6 @@ export const RegionBoxNode: NodeDefinition = {
     borderStyle: 'dashed',
     fillOpacity: 0.08,
   },
-  evaluate: () => OUT_EMPTY,
 };
 
 export const TextLabelNode: NodeDefinition = {
@@ -460,7 +323,6 @@ export const TextLabelNode: NodeDefinition = {
     fontFamily: 'sans',
     align: 'left',
   },
-  evaluate: () => OUT_EMPTY,
 };
 
 export const StickyNoteNode: NodeDefinition = {
@@ -480,12 +342,11 @@ export const StickyNoteNode: NodeDefinition = {
     fontSize: 12,
     fontFamily: 'sans',
   },
-  evaluate: () => OUT_EMPTY,
 };
 
 export const FsmDiagramNode: NodeDefinition = {
   type: 'FSM_DIAGRAM',
-  label: 'FSM State Diagram',
+  label: 'FSM State Machine',
   category: 'Annotations',
   tags: ['fsm', 'state', 'machine', 'diagram', 'uml', 'chart', 'gal', 'pld', 'annotation'],
   numInputs: 0,
@@ -498,6 +359,4 @@ export const FsmDiagramNode: NodeDefinition = {
     color: 'slate',
     targetNodeId: '',
   },
-  evaluate: () => OUT_EMPTY,
 };
-

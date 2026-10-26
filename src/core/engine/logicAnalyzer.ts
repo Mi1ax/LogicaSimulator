@@ -104,30 +104,6 @@ export class AnalyzerRingBuffer {
     return slot;
   }
 
-  /**
-   * Zero-allocation tick recording directly from CompiledCircuit.curBuf (Signal[]).
-   */
-  public recordFromCompiledBuf(
-    tickCount: number,
-    trackedPinIds: string[],
-    pinIdToIdx: Map<string, number>,
-    curBuf: Signal[]
-  ): void {
-    if (trackedPinIds.length === 0) return;
-
-    const slot = this.advanceSlot(tickCount);
-
-    for (let i = 0; i < trackedPinIds.length; i++) {
-      const pinId = trackedPinIds[i];
-      const buf = this.ensurePinBuffer(pinId);
-      const idx = pinIdToIdx.get(pinId);
-      const sig = idx !== undefined ? curBuf[idx] : undefined;
-      buf[slot] = encodeSignalByte(sig);
-    }
-
-    this.version++;
-  }
-
   public recordFromPinStates(
     tickCount: number,
     trackedPinIds: string[],
@@ -141,6 +117,30 @@ export class AnalyzerRingBuffer {
       const pinId = trackedPinIds[i];
       const buf = this.ensurePinBuffer(pinId);
       buf[slot] = encodeSignalByte(pinStates[pinId]);
+    }
+
+    this.version++;
+  }
+
+  public recordBatchFromRust(
+    ticks: number[],
+    samples: number[],
+    trackedPinIds: string[]
+  ): void {
+    const k = trackedPinIds.length;
+    if (k === 0 || ticks.length === 0) return;
+
+    const bufs: Uint8Array[] = new Array(k);
+    for (let i = 0; i < k; i++) {
+      bufs[i] = this.ensurePinBuffer(trackedPinIds[i]);
+    }
+
+    for (let t = 0; t < ticks.length; t++) {
+      const slot = this.advanceSlot(ticks[t]);
+      const base = t * k;
+      for (let i = 0; i < k; i++) {
+        bufs[i][slot] = samples[base + i] ?? LA_VAL_Z;
+      }
     }
 
     this.version++;
@@ -195,40 +195,6 @@ export class AnalyzerRingBuffer {
 
 export const globalAnalyzerBuffer = new AnalyzerRingBuffer();
 
-const targetNumCache = new Map<string, number | null>();
-
-export function parseTargetNumber(raw?: string): number | null {
-  if (!raw) return null;
-  const cached = targetNumCache.get(raw);
-  if (cached !== undefined) return cached;
-
-  const s = raw.trim().replace(/_/g, '');
-  let res: number | null = null;
-  if (s) {
-    if (/^0x[0-9a-f]+$/i.test(s)) res = parseInt(s.slice(2), 16);
-    else if (/^0b[01]+$/i.test(s)) res = parseInt(s.slice(2), 2);
-    else if (/^\d+$/.test(s)) res = parseInt(s, 10);
-    else if (/^[0-9a-f]+$/i.test(s)) res = parseInt(s, 16);
-  }
-  if (targetNumCache.size > 128) targetNumCache.clear();
-  targetNumCache.set(raw, res);
-  return res;
-}
-
-let cachedChannelsRef: AnalyzerChannel[] | null = null;
-let cachedChannelById = new Map<string, AnalyzerChannel>();
-
-function getChannelById(channels: AnalyzerChannel[], id: string): AnalyzerChannel | undefined {
-  if (channels !== cachedChannelsRef) {
-    cachedChannelsRef = channels;
-    cachedChannelById = new Map();
-    for (let i = 0; i < channels.length; i++) {
-      cachedChannelById.set(channels[i].id, channels[i]);
-    }
-  }
-  return cachedChannelById.get(id);
-}
-
 export function formatBusSample(
   sample: number,
   radix: BusRadix = 'HEX',
@@ -240,115 +206,6 @@ export function formatBusSample(
   if (radix === 'BIN') return sample.toString(2).padStart(Math.min(bitWidth, 8), '0');
   const hexDigits = Math.max(1, Math.ceil(bitWidth / 4));
   return '0x' + sample.toString(16).toUpperCase().padStart(hexDigits, '0');
-}
-
-/**
- * Evaluates active breakpoints on a single tick directly against CompiledCircuit.curBuf and prevBuf.
- * Returns the ID of the first triggered breakpoint, or '__TRAP_SHORT__' if trapShortCircuit fired, or null.
- */
-export function evaluateBreakpointsFast(
-  breakpoints: BreakpointRule[],
-  channels: AnalyzerChannel[],
-  trapShortCircuit: boolean,
-  pinIdToIdx: Map<string, number>,
-  curBuf: Signal[],
-  prevBuf: Signal[]
-): string | null {
-  const totalPins = curBuf.length;
-
-  if (trapShortCircuit) {
-    for (let i = 0; i < totalPins; i++) {
-      if (curBuf[i] === 'X' && prevBuf[i] !== 'X') {
-        return '__TRAP_SHORT__';
-      }
-    }
-  }
-
-  for (let i = 0; i < breakpoints.length; i++) {
-    const bp = breakpoints[i];
-    if (!bp.enabled) continue;
-
-    if (bp.conditionType === 'short_circuit') {
-      if (bp.targetChannelId === '__ANY_NET__') {
-        for (let p = 0; p < totalPins; p++) {
-          if (curBuf[p] === 'X' && prevBuf[p] !== 'X') {
-            return bp.id;
-          }
-        }
-      } else {
-        const ch = getChannelById(channels, bp.targetChannelId);
-        if (ch) {
-          for (let k = 0; k < ch.pinIds.length; k++) {
-            const idx = pinIdToIdx.get(ch.pinIds[k]);
-            if (idx !== undefined && curBuf[idx] === 'X' && prevBuf[idx] !== 'X') {
-              return bp.id;
-            }
-          }
-        }
-      }
-      continue;
-    }
-
-    const ch = getChannelById(channels, bp.targetChannelId);
-    if (!ch || ch.pinIds.length === 0) continue;
-
-    if (bp.conditionType === 'rising') {
-      const idx = pinIdToIdx.get(ch.pinIds[ch.pinIds.length - 1]);
-      if (idx !== undefined && prevBuf[idx] === 0 && curBuf[idx] === 1) {
-        return bp.id;
-      }
-    } else if (bp.conditionType === 'falling') {
-      const idx = pinIdToIdx.get(ch.pinIds[ch.pinIds.length - 1]);
-      if (idx !== undefined && prevBuf[idx] === 1 && curBuf[idx] === 0) {
-        return bp.id;
-      }
-    } else if (bp.conditionType === 'high') {
-      const idx = pinIdToIdx.get(ch.pinIds[ch.pinIds.length - 1]);
-      if (idx !== undefined && curBuf[idx] === 1 && prevBuf[idx] !== 1) {
-        return bp.id;
-      }
-    } else if (bp.conditionType === 'low') {
-      const idx = pinIdToIdx.get(ch.pinIds[ch.pinIds.length - 1]);
-      if (idx !== undefined && curBuf[idx] === 0 && prevBuf[idx] !== 0) {
-        return bp.id;
-      }
-    } else if (bp.conditionType === 'equals') {
-      const targetNum = parseTargetNumber(bp.value);
-      if (targetNum === null) continue;
-
-      let curVal = 0;
-      let prevVal = 0;
-      let validCur = true;
-      let validPrev = true;
-
-      for (let k = 0; k < ch.pinIds.length; k++) {
-        const idx = pinIdToIdx.get(ch.pinIds[k]);
-        if (idx === undefined) {
-          validCur = false;
-          break;
-        }
-        const cBit = curBuf[idx];
-        const pBit = prevBuf[idx];
-        if (cBit !== 0 && cBit !== 1) {
-          validCur = false;
-          break;
-        }
-        if (pBit !== 0 && pBit !== 1) {
-          validPrev = false;
-        }
-        curVal = (curVal << 1) | cBit;
-        prevVal = (prevVal << 1) | (pBit === 1 ? 1 : 0);
-      }
-
-      if (validCur && (curVal >>> 0) === (targetNum >>> 0)) {
-        if (!validPrev || (prevVal >>> 0) !== (targetNum >>> 0)) {
-          return bp.id;
-        }
-      }
-    }
-  }
-
-  return null;
 }
 
 export interface DiscoverableProbe {

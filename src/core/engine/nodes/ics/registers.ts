@@ -1,12 +1,4 @@
 import { NodeDefinition } from '../NodeDefinition';
-import { Signal } from '../../../models/types';
-
-const HIGH_Z_4: Signal[] = [undefined, undefined, undefined, undefined];
-const HIGH_Z_8: Signal[] = [undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined];
-const HIGH_Z_16: Signal[] = [
-  undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-  undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-];
 
 export const IC74LS125: NodeDefinition = {
   type: '74LS125',
@@ -37,23 +29,6 @@ export const IC74LS125: NodeDefinition = {
 
     { type: 'input', name: 'VCC', pinNumber: 14 },
   ],
-  evaluate: (inputs): Signal[] => {
-    const g1_n = inputs[0] ?? 1;
-    const g2_n = inputs[2] ?? 1;
-    const g3_n = inputs[6] ?? 1;
-    const g4_n = inputs[8] ?? 1;
-
-    if (g1_n !== 0 && g2_n !== 0 && g3_n !== 0 && g4_n !== 0) {
-      return HIGH_Z_4;
-    }
-
-    return [
-      g1_n === 0 ? inputs[1] : undefined,
-      g2_n === 0 ? inputs[3] : undefined,
-      g3_n === 0 ? inputs[5] : undefined,
-      g4_n === 0 ? inputs[7] : undefined,
-    ];
-  },
 };
 
 export const IC74LS173: NodeDefinition = {
@@ -82,36 +57,6 @@ export const IC74LS173: NodeDefinition = {
     { type: 'output', name: '1Q', pinNumber: 15, schematicSide: 'right', schematicRow: 1 },
     { type: 'input', name: 'VCC', pinNumber: 16 },
   ],
-  evaluate: (inputs, _, __, internal, prevInputs): Signal[] => {
-    if (!internal) return HIGH_Z_4;
-    if (internal.data === undefined) internal.data = [0, 0, 0, 0];
-
-    const pInputs = prevInputs || inputs;
-    const M1 = inputs[0] ?? 0;
-    const M2 = inputs[1] ?? 0;
-    const clk = inputs[6] ?? 0;
-    if (internal.lastClk === undefined) internal.lastClk = clk === 1 ? 1 : 0;
-    const G1 = pInputs[8] ?? 0;
-    const G2 = pInputs[9] ?? 0;
-    const clr = inputs[10] ?? 0;
-
-    if (clr === 1) {
-      internal.data = [0, 0, 0, 0];
-    } else if (clk === 1 && internal.lastClk === 0 && G1 === 0 && G2 === 0) {
-      internal.data = [
-        pInputs[2] === 1 ? 1 : 0,
-        pInputs[3] === 1 ? 1 : 0,
-        pInputs[4] === 1 ? 1 : 0,
-        pInputs[5] === 1 ? 1 : 0,
-      ];
-    }
-    internal.lastClk = clk;
-
-    if (M1 === 0 && M2 === 0) {
-      return [internal.data[3], internal.data[2], internal.data[1], internal.data[0]];
-    }
-    return HIGH_Z_4;
-  },
 };
 
 export const IC74LS175: NodeDefinition = {
@@ -140,34 +85,6 @@ export const IC74LS175: NodeDefinition = {
     { name: '4Q', type: 'output', pinNumber: 15, schematicSide: 'right', schematicRow: 7 },
     { name: 'VCC', type: 'input', pinNumber: 16 },
   ],
-  evaluate: (inputs, _, __, internal, prevInputs): Signal[] => {
-    if (!internal) return HIGH_Z_8;
-    if (internal.data === undefined) internal.data = [0, 0, 0, 0];
-
-    const pInputs = prevInputs || inputs;
-    const clrVal = inputs[0] ?? 1; // Active LOW
-    const clkVal = inputs[4] === 1 ? 1 : 0;
-
-    if (internal.lastClk === undefined) internal.lastClk = clkVal;
-
-    if (clrVal === 0) {
-      internal.data = [0, 0, 0, 0];
-    } else if (clkVal === 1 && internal.lastClk === 0) {
-      internal.data[0] = pInputs[1] === 1 ? 1 : 0;
-      internal.data[1] = pInputs[2] === 1 ? 1 : 0;
-      internal.data[2] = pInputs[5] === 1 ? 1 : 0;
-      internal.data[3] = pInputs[6] === 1 ? 1 : 0;
-    }
-    internal.lastClk = clkVal;
-
-    const [q1, q2, q3, q4] = internal.data;
-    return [
-      q1, q1 ? 0 : 1, // 1Q, !1Q
-      q2 ? 0 : 1, q2, // !2Q, 2Q
-      q3, q3 ? 0 : 1, // 3Q, !3Q
-      q4 ? 0 : 1, q4, // !4Q, 4Q
-    ];
-  },
 };
 
 export const IC74LS241: NodeDefinition = {
@@ -203,25 +120,6 @@ export const IC74LS241: NodeDefinition = {
     { type: 'input', name: 'GND', pinNumber: 10 },
     { type: 'input', name: 'VCC', pinNumber: 20 },
   ],
-  evaluate: (inputs): Signal[] => {
-    const g1_n = inputs[8] ?? 1;
-    const g2 = inputs[9] ?? 0;
-
-    if (g1_n !== 0 && g2 !== 1) {
-      return HIGH_Z_8;
-    }
-
-    return [
-      g1_n === 0 ? inputs[0] : undefined,
-      g1_n === 0 ? inputs[1] : undefined,
-      g1_n === 0 ? inputs[2] : undefined,
-      g1_n === 0 ? inputs[3] : undefined,
-      g2 === 1 ? inputs[4] : undefined,
-      g2 === 1 ? inputs[5] : undefined,
-      g2 === 1 ? inputs[6] : undefined,
-      g2 === 1 ? inputs[7] : undefined,
-    ];
-  },
 };
 
 export const IC74LS244: NodeDefinition = {
@@ -257,25 +155,6 @@ export const IC74LS244: NodeDefinition = {
     { type: 'input', name: 'GND', pinNumber: 10 },
     { type: 'input', name: 'VCC', pinNumber: 20 },
   ],
-  evaluate: (inputs): Signal[] => {
-    const g1_n = inputs[8] ?? 1;
-    const g2_n = inputs[9] ?? 1;
-
-    if (g1_n !== 0 && g2_n !== 0) {
-      return HIGH_Z_8;
-    }
-
-    return [
-      g1_n === 0 ? inputs[0] : undefined,
-      g1_n === 0 ? inputs[1] : undefined,
-      g1_n === 0 ? inputs[2] : undefined,
-      g1_n === 0 ? inputs[3] : undefined,
-      g2_n === 0 ? inputs[4] : undefined,
-      g2_n === 0 ? inputs[5] : undefined,
-      g2_n === 0 ? inputs[6] : undefined,
-      g2_n === 0 ? inputs[7] : undefined,
-    ];
-  },
 };
 
 export const IC_74LS245: NodeDefinition = {
@@ -308,37 +187,6 @@ export const IC_74LS245: NodeDefinition = {
     { name: "OE'", type: 'input', pinNumber: 19, schematicSide: 'left', schematicRow: 11 },
     { name: 'VCC', type: 'input', pinNumber: 20 },
   ],
-  evaluate: (inputs): Signal[] => {
-    const OE_n = inputs[18] === 0 ? 0 : 1;
-    if (OE_n !== 0) {
-      return HIGH_Z_16;
-    }
-
-    const DIR = inputs[0] === 0 ? 0 : 1;
-    const outs = new Array<Signal>(16);
-
-    if (DIR === 1) {
-      outs[15] = inputs[1];
-      outs[14] = inputs[2];
-      outs[13] = inputs[3];
-      outs[12] = inputs[4];
-      outs[11] = inputs[5];
-      outs[10] = inputs[6];
-      outs[9] = inputs[7];
-      outs[8] = inputs[8];
-    } else {
-      outs[0] = inputs[17];
-      outs[1] = inputs[16];
-      outs[2] = inputs[15];
-      outs[3] = inputs[14];
-      outs[4] = inputs[13];
-      outs[5] = inputs[12];
-      outs[6] = inputs[11];
-      outs[7] = inputs[10];
-    }
-
-    return outs;
-  },
 };
 
 export const IC74LS273: NodeDefinition = {
@@ -371,43 +219,6 @@ export const IC74LS273: NodeDefinition = {
     { name: 'Q7', type: 'output', pinNumber: 19, schematicSide: 'right', schematicRow: 8 },
     { name: 'VCC', type: 'input', pinNumber: 20 },
   ],
-  evaluate: (inputs, _props, _tick, internal = {}, prevInputs): Signal[] => {
-    const pInputs = prevInputs || inputs;
-    const mrN = inputs[0] ?? 1;
-    const cp = inputs[6];
-
-    const st = internal;
-    if (st.state === undefined) st.state = 0;
-    if (st.lastClk === undefined) st.lastClk = cp === 1 ? 1 : 0;
-
-    if (mrN === 0) {
-      st.state = 0;
-    } else if (cp === 1 && st.lastClk === 0) {
-      st.state =
-        ((pInputs[10] === 1 ? 1 : 0) << 7) |
-        ((pInputs[9] === 1 ? 1 : 0) << 6) |
-        ((pInputs[8] === 1 ? 1 : 0) << 5) |
-        ((pInputs[7] === 1 ? 1 : 0) << 4) |
-        ((pInputs[4] === 1 ? 1 : 0) << 3) |
-        ((pInputs[3] === 1 ? 1 : 0) << 2) |
-        ((pInputs[2] === 1 ? 1 : 0) << 1) |
-        (pInputs[1] === 1 ? 1 : 0);
-    }
-
-    st.lastClk = cp === 1 ? 1 : 0;
-
-    const val = st.state as number;
-    return [
-      (val & 1) ? 1 : 0,
-      (val & 2) ? 1 : 0,
-      (val & 4) ? 1 : 0,
-      (val & 8) ? 1 : 0,
-      (val & 16) ? 1 : 0,
-      (val & 32) ? 1 : 0,
-      (val & 64) ? 1 : 0,
-      (val & 128) ? 1 : 0,
-    ];
-  },
 };
 
 export const IC74LS373: NodeDefinition = {
@@ -442,25 +253,6 @@ export const IC74LS373: NodeDefinition = {
     { name: 'GND', type: 'input', pinNumber: 10 },
     { name: 'VCC', type: 'input', pinNumber: 20 },
   ],
-  evaluate: (inputs, _, __, internal): Signal[] => {
-    if (!internal) return HIGH_Z_8;
-    if (!internal.data) internal.data = [0, 0, 0, 0, 0, 0, 0, 0];
-
-    const oe_n = inputs[0] ?? 1;
-    const le = inputs[9] ?? 0;
-
-    if (le === 1) {
-      for (let i = 0; i < 8; i++) {
-        internal.data[i] = inputs[i + 1] === 1 ? 1 : 0;
-      }
-    }
-
-    if (oe_n === 1) {
-      return HIGH_Z_8;
-    }
-
-    return internal.data.slice();
-  },
 };
 
 export const IC74LS374: NodeDefinition = {
@@ -495,29 +287,6 @@ export const IC74LS374: NodeDefinition = {
     { name: 'GND', type: 'input', pinNumber: 10 },
     { name: 'VCC', type: 'input', pinNumber: 20 },
   ],
-  evaluate: (inputs, _, __, internal, prevInputs): Signal[] => {
-    if (!internal) return HIGH_Z_8;
-    if (!internal.data) internal.data = [0, 0, 0, 0, 0, 0, 0, 0];
-
-    const pInputs = prevInputs || inputs;
-    const oe_n = inputs[0] ?? 1;
-    const clk = inputs[9] === 1 ? 1 : 0;
-
-    if (internal.lastClk === undefined) internal.lastClk = clk;
-
-    if (clk === 1 && internal.lastClk === 0) {
-      for (let i = 0; i < 8; i++) {
-        internal.data[i] = pInputs[i + 1] === 1 ? 1 : 0;
-      }
-    }
-    internal.lastClk = clk;
-
-    if (oe_n === 1) {
-      return HIGH_Z_8;
-    }
-
-    return internal.data.slice();
-  },
 };
 
 export const IC74LS541: NodeDefinition = {
@@ -550,23 +319,4 @@ export const IC74LS541: NodeDefinition = {
     { type: 'input', name: '!OE2', pinNumber: 19, schematicSide: 'left', schematicRow: 11 },
     { type: 'input', name: 'VCC', pinNumber: 20 },
   ],
-  evaluate: (inputs): Signal[] => {
-    const oe1_n = inputs[0] ?? 1;
-    const oe2_n = inputs[10] ?? 1;
-
-    if (oe1_n !== 0 || oe2_n !== 0) {
-      return HIGH_Z_8;
-    }
-
-    return [
-      inputs[8], // Y8 <- A8
-      inputs[7], // Y7 <- A7
-      inputs[6], // Y6 <- A6
-      inputs[5], // Y5 <- A5
-      inputs[4], // Y4 <- A4
-      inputs[3], // Y3 <- A3
-      inputs[2], // Y2 <- A2
-      inputs[1], // Y1 <- A1
-    ];
-  },
 };

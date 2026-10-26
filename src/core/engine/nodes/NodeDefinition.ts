@@ -1,5 +1,3 @@
-import { Signal } from '../../models/types';
-
 export interface PinDefinition {
   name: string;
   type: 'input' | 'output' | 'bidir';
@@ -24,16 +22,4 @@ export interface NodeDefinition {
   variableOutputs?: { min: number; max: number; label?: string };
   memorySize?: number; // Byte size for memory chips (enables Hex Editor view)
   disableTransform?: boolean; // Disables rotation and flip (e.g. for JUNCTION, NC)
-  /**
-   * Evaluates the node logic.
-   * @param inputs Array of signals corresponding to the input pins (ordered by index)
-   * @param properties Custom properties for the node (e.g., clock interval, input value)
-   * @param tickCount The current simulation tick count
-   * @param internal Mutable per-node simulation state (registers, counters, last clock level).
-   *   Owned by the simulation (`SimulationState.nodeStates`), so it is cleared on reset and
-   *   never leaks into the persisted circuit. Sequential nodes must use this, not `properties`.
-   * @param prevInputs Array of signals corresponding to the input pins from the *previous* tick.
-   * @returns Array of signals for the output pins (ordered by index)
-   */
-  evaluate: (inputs: Signal[], properties?: Record<string, any>, tickCount?: number, internal?: Record<string, any>, prevInputs?: Signal[]) => Signal[];
 }

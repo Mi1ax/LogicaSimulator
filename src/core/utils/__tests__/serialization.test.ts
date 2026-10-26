@@ -3,7 +3,6 @@ import fs from 'fs';
 import path from 'path';
 import { serializeCircuit, deserializeCircuit } from '../serialization';
 import { addNode, addWire, setNodeInputCount, CircuitState } from '../../engine/circuit';
-import { computeNextState } from '../../engine/simulation';
 
 describe('Circuit Serialization & Deserialization', () => {
   it('round-trips nodes, variable pin counts, memory data, and wires compactly', () => {
@@ -89,15 +88,6 @@ describe('Circuit Serialization & Deserialization', () => {
           `${file}: wire ${w.id} targetPinId ${w.targetPinId} not found on ${tgtNode?.type} (${tgtNode?.id})`
         ).toBe(true);
       }
-
-      // Run a simulation tick to ensure no runtime errors
-      const simState = computeNextState(secondPass.nodes, secondPass.wires, {
-        tickCount: 0,
-        pinStates: {},
-        wireStates: {},
-        nodeStates: {},
-      });
-      expect(simState.tickCount).toBe(1);
     }
   });
 });
