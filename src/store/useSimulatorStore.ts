@@ -4,18 +4,94 @@ import { persist } from 'zustand/middleware';
 import { LogicNode, NodeType, Wire, DraftWire } from '../core/models/types';
 import * as circuit from '../core/engine/circuit';
 import { syncSubcircuitInstances } from '../core/engine/circuit';
-import { computeNextStateBatch } from '../core/engine/simulation';
+import {
+  invalidateRustCircuitCache,
+  syncRustNodeInput,
+  stepRustSimulationBatch,
+} from '../core/engine/tauriBridge';
 import {
   AnalyzerChannel,
   BreakpointRule,
   globalAnalyzerBuffer,
-  evaluateBreakpointsFast,
 } from '../core/engine/logicAnalyzer';
 import { getSchematicPinPosition } from '../core/utils/schematicLayout';
 import { computeManhattanElbow } from '../core/engine/routing';
 import { generateId } from '../core/utils/id';
 
 export type Selection = { type: 'node' | 'wire' | 'waypoint', id: string } | null;
+
+let cachedMultiSelectionRef: string[] | null = null;
+let cachedMultiSelectionSet = new Set<string>();
+
+export function getMultiSelectionSet(state: { multiSelection?: string[] }): Set<string> {
+  const multi = state.multiSelection;
+  if (!multi || multi.length === 0) {
+    if (cachedMultiSelectionSet.size > 0) {
+      cachedMultiSelectionRef = multi || null;
+      cachedMultiSelectionSet = new Set<string>();
+    }
+    return cachedMultiSelectionSet;
+  }
+  if (multi !== cachedMultiSelectionRef) {
+    cachedMultiSelectionRef = multi;
+    cachedMultiSelectionSet = new Set(multi);
+  }
+  return cachedMultiSelectionSet;
+}
+
+export function isIdSelected(
+  state: { selection: Selection; multiSelection: string[] },
+  id: string
+): boolean {
+  if (state.selection?.id === id) return true;
+  if (!state.multiSelection || state.multiSelection.length === 0) return false;
+  return getMultiSelectionSet(state).has(id);
+}
+
+let cachedPastingIdsRef: string[] | null = null;
+let cachedPastingIdsSet = new Set<string>();
+
+export function getPastingIdsSet(state: { pastingNodeIds?: string[] | null }): Set<string> {
+  const pasting = state.pastingNodeIds;
+  if (!pasting || pasting.length === 0) {
+    if (cachedPastingIdsSet.size > 0) {
+      cachedPastingIdsRef = pasting || null;
+      cachedPastingIdsSet = new Set<string>();
+    }
+    return cachedPastingIdsSet;
+  }
+  if (pasting !== cachedPastingIdsRef) {
+    cachedPastingIdsRef = pasting;
+    cachedPastingIdsSet = new Set(pasting);
+  }
+  return cachedPastingIdsSet;
+}
+
+export function isNodeBeingPlaced(
+  state: { placingNodeId?: string | null; pastingNodeIds?: string[] | null },
+  id: string
+): boolean {
+  if (state.placingNodeId === id) return true;
+  if (!state.pastingNodeIds || state.pastingNodeIds.length === 0) return false;
+  return getPastingIdsSet(state).has(id);
+}
+
+let cachedNodesRef: LogicNode[] | null = null;
+const cachedNodeByIdMap = new Map<string, LogicNode>();
+
+export function getNodeByIdFast(
+  state: { nodes: LogicNode[] },
+  id: string
+): LogicNode | undefined {
+  if (state.nodes !== cachedNodesRef) {
+    cachedNodesRef = state.nodes;
+    cachedNodeByIdMap.clear();
+    for (let i = 0; i < state.nodes.length; i++) {
+      cachedNodeByIdMap.set(state.nodes[i].id, state.nodes[i]);
+    }
+  }
+  return cachedNodeByIdMap.get(id);
+}
 
 export interface PointerSettings {
   mouseWheelBehavior: 'zoom' | 'pan'; // 'zoom' = CAD style, 'pan' = Figma style
@@ -96,6 +172,7 @@ interface SimulatorState {
   simState: import('../core/engine/simulation').SimulationState;
   simRunning: boolean;
   simSpeed: number; // Hz (ticks per second)
+  stepTicks: number; // Ticks per manual step
   
   // View State
   updateNodePosition: (id: string, x: number, y: number, finalize?: boolean, extraIds?: string[]) => void;
@@ -104,10 +181,11 @@ interface SimulatorState {
 
   // Simulation Controls
   resetSimulation: () => void;
-  stepSimulation: () => void;
+  stepSimulation: (overrideTicks?: number) => void;
   stepSimulationBatch: (ticks: number) => void;
   setSimRunning: (running: boolean) => void;
   setSimSpeed: (hz: number) => void;
+  setStepTicks: (ticks: number) => void;
   toggleInputNode: (nodeId: string) => void;
   setNodeInputCount: (nodeId: string, count: number) => void;
   setNodeOutputCount: (nodeId: string, count: number) => void;
@@ -423,6 +501,7 @@ export const useSimulatorStore = create<SimulatorState>()(
   simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} },
   simRunning: false,
   simSpeed: 10,
+  stepTicks: 1,
 
   history: [],
   future: [],
@@ -726,32 +805,63 @@ export const useSimulatorStore = create<SimulatorState>()(
   }),
 
   updateNodePosition: (id, x, y, finalize, extraIds) => set((state) => {
-    const isMulti = state.multiSelection.includes(id);
+    const snappedX = Math.round(x / circuit.GRID_SIZE) * circuit.GRID_SIZE;
+    const snappedY = Math.round(y / circuit.GRID_SIZE) * circuit.GRID_SIZE;
+    if (!finalize) {
+      if (id.startsWith('wp:')) {
+        const [, wireId, idxStr] = id.split(':');
+        const wp = state.wires.find((w) => w.id === wireId)?.waypoints?.[parseInt(idxStr, 10)];
+        if (!wp || (wp.x === snappedX && wp.y === snappedY)) return state;
+      } else {
+        const primaryNode = getNodeByIdFast(state, id);
+        if (!primaryNode || (primaryNode.x === snappedX && primaryNode.y === snappedY)) return state;
+      }
+    }
+
+    const multiSet = getMultiSelectionSet(state);
+    const isMulti = multiSet.has(id);
     const baseIds = isMulti ? state.multiSelection : [id];
-    const combined = extraIds && extraIds.length > 0
-      ? Array.from(new Set([...baseIds, ...extraIds]))
-      : [...baseIds];
+    const movedSet = new Set<string>(baseIds);
+    if (extraIds && extraIds.length > 0) {
+      for (let i = 0; i < extraIds.length; i++) {
+        movedSet.add(extraIds[i]);
+      }
+    }
 
-    const movedSet = new Set(combined);
-    const nodeById = new Map(state.nodes.map(n => [n.id, n]));
-    const hasMovedComponent = combined.some(cid => {
-      if (cid.startsWith('wp:')) return false;
-      const n = nodeById.get(cid);
-      return Boolean(n && n.type !== 'NET_LABEL' && n.type !== 'NC');
-    });
+    let hasMovedComponent = false;
+    let allNodesAlreadyMoved = movedSet.size >= state.nodes.length;
+    if (!allNodesAlreadyMoved) {
+      for (const cid of movedSet) {
+        if (cid.startsWith('wp:')) continue;
+        const n = getNodeByIdFast(state, cid);
+        if (n && n.type !== 'NET_LABEL' && n.type !== 'NC') {
+          hasMovedComponent = true;
+          break;
+        }
+      }
+    }
 
-    if (hasMovedComponent) {
-      // Find NET_LABEL / NC nodes connected directly to pins of moved components
+    if (hasMovedComponent && !allNodesAlreadyMoved) {
+      // Single O(W) pass to identify NET_LABEL / NC nodes wired to any stationary node outside movedSet
+      const stationaryWiredIds = new Set<string>();
+      const candidateLabelWires: { labelId: string; wireId: string }[] = [];
+
       for (let i = 0; i < state.wires.length; i++) {
         const w = state.wires[i];
         const srcMoved = movedSet.has(w.sourceNodeId);
         const tgtMoved = movedSet.has(w.targetNodeId);
+
+        if (!srcMoved && !tgtMoved) {
+          stationaryWiredIds.add(w.sourceNodeId);
+          if (w.targetNodeId) stationaryWiredIds.add(w.targetNodeId);
+          continue;
+        }
         if (srcMoved === tgtMoved) continue;
 
         const movedNodeId = srcMoved ? w.sourceNodeId : w.targetNodeId;
         const otherNodeId = srcMoved ? w.targetNodeId : w.sourceNodeId;
-        const movedNode = nodeById.get(movedNodeId);
-        const otherNode = nodeById.get(otherNodeId);
+        const movedNode = getNodeByIdFast(state, movedNodeId);
+        const otherNode = getNodeByIdFast(state, otherNodeId);
 
         if (
           movedNode &&
@@ -760,33 +870,41 @@ export const useSimulatorStore = create<SimulatorState>()(
           otherNode &&
           (otherNode.type === 'NET_LABEL' || otherNode.type === 'NC')
         ) {
-          // Ensure this NET_LABEL / NC is not wired to any stationary node outside movedSet
-          const wiredToStationary = state.wires.some(
-            ow =>
-              ow.id !== w.id &&
-              ((ow.sourceNodeId === otherNode.id && !movedSet.has(ow.targetNodeId)) ||
-                (ow.targetNodeId === otherNode.id && !movedSet.has(ow.sourceNodeId)))
-          );
-          if (!wiredToStationary) {
-            combined.push(otherNode.id);
-            combined.push(w.id);
-            movedSet.add(otherNode.id);
-            movedSet.add(w.id);
-          }
+          candidateLabelWires.push({ labelId: otherNode.id, wireId: w.id });
+        }
+      }
+
+      for (let i = 0; i < candidateLabelWires.length; i++) {
+        const { labelId, wireId } = candidateLabelWires[i];
+        if (!stationaryWiredIds.has(labelId)) {
+          movedSet.add(labelId);
+          movedSet.add(wireId);
         }
       }
     }
 
-    let nextState = { ...state, ...circuit.moveSelection(state, combined, id, x, y) };
+    const moved = circuit.moveSelection(state, movedSet, id, snappedX, snappedY);
+    if (!finalize && moved === state) return state;
+
+    let nextState = moved === state ? state : { ...state, ...moved };
     
     if (finalize) {
-      const movedNodeIdsOnly = combined.filter(cid => !cid.startsWith('wp:') && nodeById.has(cid));
-      nextState = applyAutoConnect(nextState, movedNodeIdsOnly);
+      const movedNodeIdsOnly: string[] = [];
+      for (const cid of movedSet) {
+        if (!cid.startsWith('wp:') && getNodeByIdFast(state, cid)) {
+          movedNodeIdsOnly.push(cid);
+        }
+      }
+      const connected = applyAutoConnect(nextState, movedNodeIdsOnly);
+      if (connected !== nextState) {
+        nextState = { ...nextState, ...connected };
+      }
     }
     
     return nextState;
   }), // History saved on drag start
   updateNodeProperties: (id, props) => set((state) => {
+    syncRustNodeInput(id, props);
     if (state.placingNodeId === id || state.simRunning) {
       return circuit.updateNodeProperties(state, id, props);
     }
@@ -928,7 +1046,8 @@ export const useSimulatorStore = create<SimulatorState>()(
   // Undoable: the cleared circuit is pushed onto the history stack first.
   clearNodes: () => {
     globalAnalyzerBuffer.clear();
-    return set((state) => ({
+    invalidateRustCircuitCache();
+    set((state) => ({
       ...pushHistory(state),
       nodes: [],
       wires: [],
@@ -941,12 +1060,14 @@ export const useSimulatorStore = create<SimulatorState>()(
       simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} },
       simRunning: false,
     }));
+    notifyTickListeners(0);
   },
 
   // Sequential IC state (counters, registers) lives in simState.nodeStates,
   // so resetting the simulation state resets every IC as well.
   resetSimulation: () => {
     globalAnalyzerBuffer.clear();
+    invalidateRustCircuitCache();
     set({
       simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} },
       lastTriggeredBreakpointId: null,
@@ -954,151 +1075,129 @@ export const useSimulatorStore = create<SimulatorState>()(
     notifyTickListeners(0);
   },
 
-  stepSimulation: () =>
-    set((state) => {
-      const tracked = getTrackedPinIds(state.analyzerChannels);
-      let triggeredBpId: string | null = null;
-      let triggeredTick = 0;
-
-      const { state: nextSimState } = computeNextStateBatch(
-        state.nodes,
-        state.wires,
-        state.simState,
-        state.savedCircuits,
-        1,
-        12,
-        tracked.length > 0 || state.breakpoints.length > 0 || state.trapShortCircuit
-          ? (compiled, tickCount) => {
-              if (tracked.length > 0) {
-                globalAnalyzerBuffer.recordFromCompiledBuf(
-                  tickCount,
-                  tracked,
-                  compiled.pinIdToIdx,
-                  compiled.curBuf
-                );
-              }
-              if (state.breakpoints.length > 0 || state.trapShortCircuit) {
-                const hit = evaluateBreakpointsFast(
-                  state.breakpoints,
-                  state.analyzerChannels,
-                  state.trapShortCircuit,
-                  compiled.pinIdToIdx,
-                  compiled.curBuf,
-                  compiled.prevBuf
-                );
-                if (hit) {
-                  triggeredBpId = hit;
-                  triggeredTick = tickCount;
-                  return true;
-                }
-              }
-              return false;
-            }
-          : undefined
-      );
-
-      notifyTickListeners(nextSimState.tickCount);
-
-      if (triggeredBpId) {
-        return {
+  stepSimulation: (overrideTicks) => {
+    const curState = get();
+    const ticksToStep = Math.max(
+      1,
+      typeof overrideTicks === 'number' ? overrideTicks : curState.stepTicks || 1
+    );
+    const tracked = getTrackedPinIds(curState.analyzerChannels);
+    stepRustSimulationBatch(
+      curState.nodes,
+      curState.wires,
+      curState.savedCircuits,
+      ticksToStep,
+      curState.simState,
+      tracked,
+      curState.breakpoints,
+      curState.analyzerChannels,
+      curState.trapShortCircuit,
+      curState.appMode === 'hex' ? curState.selectedMemoryNodeId : null
+    ).then(({ state: nextSimState, triggeredBreakpointId, triggeredTick }) => {
+      if (triggeredBreakpointId) {
+        set((st) => ({
           simState: nextSimState,
           simRunning: false,
-          lastTriggeredBreakpointId: triggeredBpId,
-          breakpoints: state.breakpoints.map((bp) =>
-            bp.id === triggeredBpId
+          lastTriggeredBreakpointId: triggeredBreakpointId,
+          breakpoints: st.breakpoints.map((bp) =>
+            bp.id === triggeredBreakpointId
               ? { ...bp, hitCount: bp.hitCount + 1, lastHitTick: triggeredTick }
               : bp
           ),
-        };
+        }));
+      } else {
+        const latest = get();
+        if (
+          latest.simState.tickCount > 0 &&
+          !latest.lastTriggeredBreakpointId &&
+          nextSimState.pinStates === latest.simState.pinStates &&
+          nextSimState.wireStates === latest.simState.wireStates &&
+          nextSimState.nodeStates === latest.simState.nodeStates
+        ) {
+          latest.simState.tickCount = nextSimState.tickCount;
+          notifyTickListeners(nextSimState.tickCount);
+        } else {
+          set({ simState: nextSimState, lastTriggeredBreakpointId: null });
+        }
       }
-
-      return { simState: nextSimState, lastTriggeredBreakpointId: null };
-    }),
-
-  stepSimulationBatch: (ticks) => {
-    const state = get();
-    const prevSim = state.simState;
-    const tracked = getTrackedPinIds(state.analyzerChannels);
-    const hasActiveBp =
-      state.trapShortCircuit || state.breakpoints.some((b) => b.enabled);
-
-    let triggeredBpId: string | null = null;
-    let triggeredTick = 0;
-
-    const { state: nextSimState } = computeNextStateBatch(
-      state.nodes,
-      state.wires,
-      prevSim,
-      state.savedCircuits,
-      ticks,
-      12,
-      tracked.length > 0 || hasActiveBp
-        ? (compiled, tickCount) => {
-            if (tracked.length > 0) {
-              globalAnalyzerBuffer.recordFromCompiledBuf(
-                tickCount,
-                tracked,
-                compiled.pinIdToIdx,
-                compiled.curBuf
-              );
-            }
-            if (hasActiveBp) {
-              const hit = evaluateBreakpointsFast(
-                state.breakpoints,
-                state.analyzerChannels,
-                state.trapShortCircuit,
-                compiled.pinIdToIdx,
-                compiled.curBuf,
-                compiled.prevBuf
-              );
-              if (hit) {
-                triggeredBpId = hit;
-                triggeredTick = tickCount;
-                return true;
-              }
-            }
-            return false;
-          }
-        : undefined
-    );
-
-    if (triggeredBpId) {
-      set({
-        simState: nextSimState,
-        simRunning: false,
-        lastTriggeredBreakpointId: triggeredBpId,
-        breakpoints: state.breakpoints.map((bp) =>
-          bp.id === triggeredBpId
-            ? { ...bp, hitCount: bp.hitCount + 1, lastHitTick: triggeredTick }
-            : bp
-        ),
-      });
-      notifyTickListeners(nextSimState.tickCount);
-      return;
-    }
-
-    const firstTickTransition = prevSim.tickCount === 0 && nextSimState.tickCount > 0;
-    const pinsChanged = nextSimState.pinStates !== prevSim.pinStates;
-    const memId = state.selectedMemoryNodeId;
-    const memoryChanged = Boolean(
-      !pinsChanged &&
-        memId &&
-        nextSimState.nodeStates?.[memId]?.memory !== prevSim.nodeStates?.[memId]?.memory
-    );
-
-    if (!firstTickTransition && !pinsChanged && !memoryChanged) {
-      // Fast path: no logic signals or SRAM bytes changed during these ticks.
-      // Mutate tickCount and internal sequential counters in-place without waking 1,000+ Zustand UI subscribers.
-      prevSim.tickCount = nextSimState.tickCount;
-      prevSim.nodeStates = nextSimState.nodeStates;
-      prevSim.connectedPins = nextSimState.connectedPins;
-      notifyTickListeners(nextSimState.tickCount);
-      return;
-    }
-
-    set({ simState: nextSimState });
-    notifyTickListeners(nextSimState.tickCount);
+    });
   },
+
+  stepSimulationBatch: (() => {
+    let batchInFlight = false;
+    let queuedTicks = 0;
+
+    const runBatch = (ticks: number) => {
+      const state = get();
+      if (!state.simRunning) {
+        batchInFlight = false;
+        queuedTicks = 0;
+        return;
+      }
+      batchInFlight = true;
+      const tracked = getTrackedPinIds(state.analyzerChannels);
+      stepRustSimulationBatch(
+        state.nodes,
+        state.wires,
+        state.savedCircuits,
+        ticks,
+        state.simState,
+        tracked,
+        state.breakpoints,
+        state.analyzerChannels,
+        state.trapShortCircuit,
+        state.appMode === 'hex' ? state.selectedMemoryNodeId : null
+      )
+        .then(({ state: nextSimState, triggeredBreakpointId, triggeredTick }) => {
+          if (triggeredBreakpointId) {
+            queuedTicks = 0;
+            set((st) => ({
+              simState: nextSimState,
+              simRunning: false,
+              lastTriggeredBreakpointId: triggeredBreakpointId,
+              breakpoints: st.breakpoints.map((bp) =>
+                bp.id === triggeredBreakpointId
+                  ? { ...bp, hitCount: bp.hitCount + 1, lastHitTick: triggeredTick }
+                  : bp
+              ),
+            }));
+          } else {
+            const latest = get();
+            if (
+              latest.simState.tickCount > 0 &&
+              nextSimState.pinStates === latest.simState.pinStates &&
+              nextSimState.wireStates === latest.simState.wireStates &&
+              nextSimState.nodeStates === latest.simState.nodeStates
+            ) {
+              // Fast path: 0 signals changed during this batch. Update tickCount in place
+              // and notify lightweight tick listeners without waking 5,000+ Zustand Pin/Wire selectors.
+              latest.simState.tickCount = nextSimState.tickCount;
+              notifyTickListeners(nextSimState.tickCount);
+            } else {
+              set({ simState: nextSimState });
+            }
+          }
+        })
+        .finally(() => {
+          batchInFlight = false;
+          if (queuedTicks > 0 && get().simRunning) {
+            const nextTicks = queuedTicks;
+            queuedTicks = 0;
+            runBatch(nextTicks);
+          } else {
+            queuedTicks = 0;
+          }
+        });
+    };
+
+    return (ticks: number) => {
+      if (batchInFlight) {
+        queuedTicks = Math.min(queuedTicks + ticks, 10000);
+        return;
+      }
+      runBatch(ticks);
+    };
+  })(),
 
   setSimRunning: (running) =>
     set((state) => {
@@ -1137,17 +1236,20 @@ export const useSimulatorStore = create<SimulatorState>()(
       };
     }),
   setSimSpeed: (hz) => set({ simSpeed: hz }),
+  setStepTicks: (ticks) => set({ stepTicks: Math.max(1, Math.min(100000, Math.round(ticks))) }),
 
   toggleInputNode: (id) => set((state) => {
     const node = state.nodes.find(n => n.id === id);
     if (!node) return state;
     if (node.type === 'INPUT') {
       const currentVal = node.properties?.value === 1 ? 0 : 1;
+      syncRustNodeInput(id, { value: currentVal });
       return circuit.updateNodeProperties(state, id, { value: currentVal });
     }
     if (node.type === 'CLOCK') {
       if (!state.simRunning || node.properties?.mode !== 'manual') return state;
       const currentVal = node.properties?.manualValue === 1 ? 0 : 1;
+      syncRustNodeInput(id, { manualValue: currentVal });
       return circuit.updateNodeProperties(state, id, { manualValue: currentVal });
     }
     return state;
@@ -1163,12 +1265,20 @@ export const useSimulatorStore = create<SimulatorState>()(
 
   updateDraftWire: (x, y, manhattan) => set((state) => {
     if (!state.draftWire) return state;
+    const nextManhattan = manhattan ?? state.draftWire.manhattan;
+    if (
+      state.draftWire.endX === x &&
+      state.draftWire.endY === y &&
+      state.draftWire.manhattan === nextManhattan
+    ) {
+      return state;
+    }
     return {
       draftWire: {
         ...state.draftWire,
         endX: x,
         endY: y,
-        manhattan: manhattan ?? state.draftWire.manhattan,
+        manhattan: nextManhattan,
       }
     };
   }),
@@ -1543,6 +1653,7 @@ export const useSimulatorStore = create<SimulatorState>()(
             cachedPartial.nodes === state.nodes &&
             cachedPartial.wires === state.wires &&
             cachedPartial.simSpeed === state.simSpeed &&
+            cachedPartial.stepTicks === state.stepTicks &&
             cachedPartial.settings === state.settings &&
             cachedPartial.theme === state.theme &&
             cachedPartial.appMode === state.appMode &&
@@ -1555,6 +1666,7 @@ export const useSimulatorStore = create<SimulatorState>()(
             nodes: state.nodes,
             wires: state.wires,
             simSpeed: state.simSpeed,
+            stepTicks: state.stepTicks,
             settings: state.settings,
             theme: state.theme,
             appMode: state.appMode,

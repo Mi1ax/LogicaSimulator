@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Group, Rect, Text, Path, Circle } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
-import { useSimulatorStore } from '../../../../store/useSimulatorStore';
+import { useSimulatorStore, isIdSelected } from '../../../../store/useSimulatorStore';
 import { Pin } from '../../primitives/Pin';
 import { getSchematicDimensions, getGridAlignedPinYs } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
@@ -11,78 +11,88 @@ interface GateNodeProps {
   node: LogicNode;
 }
 
+const STANDARD_GATES = new Set(['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'XNOR', 'BUFFER', '74LS30']);
+const BUBBLE_GATES = new Set(['NOT', 'NAND', 'NOR', 'XNOR', '74LS30']);
+const OR_GATES = new Set(['OR', 'NOR', 'XOR', 'XNOR']);
+const XOR_GATES = new Set(['XOR', 'XNOR']);
+const TRI_GATES = new Set(['NOT', 'BUFFER']);
+
 export const SchematicGateNode: React.FC<GateNodeProps> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
-  const isSelected = useSimulatorStore(state =>
-    (state.selection?.type === 'node' && state.selection.id === node.id) ||
-    state.multiSelection.includes(node.id)
-  );
+  const isSelected = useSimulatorStore(state => isIdSelected(state, node.id));
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getSchematicDimensions(node);
 
   const type = node.type;
-  const isStandardGate = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'XNOR', 'BUFFER', '74LS30'].includes(type);
-
-  const padY = 10;
-  const startX = 20;
-  const endX = width - 20; // 60
+  const isStandardGate = STANDARD_GATES.has(type);
+  const hasBubble = BUBBLE_GATES.has(type);
+  const isXOR = XOR_GATES.has(type);
+  const endX = width - 20;
   const bubbleRadius = 4;
-  
-  const hasBubble = ['NOT', 'NAND', 'NOR', 'XNOR', '74LS30'].includes(type);
-  const isOR = ['OR', 'NOR', 'XOR', 'XNOR'].includes(type);
-  const isXOR = ['XOR', 'XNOR'].includes(type);
-  const isTri = ['NOT', 'BUFFER'].includes(type);
-  
-  const topY = padY;
-  const botY = height - padY;
   const midY = height / 2;
-  const backCurveX = isOR ? startX + 15 : startX;
-  
-  const gateEndX = hasBubble ? endX - bubbleRadius * 2 : endX;
-  
-  let gatePath = '';
-  if (isTri) {
-    gatePath = `M ${startX} ${topY} L ${gateEndX} ${midY} L ${startX} ${botY} Z`;
-  } else if (isOR) {
-    gatePath = `M ${startX} ${topY} Q ${startX + 30} ${topY}, ${gateEndX} ${midY} Q ${startX + 30} ${botY}, ${startX} ${botY} Q ${backCurveX} ${midY}, ${startX} ${topY} Z`;
-  } else {
-    gatePath = `M ${startX} ${topY} L ${startX + 15} ${topY} A ${gateEndX - startX - 15} ${midY - topY} 0 0 1 ${startX + 15} ${botY} L ${startX} ${botY} Z`;
-  }
-  
-  let extraPath = '';
-  if (isXOR) {
-    extraPath = `M ${startX - 6} ${topY} Q ${backCurveX - 6} ${midY}, ${startX - 6} ${botY}`;
-  }
 
-  const getLineEndX = (py: number) => {
+  const { gatePath, extraPath, inputYs, outputYs, legsPath } = useMemo(() => {
+    const padY = 10;
+    const startX = 20;
+    const isOR = OR_GATES.has(type);
+    const isTri = TRI_GATES.has(type);
+    const topY = padY;
+    const botY = height - padY;
+    const backCurveX = isOR ? startX + 15 : startX;
+    const gateEndX = hasBubble ? endX - bubbleRadius * 2 : endX;
+
+    let gPath = '';
+    if (isTri) {
+      gPath = `M ${startX} ${topY} L ${gateEndX} ${midY} L ${startX} ${botY} Z`;
+    } else if (isOR) {
+      gPath = `M ${startX} ${topY} Q ${startX + 30} ${topY}, ${gateEndX} ${midY} Q ${startX + 30} ${botY}, ${startX} ${botY} Q ${backCurveX} ${midY}, ${startX} ${topY} Z`;
+    } else {
+      gPath = `M ${startX} ${topY} L ${startX + 15} ${topY} A ${gateEndX - startX - 15} ${midY - topY} 0 0 1 ${startX + 15} ${botY} L ${startX} ${botY} Z`;
+    }
+
+    let xPath = '';
     if (isXOR) {
-      const t = (py - topY) / (botY - topY);
-      const x0 = startX - 6;
-      const x1 = backCurveX - 6;
-      const x2 = startX - 6;
-      return (1 - t) * (1 - t) * x0 + 2 * (1 - t) * t * x1 + t * t * x2;
+      xPath = `M ${startX - 6} ${topY} Q ${backCurveX - 6} ${midY}, ${startX - 6} ${botY}`;
     }
-    if (isOR) {
-      return startX + 15;
-    }
-    return startX;
-  };
 
-  const inputYs = getGridAlignedPinYs(node.inputs.length, height);
-  const outputYs = getGridAlignedPinYs(node.outputs.length, height);
+    const getLineEndX = (py: number) => {
+      if (isXOR) {
+        const t = (py - topY) / (botY - topY);
+        const x0 = startX - 6;
+        const x1 = backCurveX - 6;
+        const x2 = startX - 6;
+        return (1 - t) * (1 - t) * x0 + 2 * (1 - t) * t * x1 + t * t * x2;
+      }
+      if (isOR) {
+        return startX + 15;
+      }
+      return startX;
+    };
 
-  let legsPath = '';
-  if (isStandardGate) {
-    for (let i = 0; i < node.inputs.length; i++) {
-      const py = inputYs[i];
-      legsPath += `M 0 ${py} L ${getLineEndX(py)} ${py} `;
+    const inYs = getGridAlignedPinYs(node.inputs.length, height);
+    const outYs = getGridAlignedPinYs(node.outputs.length, height);
+
+    let lPath = '';
+    if (isStandardGate) {
+      for (let i = 0; i < node.inputs.length; i++) {
+        const py = inYs[i];
+        lPath += `M 0 ${py} L ${getLineEndX(py)} ${py} `;
+      }
+      for (let i = 0; i < node.outputs.length; i++) {
+        const py = outYs[i];
+        lPath += `M ${endX} ${py} L ${width} ${py} `;
+      }
     }
-    for (let i = 0; i < node.outputs.length; i++) {
-      const py = outputYs[i];
-      legsPath += `M ${endX} ${py} L ${width} ${py} `;
-    }
-  }
+
+    return {
+      gatePath: gPath,
+      extraPath: xPath,
+      inputYs: inYs,
+      outputYs: outYs,
+      legsPath: lPath,
+    };
+  }, [type, width, height, node.inputs.length, node.outputs.length, isStandardGate, hasBubble, isXOR, endX, midY]);
 
   return (
     <SchematicNodeWrapper node={node}>

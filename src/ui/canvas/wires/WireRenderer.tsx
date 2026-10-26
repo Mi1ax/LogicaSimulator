@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { Path, Group, Circle } from 'react-konva';
-import { useSimulatorStore } from '../../../store/useSimulatorStore';
+import { useSimulatorStore, isIdSelected, getMultiSelectionSet, getNodeByIdFast } from '../../../store/useSimulatorStore';
 import { computeAllWirePaths, computeDraftWirePath } from '../../../core/engine/routing';
 import { getCanvasTheme } from '../theme';
 import { getSchematicPinPosition } from '../../../core/utils/schematicLayout';
@@ -36,10 +36,7 @@ const SingleWire = React.memo(({
   canvasTheme: any;
 }) => {
   const signal = useSimulatorStore(state => state.simState.wireStates[wire.id]);
-  const isSelected = useSimulatorStore(state =>
-    (state.selection?.type === 'wire' && state.selection.id === wire.id) ||
-    state.multiSelection.includes(wire.id)
-  );
+  const isSelected = useSimulatorStore(state => isIdSelected(state, wire.id));
 
   let strokeColor = canvasTheme.wireColor;
   if (signal === 1) strokeColor = canvasTheme.signalHigh;
@@ -71,6 +68,15 @@ const SingleWire = React.memo(({
         const container = e.target.getStage()?.container();
         if (container) {
           container.style.cursor = store.draftWire ? 'crosshair' : 'default';
+        }
+      }}
+      onMouseDown={(e) => {
+        if (e.evt.button !== 0) return;
+        e.cancelBubble = true;
+        const store = useSimulatorStore.getState();
+        if (store.simRunning || store.draftWire) return;
+        if (!e.evt.shiftKey && !getMultiSelectionSet(store).has(wire.id)) {
+          store.select({ type: 'wire', id: wire.id }, false);
         }
       }}
       onClick={(e) => {
@@ -150,17 +156,15 @@ const SingleWireWaypoints = React.memo(({
   canvasTheme: any;
 }) => {
   const signal = useSimulatorStore(state => state.simState.wireStates[wire.id]);
-  const isSelected = useSimulatorStore(state =>
-    (state.selection?.type === 'wire' && state.selection.id === wire.id) ||
-    state.multiSelection.includes(wire.id)
-  );
+  const isSelected = useSimulatorStore(state => isIdSelected(state, wire.id));
   const selectedWpMask = useSimulatorStore(state => {
     if (!wire.waypoints || wire.waypoints.length === 0) return '';
     if (state.selection?.type !== 'waypoint' && state.multiSelection.length === 0) return '';
+    const multiSet = getMultiSelectionSet(state);
     let mask = ',';
     for (let i = 0; i < wire.waypoints.length; i++) {
       const wpId = `wp:${wire.id}:${i}`;
-      if ((state.selection?.type === 'waypoint' && state.selection.id === wpId) || state.multiSelection.includes(wpId)) {
+      if ((state.selection?.type === 'waypoint' && state.selection.id === wpId) || multiSet.has(wpId)) {
         mask += `${i},`;
       }
     }
@@ -168,6 +172,7 @@ const SingleWireWaypoints = React.memo(({
   });
 
   const clickTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastWpPosRef = React.useRef<{ id: string; x: number; y: number }>({ id: '', x: 0, y: 0 });
 
   if (!wire.waypoints || wire.waypoints.length === 0) {
     return null;
@@ -211,9 +216,14 @@ const SingleWireWaypoints = React.memo(({
                 e.target.stopDrag();
                 return;
               }
-              if (!store.multiSelection.includes(wpId)) {
+              if (!getMultiSelectionSet(store).has(wpId)) {
                 store.select({ type: 'waypoint', id: wpId }, e.evt.shiftKey);
               }
+              lastWpPosRef.current = {
+                id: wpId,
+                x: Math.round(e.target.x() / 20) * 20,
+                y: Math.round(e.target.y() / 20) * 20,
+              };
               store.saveHistory();
             }}
             onDragMove={(e) => {
@@ -223,6 +233,14 @@ const SingleWireWaypoints = React.memo(({
               const snappedY = Math.round(e.target.y() / 20) * 20;
               
               e.target.position({ x: snappedX, y: snappedY });
+              if (
+                lastWpPosRef.current.id === wpId &&
+                lastWpPosRef.current.x === snappedX &&
+                lastWpPosRef.current.y === snappedY
+              ) {
+                return;
+              }
+              lastWpPosRef.current = { id: wpId, x: snappedX, y: snappedY };
               useSimulatorStore.getState().updateNodePosition(wpId, snappedX, snappedY);
             }}
             onDragEnd={(e) => {
@@ -293,7 +311,7 @@ const SingleWireWaypoints = React.memo(({
 const DraftWirePreview: React.FC<{ draftWireColor: string }> = React.memo(({ draftWireColor }) => {
   const draftWire = useSimulatorStore(state => state.draftWire);
   const sourceNode = useSimulatorStore(state =>
-    state.draftWire ? state.nodes.find(n => n.id === state.draftWire!.sourceNodeId) : undefined
+    state.draftWire ? getNodeByIdFast(state, state.draftWire.sourceNodeId) : undefined
   );
 
   const draftWirePath = useMemo(() => {
@@ -340,10 +358,28 @@ export const WireRenderer: React.FC<{ viewportBounds?: ViewportBounds | null }> 
     return computeAllWirePaths(wires, nodes).wirePaths;
   }, [wires, nodes]);
 
+  const cachedBusPinsRef = useRef<{ count: number; firstId: string; lastId: string; set: Set<string> }>({
+    count: -1,
+    firstId: '',
+    lastId: '',
+    set: new Set(),
+  });
+
   const busPinIds = useMemo(() => {
+    const count = nodes.length;
+    const firstId = count > 0 ? nodes[0].id : '';
+    const lastId = count > 0 ? nodes[count - 1].id : '';
+    if (
+      cachedBusPinsRef.current.count === count &&
+      cachedBusPinsRef.current.firstId === firstId &&
+      cachedBusPinsRef.current.lastId === lastId
+    ) {
+      return cachedBusPinsRef.current.set;
+    }
     const set = new Set<string>();
-    for (let i = 0; i < nodes.length; i++) {
+    for (let i = 0; i < count; i++) {
       const n = nodes[i];
+      if (n.type !== 'BUS_SPLIT' && n.type !== 'BUS_JOIN') continue;
       for (let j = 0; j < n.outputs.length; j++) {
         if (n.outputs[j].name === 'BUS') set.add(n.outputs[j].id);
       }
@@ -351,6 +387,7 @@ export const WireRenderer: React.FC<{ viewportBounds?: ViewportBounds | null }> 
         if (n.inputs[j].name === 'BUS') set.add(n.inputs[j].id);
       }
     }
+    cachedBusPinsRef.current = { count, firstId, lastId, set };
     return set;
   }, [nodes]);
 

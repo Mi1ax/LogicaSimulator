@@ -6,30 +6,54 @@ import { LogicNode, Wire } from '../../../core/models/types';
 
 let cachedWiresRef: Wire[] | null = null;
 let cachedNodesRef: LogicNode[] | null = null;
+let cachedNcKey = '';
+let cachedNcNodeIds = new Set<string>();
 let connectedPinsSet = new Set<string>();
 let ncConnectedPinsSet = new Set<string>();
 
 function getPinConnectionSets(wires: Wire[], nodes: LogicNode[]) {
-  if (wires !== cachedWiresRef || nodes !== cachedNodesRef) {
-    connectedPinsSet = new Set<string>();
-    ncConnectedPinsSet = new Set<string>();
+  const wiresChanged = wires !== cachedWiresRef;
+  let ncChanged = false;
 
-    const ncNodeIds = new Set<string>();
+  if (nodes !== cachedNodesRef) {
+    let key = '';
     for (let i = 0; i < nodes.length; i++) {
-      if (nodes[i].type === 'NC') ncNodeIds.add(nodes[i].id);
+      if (nodes[i].type === 'NC') {
+        key += nodes[i].id + '|';
+      }
     }
+    if (key !== cachedNcKey) {
+      cachedNcKey = key;
+      ncChanged = true;
+      cachedNcNodeIds = new Set<string>();
+      for (let i = 0; i < nodes.length; i++) {
+        if (nodes[i].type === 'NC') cachedNcNodeIds.add(nodes[i].id);
+      }
+    }
+    cachedNodesRef = nodes;
+  }
 
+  if (wiresChanged) {
+    connectedPinsSet = new Set<string>();
     for (let i = 0; i < wires.length; i++) {
       const w = wires[i];
       connectedPinsSet.add(w.sourcePinId);
       connectedPinsSet.add(w.targetPinId);
-      if (ncNodeIds.has(w.targetNodeId)) ncConnectedPinsSet.add(w.sourcePinId);
-      if (ncNodeIds.has(w.sourceNodeId)) ncConnectedPinsSet.add(w.targetPinId);
     }
-
     cachedWiresRef = wires;
-    cachedNodesRef = nodes;
   }
+
+  if (wiresChanged || ncChanged) {
+    ncConnectedPinsSet = new Set<string>();
+    if (cachedNcNodeIds.size > 0) {
+      for (let i = 0; i < wires.length; i++) {
+        const w = wires[i];
+        if (cachedNcNodeIds.has(w.targetNodeId)) ncConnectedPinsSet.add(w.sourcePinId);
+        if (cachedNcNodeIds.has(w.sourceNodeId)) ncConnectedPinsSet.add(w.targetPinId);
+      }
+    }
+  }
+
   return { connectedPinsSet, ncConnectedPinsSet };
 }
 

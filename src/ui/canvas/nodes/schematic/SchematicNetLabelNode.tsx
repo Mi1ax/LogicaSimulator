@@ -1,7 +1,7 @@
 import React from 'react';
 import { Rect, Text, Line } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
-import { useSimulatorStore } from '../../../../store/useSimulatorStore';
+import { useSimulatorStore, isIdSelected } from '../../../../store/useSimulatorStore';
 import { Pin } from '../../primitives/Pin';
 import { getSchematicDimensions } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
@@ -30,10 +30,7 @@ export function getNetLabelTextWidth(name: string, bold = false): number {
 
 export const SchematicNetLabelNode: React.FC<NetLabelProps> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
-  const isSelected = useSimulatorStore(state =>
-    (state.selection?.type === 'node' && state.selection.id === node.id) ||
-    state.multiSelection.includes(node.id)
-  );
+  const isSelected = useSimulatorStore(state => isIdSelected(state, node.id));
   const canvasTheme = getCanvasTheme(theme === 'dark');
   
   const { width, height } = getSchematicDimensions(node);

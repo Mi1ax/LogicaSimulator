@@ -1,7 +1,7 @@
 import React, { useRef, useMemo } from 'react';
 import { Group, Rect, Text, Line, Path, Circle } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
-import { useSimulatorStore } from '../../../../store/useSimulatorStore';
+import { useSimulatorStore, isIdSelected, isNodeBeingPlaced, getNodeByIdFast } from '../../../../store/useSimulatorStore';
 import { getSchematicDimensions, getSchematicAnchor } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
 import { SchematicNodeWrapper } from './SchematicNodeWrapper';
@@ -196,7 +196,8 @@ const ResizeHandles: React.FC<{
     const pos = getHandleCoords(dir, newW, newH);
     e.target.position({ x: pos.x - hs / 2, y: pos.y - hs / 2 });
 
-    if (newX !== node.x || newY !== node.y) {
+    const curNode = getNodeByIdFast(useSimulatorStore.getState(), node.id) ?? node;
+    if (newX !== curNode.x || newY !== curNode.y) {
       updateNodePosition(node.id, newX, newY);
     }
     if (newW !== width || newH !== height) {
@@ -229,10 +230,12 @@ const ResizeHandles: React.FC<{
             }}
             onDragStart={(e) => {
               e.cancelBubble = true;
-              useSimulatorStore.getState().saveHistory();
+              const store = useSimulatorStore.getState();
+              store.saveHistory();
+              const curNode = getNodeByIdFast(store, node.id) ?? node;
               dragInitRef.current = {
-                startX: node.x,
-                startY: node.y,
+                startX: curNode.x,
+                startY: curNode.y,
                 startW: width,
                 startH: height,
               };
@@ -259,10 +262,11 @@ const ResizeHandles: React.FC<{
 
 function getRegionBoxContainedIds(regionNode: LogicNode, width: number, height: number): string[] {
   const store = useSimulatorStore.getState();
-  const x1 = regionNode.x;
-  const y1 = regionNode.y;
-  const x2 = regionNode.x + width;
-  const y2 = regionNode.y + height;
+  const curRegion = getNodeByIdFast(store, regionNode.id) ?? regionNode;
+  const x1 = curRegion.x;
+  const y1 = curRegion.y;
+  const x2 = curRegion.x + width;
+  const y2 = curRegion.y + height;
 
   const containedIds: string[] = [];
   const containedNodeSet = new Set<string>();
@@ -346,13 +350,8 @@ function measureHeaderTextWidth(text: string): number {
 
 export const SchematicRegionBoxNode: React.FC<Props> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
-  const isSelected = useSimulatorStore(state =>
-    (state.selection?.type === 'node' && state.selection.id === node.id) ||
-    state.multiSelection.includes(node.id)
-  );
-  const isPlacing = useSimulatorStore(
-    state => state.placingNodeId === node.id || Boolean(state.pastingNodeIds && state.pastingNodeIds.includes(node.id))
-  );
+  const isSelected = useSimulatorStore(state => isIdSelected(state, node.id));
+  const isPlacing = useSimulatorStore(state => isNodeBeingPlaced(state, node.id));
   const titleBarMouseDownRef = useRef<{ active: boolean; shiftKey: boolean }>({
     active: false,
     shiftKey: false,
@@ -479,10 +478,7 @@ export const SchematicRegionBoxNode: React.FC<Props> = React.memo(({ node }) => 
 
 export const SchematicTextLabelNode: React.FC<Props> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
-  const isSelected = useSimulatorStore(state =>
-    (state.selection?.type === 'node' && state.selection.id === node.id) ||
-    state.multiSelection.includes(node.id)
-  );
+  const isSelected = useSimulatorStore(state => isIdSelected(state, node.id));
 
   const isDark = theme === 'dark';
   const canvasTheme = getCanvasTheme(isDark);
@@ -546,13 +542,8 @@ export const SchematicTextLabelNode: React.FC<Props> = React.memo(({ node }) => 
 
 export const SchematicStickyNoteNode: React.FC<Props> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
-  const isSelected = useSimulatorStore(state =>
-    (state.selection?.type === 'node' && state.selection.id === node.id) ||
-    state.multiSelection.includes(node.id)
-  );
-  const isPlacing = useSimulatorStore(
-    state => state.placingNodeId === node.id || Boolean(state.pastingNodeIds && state.pastingNodeIds.includes(node.id))
-  );
+  const isSelected = useSimulatorStore(state => isIdSelected(state, node.id));
+  const isPlacing = useSimulatorStore(state => isNodeBeingPlaced(state, node.id));
 
   const isDark = theme === 'dark';
   const canvasTheme = getCanvasTheme(isDark);
@@ -676,14 +667,8 @@ function computeArrowPoints(ex: number, ey: number, tx: number, ty: number, len 
 
 export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
-  const nodes = useSimulatorStore(state => state.nodes);
-  const isSelected = useSimulatorStore(state =>
-    (state.selection?.type === 'node' && state.selection.id === node.id) ||
-    state.multiSelection.includes(node.id)
-  );
-  const isPlacing = useSimulatorStore(
-    state => state.placingNodeId === node.id || Boolean(state.pastingNodeIds && state.pastingNodeIds.includes(node.id))
-  );
+  const isSelected = useSimulatorStore(state => isIdSelected(state, node.id));
+  const isPlacing = useSimulatorStore(state => isNodeBeingPlaced(state, node.id));
 
   const isDark = theme === 'dark';
   const canvasTheme = getCanvasTheme(isDark);
@@ -693,24 +678,38 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
   const palette = ANNOTATION_COLORS[colorKey] || ANNOTATION_COLORS.slate;
   const headerH = 26;
 
-  // Find target GAL22V10 node on the schematic
-  const galNode = useMemo(() => {
-    const targetId = node.properties?.targetNodeId;
+  // Subscribe only to the target GAL22V10 node's id + pldSource primitive signature
+  // so moving other nodes on the schematic never triggers a re-render.
+  const targetId = node.properties?.targetNodeId;
+  const galTargetSig = useSimulatorStore(state => {
+    let found: LogicNode | undefined;
     if (targetId) {
-      const found = nodes.find(n => n.id === targetId && n.type === 'GAL22V10');
-      if (found) return found;
+      const candidate = getNodeByIdFast(state, targetId);
+      if (candidate && candidate.type === 'GAL22V10') {
+        found = candidate;
+      }
     }
-    return nodes.find(n => n.type === 'GAL22V10') || null;
-  }, [nodes, node.properties?.targetNodeId]);
+    if (!found) {
+      for (let i = 0; i < state.nodes.length; i++) {
+        if (state.nodes[i].type === 'GAL22V10') {
+          found = state.nodes[i];
+          break;
+        }
+      }
+    }
+    if (!found) return '';
+    return `${found.id}\0${found.properties?.pldSource || ''}`;
+  });
 
-  const pldSource = galNode?.properties?.pldSource || '';
+  const galNodeId = galTargetSig ? galTargetSig.slice(0, galTargetSig.indexOf('\0')) : null;
+  const pldSource = galTargetSig ? galTargetSig.slice(galTargetSig.indexOf('\0') + 1) : '';
   const fsm = useMemo(() => extractFsmFromPld(pldSource), [pldSource]);
 
   // Subscribe ONLY to the resolved currentStateName + nextStateName string so clock edges (I/CLK)
   // or unrelated GAL22V10 input toggles that do not change the active/next state cause 0 re-renders.
   const liveStateSig = useSimulatorStore(state => {
-    if (!galNode || !fsm.hasFsm) return '';
-    const status = getLiveFsmStatus(fsm, galNode.id, state.simState.pinStates);
+    if (!galNodeId || !fsm.hasFsm) return '';
+    const status = getLiveFsmStatus(fsm, galNodeId, state.simState.pinStates);
     return `${status.currentStateName || ''}|${status.currentStateCode}|${status.nextStateName || ''}`;
   });
 
@@ -728,9 +727,9 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
 
   const positions = useMemo(() => {
     const defaults = computeDefaultFsmPositions(fsm.states);
-    const cached = (galNode && customPositionsCache.get(galNode.id)) || {};
+    const cached = (galNodeId && customPositionsCache.get(galNodeId)) || {};
     return { ...defaults, ...cached };
-  }, [fsm.states, galNode]);
+  }, [fsm.states, galNodeId]);
 
   // Compute bounding box of the FSM diagram to auto-fit inside the card body
   const layoutFit = useMemo(() => {
@@ -980,7 +979,7 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
         {!fsm.hasFsm ? (
           <Text
             text={
-              galNode
+              galNodeId
                 ? fsm.reason || 'No FSM state machine found in GAL22V10 equations.'
                 : 'No GAL22V10 chip found on schematic.'
             }

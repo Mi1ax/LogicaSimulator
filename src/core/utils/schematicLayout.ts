@@ -3,6 +3,7 @@ import { getNodeDefinition } from '../engine/nodes';
 import { NodeDefinition, PinDefinition } from '../engine/nodes/NodeDefinition';
 
 const customPinsByNameCache = new WeakMap<NodeDefinition, Map<string, PinDefinition>>();
+const staticDipDimsCache = new WeakMap<NodeDefinition, { width: number; height: number }>();
 
 export const getCustomPinMap = (def?: NodeDefinition): Map<string, PinDefinition> | undefined => {
   if (!def?.customPins) return undefined;
@@ -150,6 +151,11 @@ export const getSchematicDimensions = (node: LogicNode): { width: number; height
   }
 
   if (node.properties?.renderAs === 'DIP' || def?.renderAs === 'DIP') {
+    if (def && !def.generatePins && def.customPins) {
+      const cached = staticDipDimsCache.get(def);
+      if (cached) return cached;
+    }
+
     const pinMap = getCustomPinMap(def);
     let maxRow = 0;
     let maxTopBottomRow = 0;
@@ -189,7 +195,11 @@ export const getSchematicDimensions = (node: LogicNode): { width: number; height
       width = Math.max(120, (maxTopBottomRow + 1) * 40);
     }
 
-    return { width, height: (maxRow + 3) * 20 };
+    const dims = { width, height: (maxRow + 3) * 20 };
+    if (def && !def.generatePins && def.customPins && (node.inputs.length > 0 || node.outputs.length > 0)) {
+      staticDipDimsCache.set(def, dims);
+    }
+    return dims;
   }
 
   if (node.properties?.renderAs === 'BUS' || def?.renderAs === 'BUS') {

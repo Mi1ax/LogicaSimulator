@@ -2,7 +2,7 @@ import React from 'react';
 import { Line } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { Pin } from '../../primitives/Pin';
-import { useSimulatorStore } from '../../../../store/useSimulatorStore';
+import { useSimulatorStore, isIdSelected } from '../../../../store/useSimulatorStore';
 import { getCanvasTheme } from '../../theme';
 import { SchematicNodeWrapper } from './SchematicNodeWrapper';
 
@@ -12,10 +12,7 @@ interface NCNodeProps {
 
 export const SchematicNCNode: React.FC<NCNodeProps> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
-  const isSelected = useSimulatorStore(state =>
-    (state.selection?.type === 'node' && state.selection.id === node.id) ||
-    state.multiSelection.includes(node.id)
-  );
+  const isSelected = useSimulatorStore(state => isIdSelected(state, node.id));
   const inPin = node.inputs[0];
   const pinState = useSimulatorStore(state => inPin ? state.simState.pinStates[inPin.id] : undefined);
   

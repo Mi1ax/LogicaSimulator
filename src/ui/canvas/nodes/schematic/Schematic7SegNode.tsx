@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Group, Rect, Path, Text, Circle } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
-import { useSimulatorStore } from '../../../../store/useSimulatorStore';
+import { useSimulatorStore, isIdSelected } from '../../../../store/useSimulatorStore';
 import { getSchematicDimensions } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
 import { Pin } from '../../primitives/Pin';
@@ -27,10 +27,7 @@ const SEG_PATHS = {
 
 export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
-  const isSelected = useSimulatorStore(state =>
-    (state.selection?.type === 'node' && state.selection.id === node.id) ||
-    state.multiSelection.includes(node.id)
-  );
+  const isSelected = useSimulatorStore(state => isIdSelected(state, node.id));
   
   const segMask = useSimulatorStore(state => {
     const activeLevel = node.properties?.commonAnode ? 0 : 1;

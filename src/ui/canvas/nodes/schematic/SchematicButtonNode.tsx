@@ -1,7 +1,7 @@
 import React from 'react';
 import { Group, Rect, Circle, Line } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
-import { useSimulatorStore } from '../../../../store/useSimulatorStore';
+import { useSimulatorStore, isIdSelected, isNodeBeingPlaced } from '../../../../store/useSimulatorStore';
 import { getSchematicDimensions } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
 import { Pin } from '../../primitives/Pin';
@@ -14,15 +14,12 @@ interface Props {
 export const SchematicButtonNode: React.FC<Props> = React.memo(({ node }) => {
   const updateNodeProperties = useSimulatorStore(state => state.updateNodeProperties);
   const theme = useSimulatorStore(state => state.theme);
-  const isSelected = useSimulatorStore(state =>
-    (state.selection?.type === 'node' && state.selection.id === node.id) ||
-    state.multiSelection.includes(node.id)
-  );
+  const isSelected = useSimulatorStore(state => isIdSelected(state, node.id));
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getSchematicDimensions(node);
   
-  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id || Boolean(state.pastingNodeIds && state.pastingNodeIds.includes(node.id)));
+  const isPlacing = useSimulatorStore(state => isNodeBeingPlaced(state, node.id));
   const isPressed = node.properties?.pressed || false;
 
   return (

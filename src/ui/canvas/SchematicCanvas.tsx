@@ -1,8 +1,9 @@
 import { SchematicJunctionNode } from "./nodes/schematic/SchematicJunctionNode";
 import React, { useRef, useState, useEffect, useMemo } from 'react';
+import Konva from 'konva';
 import { Stage, Layer, Rect } from 'react-konva';
 import { Tag, X, RotateCcw } from 'lucide-react';
-import { useSimulatorStore, formatLabelFromPattern } from '../../store/useSimulatorStore';
+import { useSimulatorStore, formatLabelFromPattern, getNodeByIdFast, getPastingIdsSet } from '../../store/useSimulatorStore';
 import { Grid } from './Grid';
 import { SchematicGateNode } from './nodes/schematic/SchematicGateNode';
 import { SchematicIONode } from './nodes/schematic/SchematicIONode';
@@ -27,19 +28,23 @@ import {
 } from './nodes/schematic/SchematicAnnotationNodes';
 
 
-let lastNodesArray: any[] = [];
-let nodeMapCache = new Map<string, any>();
 let hasInitializedSchematicViewport = false;
 
-function getNodeById(state: any, id: string) {
-  if (state.nodes !== lastNodesArray) {
-    nodeMapCache.clear();
-    for (let i = 0; i < state.nodes.length; i++) {
-      nodeMapCache.set(state.nodes[i].id, state.nodes[i]);
-    }
-    lastNodesArray = state.nodes;
+function areNodesVisualEqual(a: LogicNode, b: LogicNode): boolean {
+  if (a === b) return true;
+  if (
+    a.id !== b.id ||
+    a.type !== b.type ||
+    a.properties !== b.properties ||
+    a.inputs !== b.inputs ||
+    a.outputs !== b.outputs
+  ) {
+    return false;
   }
-  return nodeMapCache.get(id);
+  if (a.type === 'JUNCTION') {
+    return a.x === b.x && a.y === b.y;
+  }
+  return true;
 }
 
 import { LogicNode } from '../../core/models/types';
@@ -69,17 +74,32 @@ const SCHEMATIC_NODE_RENDERERS: Record<string, React.FC<{ node: LogicNode }>> = 
   FSM_DIAGRAM: SchematicFsmDiagramNode,
 };
 
+const NodeVisual = React.memo(
+  ({ node }: { node: LogicNode }) => {
+    const SpecificRenderer = SCHEMATIC_NODE_RENDERERS[node.type];
+    if (SpecificRenderer) return <SpecificRenderer node={node} />;
+
+    const def = getNodeDefinition(node.type);
+    if (def?.renderAs === 'DIP') return <SchematicICNode node={node} />;
+    if (def?.renderAs === 'BUS') return <SchematicBusNode node={node} />;
+    return <SchematicGateNode node={node} />;
+  },
+  (prev, next) => areNodesVisualEqual(prev.node, next.node)
+);
+
 const ConnectedNode = React.memo(({ id }: { id: string }) => {
-  const node = useSimulatorStore(state => getNodeById(state, id));
-
+  const prevNodeRef = useRef<LogicNode | undefined>(undefined);
+  const node = useSimulatorStore(state => {
+    const next = getNodeByIdFast(state, id);
+    const prev = prevNodeRef.current;
+    if (prev && next && areNodesVisualEqual(prev, next)) {
+      return prev;
+    }
+    prevNodeRef.current = next;
+    return next;
+  });
   if (!node) return null;
-  const SpecificRenderer = SCHEMATIC_NODE_RENDERERS[node.type];
-  if (SpecificRenderer) return <SpecificRenderer node={node} />;
-
-  const def = getNodeDefinition(node.type);
-  if (def?.renderAs === 'DIP') return <SchematicICNode node={node} />;
-  if (def?.renderAs === 'BUS') return <SchematicBusNode node={node} />;
-  return <SchematicGateNode node={node} />;
+  return <NodeVisual node={node} />;
 });
 
 const QuickLabelOverlay: React.FC = React.memo(() => {
@@ -235,7 +255,26 @@ export const SchematicCanvas: React.FC = () => {
     scale: initialStore.schematicScale,
   }));
   
-  const nodes = useSimulatorStore(state => state.nodes);
+  const prevLayoutNodesRef = useRef<LogicNode[]>(initialStore.nodes);
+  const nodes = useSimulatorStore(state => {
+    const next = state.nodes;
+    const prev = prevLayoutNodesRef.current;
+    if (prev === next) return prev;
+    if (next.length <= 2000 && prev.length === next.length) {
+      let sameStructure = true;
+      for (let i = 0; i < next.length; i++) {
+        if (prev[i].id !== next[i].id || prev[i].type !== next[i].type) {
+          sameStructure = false;
+          break;
+        }
+      }
+      if (sameStructure) {
+        return prev;
+      }
+    }
+    prevLayoutNodesRef.current = next;
+    return next;
+  });
   const placingNodeId = useSimulatorStore(state => state.placingNodeId);
   const pastingNodeIds = useSimulatorStore(state => state.pastingNodeIds);
   const isDrawingWire = useSimulatorStore(state => Boolean(state.draftWire));
@@ -247,20 +286,78 @@ export const SchematicCanvas: React.FC = () => {
   const shouldUseViewportCullingRef = useRef(shouldUseViewportCulling);
   shouldUseViewportCullingRef.current = shouldUseViewportCulling;
 
+  const stageRef = useRef<any>(null);
   const bgLayerRef = useRef<any>(null);
   const mainLayerRef = useRef<any>(null);
   const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wheelRafRef = useRef<number | null>(null);
-  const pendingViewRef = useRef<{ x: number; y: number; scale: number } | null>(null);
   const isWheelPanningRef = useRef(false);
+  const stagePanDragRef = useRef<{
+    active: boolean;
+    moved: boolean;
+    startClientX: number;
+    startClientY: number;
+    startStageX: number;
+    startStageY: number;
+  } | null>(null);
   const forceHitDrawRef = useRef(false);
+  const hitCanvasDirtyRef = useRef(false);
+  const invalidateHitCacheRef = useRef<(() => void) | null>(null);
   const lastMousePosRef = useRef({ x: 0, y: 0 });
 
   const refreshLayerHits = () => {
+    hitCanvasDirtyRef.current = false;
     forceHitDrawRef.current = true;
     bgLayerRef.current?.drawHit();
     mainLayerRef.current?.drawHit();
     forceHitDrawRef.current = false;
+    invalidateHitCacheRef.current?.();
+  };
+
+  const applyStageViewImmediate = (
+    stage: any,
+    nextX: number,
+    nextY: number,
+    nextScale: number,
+    shiftKey = false
+  ) => {
+    viewRef.current = { x: nextX, y: nextY, scale: nextScale };
+    isWheelPanningRef.current = true;
+    hitCanvasDirtyRef.current = true;
+
+    if (stage) {
+      if (stage.scaleX() !== nextScale || stage.scaleY() !== nextScale) {
+        stage.scale({ x: nextScale, y: nextScale });
+      }
+      stage.position({ x: nextX, y: nextY });
+      stage.batchDraw();
+    }
+
+    const store = useSimulatorStore.getState();
+    if (
+      !store.simRunning &&
+      (store.draftWire || store.pastingNodeIds || store.placingNodeId) &&
+      wheelRafRef.current === null
+    ) {
+      wheelRafRef.current = requestAnimationFrame(() => {
+        wheelRafRef.current = null;
+        const st = useSimulatorStore.getState();
+        if (st.simRunning) return;
+        const pos = lastMousePosRef.current;
+        if (st.draftWire) {
+          updateDraftWire(Math.round(pos.x / 20) * 20, Math.round(pos.y / 20) * 20, shiftKey);
+        } else if (st.pastingNodeIds) {
+          st.updatePastingNodes(Math.round(pos.x / 20) * 20, Math.round(pos.y / 20) * 20);
+        } else if (st.placingNodeId) {
+          const node = st.nodes.find(n => n.id === st.placingNodeId);
+          const anchor = node ? getSchematicAnchor(node) : { x: 0, y: 0 };
+          st.updatePlacingNode(
+            Math.round((pos.x - anchor.x) / 20) * 20,
+            Math.round((pos.y - anchor.y) / 20) * 20
+          );
+        }
+      });
+    }
   };
 
   const syncCommittedView = (nextX: number, nextY: number, nextScale: number) => {
@@ -295,7 +392,7 @@ export const SchematicCanvas: React.FC = () => {
     const bg: string[] = [];
     const fg: string[] = [];
     const shouldCull = Boolean(viewportBounds);
-    const pastingSet = pastingNodeIds && pastingNodeIds.length > 0 ? new Set(pastingNodeIds) : null;
+    const pastingSet = shouldCull ? getPastingIdsSet({ pastingNodeIds }) : null;
 
     for (let i = 0; i < nodes.length; i++) {
       const n = nodes[i];
@@ -322,21 +419,77 @@ export const SchematicCanvas: React.FC = () => {
   }, [nodes, viewportBounds, placingNodeId, pastingNodeIds]);
 
   useEffect(() => {
+    const isMovingCanvas = () =>
+      isWheelPanningRef.current ||
+      Boolean(stagePanDragRef.current?.active) ||
+      Konva.isDragging();
+
     const patchLayerDrawHit = (layer: any) => {
       if (!layer || layer._logicaPatchedDrawHit) return;
       const origDrawHit = layer.drawHit.bind(layer);
       layer._logicaPatchedDrawHit = true;
       layer.drawHit = function (can?: any, top?: any) {
         if (!forceHitDrawRef.current) {
-          if (isWheelPanningRef.current || useSimulatorStore.getState().simRunning) {
+          if (isMovingCanvas()) {
+            hitCanvasDirtyRef.current = true;
+            return this;
+          }
+          if (useSimulatorStore.getState().simRunning) {
             return this;
           }
         }
+        hitCanvasDirtyRef.current = false;
         return origDrawHit(can, top);
       };
     };
     patchLayerDrawHit(bgLayerRef.current);
     patchLayerDrawHit(mainLayerRef.current);
+
+    const stage = stageRef.current;
+    if (stage && !stage._logicaPatchedStage) {
+      stage._logicaPatchedStage = true;
+      const origGetIntersection = stage.getIntersection.bind(stage);
+      let lastHitX = NaN;
+      let lastHitY = NaN;
+      let lastHitTime = 0;
+      let lastHitShape: any = null;
+
+      invalidateHitCacheRef.current = () => {
+        lastHitX = NaN;
+        lastHitY = NaN;
+        lastHitTime = 0;
+        lastHitShape = null;
+      };
+
+      stage.getIntersection = function (pos: { x: number; y: number } | null) {
+        if (!pos || isWheelPanningRef.current || Boolean(stagePanDragRef.current?.active) || Konva.isDragging()) {
+          return null;
+        }
+        if (hitCanvasDirtyRef.current) {
+          refreshLayerHits();
+        }
+        const rx = Math.round(pos.x);
+        const ry = Math.round(pos.y);
+        const now = performance.now();
+        if (rx === lastHitX && ry === lastHitY && now - lastHitTime < 16) {
+          return lastHitShape;
+        }
+        lastHitX = rx;
+        lastHitY = ry;
+        lastHitTime = now;
+        lastHitShape = origGetIntersection(pos);
+        return lastHitShape;
+      };
+
+      stage._wheel = function (evt: WheelEvent) {
+        this.setPointersPositions(evt);
+        this._fire('wheel', {
+          evt,
+          target: this,
+          currentTarget: this,
+        });
+      };
+    }
   }, [dimensions.width, dimensions.height]);
 
   useEffect(() => {
@@ -370,14 +523,9 @@ export const SchematicCanvas: React.FC = () => {
         cancelAnimationFrame(wheelRafRef.current);
         wheelRafRef.current = null;
       }
-      if (pendingViewRef.current) {
-        const pending = pendingViewRef.current;
-        pendingViewRef.current = null;
-        if (wheelTimeoutRef.current) {
-          clearTimeout(wheelTimeoutRef.current);
-          wheelTimeoutRef.current = null;
-        }
-        viewRef.current = { x: pending.x, y: pending.y, scale: pending.scale };
+      if (wheelTimeoutRef.current) {
+        clearTimeout(wheelTimeoutRef.current);
+        wheelTimeoutRef.current = null;
       }
       const st = useSimulatorStore.getState();
       const cur = viewRef.current;
@@ -410,6 +558,22 @@ export const SchematicCanvas: React.FC = () => {
       const key = e.key.toLowerCase();
       
       if (e.ctrlKey || e.metaKey) {
+        if (code === 'KeyA' || key === 'a') {
+          e.preventDefault();
+          window.getSelection()?.removeAllRanges();
+          flushPendingWheelView();
+          const allIds: string[] = [];
+          for (let i = 0; i < store.nodes.length; i++) {
+            allIds.push(store.nodes[i].id);
+          }
+          for (let i = 0; i < store.wires.length; i++) {
+            allIds.push(store.wires[i].id);
+          }
+          if (allIds.length > 0) {
+            store.setMultiSelection(allIds);
+          }
+          return;
+        }
         if (code === 'KeyZ' || key === 'z') {
           e.preventDefault();
           flushPendingWheelView();
@@ -527,163 +691,188 @@ export const SchematicCanvas: React.FC = () => {
         if (store.draftWire) store.setDraftWireManhattan(false);
       }
     };
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      const pan = stagePanDragRef.current;
+      if (!pan || !pan.active) return;
+      const dx = e.clientX - pan.startClientX;
+      const dy = e.clientY - pan.startClientY;
+      if (!pan.moved && Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+      pan.moved = true;
+
+      const nextX = pan.startStageX + dx;
+      const nextY = pan.startStageY + dy;
+      const nextScale = viewRef.current.scale;
+      applyStageViewImmediate(stageRef.current, nextX, nextY, nextScale, e.shiftKey);
+    };
+    const handleGlobalMouseUp = () => {
+      const pan = stagePanDragRef.current;
+      if (pan) {
+        stagePanDragRef.current = null;
+        if (pan.moved) {
+          if (wheelRafRef.current !== null) {
+            cancelAnimationFrame(wheelRafRef.current);
+            wheelRafRef.current = null;
+          }
+          const finalView = viewRef.current;
+          const stage = stageRef.current;
+          if (stage) {
+            const container = stage.container();
+            const store = useSimulatorStore.getState();
+            if (container && !store.draftWire && !store.placingNodeId && !store.pastingNodeIds) {
+              container.style.cursor = 'grab';
+            }
+          }
+          syncCommittedView(finalView.x, finalView.y, finalView.scale);
+          return;
+        }
+      }
+      if (hitCanvasDirtyRef.current || Konva.isDragging()) {
+        hitCanvasDirtyRef.current = true;
+        requestAnimationFrame(() => {
+          if (!stagePanDragRef.current?.active && !Konva.isDragging() && !isWheelPanningRef.current) {
+            refreshLayerHits();
+          }
+        });
+      }
+    };
     window.addEventListener('keydown', handleGlobalKeyDown);
     window.addEventListener('keyup', handleGlobalKeyUp);
+    window.addEventListener('mousemove', handleGlobalMouseMove, { passive: true });
+    window.addEventListener('mouseup', handleGlobalMouseUp);
     return () => {
       flushPendingWheelView();
       window.removeEventListener('keydown', handleGlobalKeyDown);
       window.removeEventListener('keyup', handleGlobalKeyUp);
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
     };
   }, []);
+
+  const handleContainerMouseDownCapture = () => {
+    if (isWheelPanningRef.current || wheelTimeoutRef.current) {
+      if (wheelTimeoutRef.current) {
+        clearTimeout(wheelTimeoutRef.current);
+        wheelTimeoutRef.current = null;
+      }
+      if (wheelRafRef.current !== null) {
+        cancelAnimationFrame(wheelRafRef.current);
+        wheelRafRef.current = null;
+      }
+      const finalView = viewRef.current;
+      isWheelPanningRef.current = false;
+      hitCanvasDirtyRef.current = true;
+      syncCommittedView(finalView.x, finalView.y, finalView.scale);
+      return;
+    }
+    invalidateHitCacheRef.current?.();
+    if (hitCanvasDirtyRef.current) {
+      refreshLayerHits();
+    }
+  };
 
   return (
     <div 
       ref={containerRef} 
+      onMouseDownCapture={handleContainerMouseDownCapture}
       className="flex-1 h-full bg-slate-50 dark:bg-slate-900 overflow-hidden outline-none relative"
       tabIndex={0}
     >
       <QuickLabelOverlay />
       {dimensions.width > 0 && dimensions.height > 0 && (
         <Stage
+          ref={stageRef}
           width={dimensions.width}
           height={dimensions.height}
-        draggable={!isDrawingWire && !selectionBox && !placingNodeId && !pastingNodeIds} // Disable stage dragging while drawing wire, selecting, or placing/pasting
-        x={viewRef.current.x}
-        y={viewRef.current.y}
-        scaleX={viewRef.current.scale}
-        scaleY={viewRef.current.scale}
-        onDragMove={(e) => {
-          if (e.target === e.target.getStage()) {
-            viewRef.current.x = e.target.x();
-            viewRef.current.y = e.target.y();
-          }
-        }}
-        onDragEnd={(e) => {
-          if (e.target === e.target.getStage()) {
-            syncCommittedView(e.target.x(), e.target.y(), viewRef.current.scale);
-          }
-        }}
-        onWheel={(e) => {
-          e.evt.preventDefault();
-          const stage = e.target.getStage();
-          if (!stage) return;
-          
-          const { deltaX, deltaY, ctrlKey, shiftKey } = e.evt;
-
-          const currentScale = pendingViewRef.current ? pendingViewRef.current.scale : stage.scaleX();
-          const currentX = pendingViewRef.current ? pendingViewRef.current.x : stage.x();
-          const currentY = pendingViewRef.current ? pendingViewRef.current.y : stage.y();
-
-          const isTrackpadPinch = ctrlKey;
-          const forceZoom = isTrackpadPinch || (settings.mouseWheelBehavior === 'zoom' && !shiftKey);
-          
-          let nextScale = currentScale;
-          let nextX = currentX;
-          let nextY = currentY;
-
-          if (forceZoom) {
-            const pointer = stage.getPointerPosition();
-            if (!pointer) return;
+          draggable={false}
+          x={viewRef.current.x}
+          y={viewRef.current.y}
+          scaleX={viewRef.current.scale}
+          scaleY={viewRef.current.scale}
+          onWheel={(e) => {
+            e.evt.preventDefault();
+            const stage = e.target.getStage();
+            if (!stage) return;
             
-            const mousePointTo = {
-              x: (pointer.x - currentX) / currentScale,
-              y: (pointer.y - currentY) / currentScale,
-            };
+            const { deltaX, deltaY, ctrlKey, shiftKey } = e.evt;
 
-            let direction = deltaY > 0 ? -1 : 1;
-            if (settings.invertZoom) direction = -direction;
+            const currentScale = viewRef.current.scale;
+            const currentX = viewRef.current.x;
+            const currentY = viewRef.current.y;
+
+            const isTrackpadPinch = ctrlKey;
+            const forceZoom = isTrackpadPinch || (settings.mouseWheelBehavior === 'zoom' && !shiftKey);
             
-            const zoomAmount = Math.max(0.01, Math.abs(deltaY) * 0.01 * settings.zoomSensitivity);
-            const scaleBy = 1 + Math.min(zoomAmount, 0.5);
-            
-            const candidateScale = direction > 0 ? currentScale * scaleBy : currentScale / scaleBy;
-            if (candidateScale < 0.2 || candidateScale > 5) return;
-            
-            nextScale = candidateScale;
-            nextX = pointer.x - mousePointTo.x * nextScale;
-            nextY = pointer.y - mousePointTo.y * nextScale;
-          } else {
-            let panX = deltaX;
-            let panY = deltaY;
+            let nextScale = currentScale;
+            let nextX = currentX;
+            let nextY = currentY;
 
-            if (shiftKey && !isTrackpadPinch) {
-              panX = deltaY;
-              panY = deltaX;
-            }
-
-            nextX = currentX - panX * settings.panSpeed;
-            nextY = currentY - panY * settings.panSpeed;
-          }
-
-          pendingViewRef.current = { x: nextX, y: nextY, scale: nextScale };
-          viewRef.current = { x: nextX, y: nextY, scale: nextScale };
-          isWheelPanningRef.current = true;
-
-          const pointer = stage.getPointerPosition();
-          if (pointer) {
-            const worldPos = {
-              x: (pointer.x - nextX) / nextScale,
-              y: (pointer.y - nextY) / nextScale,
-            };
-            lastMousePosRef.current = worldPos;
-          }
-
-          if (wheelRafRef.current === null) {
-            wheelRafRef.current = requestAnimationFrame(() => {
-              wheelRafRef.current = null;
-              const pending = pendingViewRef.current;
-              if (!pending) return;
-
-              const applyTransform = () => {
-                if (stage.scaleX() !== pending.scale || stage.scaleY() !== pending.scale) {
-                  stage.scale({ x: pending.scale, y: pending.scale });
-                }
-                stage.position({ x: pending.x, y: pending.y });
+            if (forceZoom) {
+              const pointer = stage.getPointerPosition();
+              if (!pointer) return;
+              
+              const mousePointTo = {
+                x: (pointer.x - currentX) / currentScale,
+                y: (pointer.y - currentY) / currentScale,
               };
 
-              if (typeof (stage as any)._batchTransformChanges === 'function') {
-                (stage as any)._batchTransformChanges(applyTransform);
-              } else {
-                applyTransform();
+              let direction = deltaY > 0 ? -1 : 1;
+              if (settings.invertZoom) direction = -direction;
+              
+              const zoomAmount = Math.max(0.01, Math.abs(deltaY) * 0.01 * settings.zoomSensitivity);
+              const scaleBy = 1 + Math.min(zoomAmount, 0.5);
+              
+              const candidateScale = direction > 0 ? currentScale * scaleBy : currentScale / scaleBy;
+              if (candidateScale < 0.2 || candidateScale > 5) return;
+              
+              nextScale = candidateScale;
+              nextX = pointer.x - mousePointTo.x * nextScale;
+              nextY = pointer.y - mousePointTo.y * nextScale;
+            } else {
+              let panX = deltaX;
+              let panY = deltaY;
+
+              if (shiftKey && !isTrackpadPinch) {
+                panX = deltaY;
+                panY = deltaX;
               }
 
-              const store = useSimulatorStore.getState();
-              if (!store.simRunning) {
-                const pos = lastMousePosRef.current;
-                if (store.draftWire) {
-                  updateDraftWire(Math.round(pos.x / 20) * 20, Math.round(pos.y / 20) * 20, shiftKey);
-                } else if (store.pastingNodeIds) {
-                  store.updatePastingNodes(Math.round(pos.x / 20) * 20, Math.round(pos.y / 20) * 20);
-                } else if (store.placingNodeId) {
-                  const node = store.nodes.find(n => n.id === store.placingNodeId);
-                  const anchor = node ? getSchematicAnchor(node) : { x: 0, y: 0 };
-                  store.updatePlacingNode(
-                    Math.round((pos.x - anchor.x) / 20) * 20,
-                    Math.round((pos.y - anchor.y) / 20) * 20
-                  );
-                }
-              }
-            });
-          }
-
-          if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
-          wheelTimeoutRef.current = setTimeout(() => {
-            const finalView = pendingViewRef.current;
-            pendingViewRef.current = null;
-            if (finalView) {
-              syncCommittedView(finalView.x, finalView.y, finalView.scale);
+              nextX = currentX - panX * settings.panSpeed;
+              nextY = currentY - panY * settings.panSpeed;
             }
-          }, 150);
-        }}
+
+            const pointer = stage.getPointerPosition();
+            if (pointer) {
+              const worldPos = {
+                x: (pointer.x - nextX) / nextScale,
+                y: (pointer.y - nextY) / nextScale,
+              };
+              lastMousePosRef.current = worldPos;
+            }
+
+            applyStageViewImmediate(stage, nextX, nextY, nextScale, shiftKey);
+
+            if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
+            wheelTimeoutRef.current = setTimeout(() => {
+              wheelTimeoutRef.current = null;
+              const finalView = viewRef.current;
+              syncCommittedView(finalView.x, finalView.y, finalView.scale);
+            }, 150);
+          }}
         onMouseMove={(e) => {
+          if (stagePanDragRef.current?.active || Konva.isDragging()) return;
           const store = useSimulatorStore.getState();
           if (store.simRunning) return;
           const stage = e.target.getStage();
           if (!stage) return;
           const pointer = stage.getPointerPosition();
           if (!pointer) return;
-          const transform = stage.getAbsoluteTransform().copy().invert();
-          const pos = transform.point(pointer);
+          const curX = viewRef.current.x;
+          const curY = viewRef.current.y;
+          const curScale = viewRef.current.scale;
+          const pos = {
+            x: (pointer.x - curX) / curScale,
+            y: (pointer.y - curY) / curScale,
+          };
           lastMousePosRef.current = pos;
 
           if (selectionBox) {
@@ -867,11 +1056,39 @@ export const SchematicCanvas: React.FC = () => {
             }
             return;
           }
+          if (e.evt.button === 1) {
+            e.evt.preventDefault();
+            const stage = e.target.getStage();
+            if (stage) {
+              stagePanDragRef.current = {
+                active: true,
+                moved: false,
+                startClientX: e.evt.clientX,
+                startClientY: e.evt.clientY,
+                startStageX: viewRef.current.x,
+                startStageY: viewRef.current.y,
+              };
+              const container = stage.container();
+              if (container) container.style.cursor = 'grabbing';
+            }
+            return;
+          }
           if (e.target === e.target.getStage()) {
             select(null);
-            if (!store.draftWire) {
-              const container = e.target.getStage()?.container();
-              if (container) container.style.cursor = 'grabbing';
+            if (!store.draftWire && !store.placingNodeId && !store.pastingNodeIds) {
+              const stage = e.target.getStage();
+              if (stage) {
+                stagePanDragRef.current = {
+                  active: true,
+                  moved: false,
+                  startClientX: e.evt.clientX,
+                  startClientY: e.evt.clientY,
+                  startStageX: viewRef.current.x,
+                  startStageY: viewRef.current.y,
+                };
+                const container = stage.container();
+                if (container) container.style.cursor = 'grabbing';
+              }
             }
           }
         }}

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Circle } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
-import { useSimulatorStore } from '../../../../store/useSimulatorStore';
+import { useSimulatorStore, isIdSelected, getMultiSelectionSet, getPastingIdsSet } from '../../../../store/useSimulatorStore';
 import { getCanvasTheme } from '../../theme';
 
 interface Props {
@@ -18,13 +18,11 @@ function junctionHitFunc(ctx: any, shape: any) {
 
 export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
-  const isSelected = useSimulatorStore(state =>
-    (state.selection?.type === 'node' && state.selection.id === node.id) ||
-    state.multiSelection.includes(node.id)
-  );
+  const isSelected = useSimulatorStore(state => isIdSelected(state, node.id));
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const clickTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastGridPosRef = React.useRef({ x: node.x, y: node.y });
 
   const signal = useSimulatorStore(state =>
     state.simState.pinStates[node.inputs[0].id] ?? state.simState.pinStates[node.outputs[0].id]
@@ -50,7 +48,7 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
         e.cancelBubble = true;
         const store = useSimulatorStore.getState();
         if (store.simRunning) return;
-        if (store.pastingNodeIds && store.pastingNodeIds.includes(node.id)) {
+        if (getPastingIdsSet(store).has(node.id)) {
           store.finishPastingNodes();
           return;
         }
@@ -101,9 +99,11 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
           e.target.stopDrag();
           return;
         }
-        if (!store.multiSelection.includes(node.id)) {
+        if (!getMultiSelectionSet(store).has(node.id)) {
           store.select({ type: 'node', id: node.id }, e.evt.shiftKey);
         }
+        lastGridPosRef.current.x = Math.round(e.target.x() / 20) * 20;
+        lastGridPosRef.current.y = Math.round(e.target.y() / 20) * 20;
         store.saveHistory();
       }}
       onDragMove={(e) => {
@@ -112,6 +112,9 @@ export const SchematicJunctionNode: React.FC<Props> = React.memo(({ node }) => {
         const localX = Math.round(e.target.x() / 20) * 20;
         const localY = Math.round(e.target.y() / 20) * 20;
         e.target.position({ x: localX, y: localY });
+        if (lastGridPosRef.current.x === localX && lastGridPosRef.current.y === localY) return;
+        lastGridPosRef.current.x = localX;
+        lastGridPosRef.current.y = localY;
         useSimulatorStore.getState().updateNodePosition(node.id, localX, localY);
       }}
       onDragEnd={(e) => {

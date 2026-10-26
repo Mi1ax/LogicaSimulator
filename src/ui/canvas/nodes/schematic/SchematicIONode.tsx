@@ -1,7 +1,7 @@
 import React from 'react';
 import { Group, Rect, Text, Line } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
-import { useSimulatorStore } from '../../../../store/useSimulatorStore';
+import { useSimulatorStore, isIdSelected, isNodeBeingPlaced } from '../../../../store/useSimulatorStore';
 import { Pin } from '../../primitives/Pin';
 import { getSchematicDimensions } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
@@ -27,10 +27,7 @@ const CLOCK_WAVE_PTS = [-16, 6, -10, 6, -10, -6, 0, -6, 0, 6, 10, 6, 10, -6, 16,
 
 export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   const theme = useSimulatorStore(state => state.theme);
-  const isSelected = useSimulatorStore(state =>
-    (state.selection?.type === 'node' && state.selection.id === node.id) ||
-    state.multiSelection.includes(node.id)
-  );
+  const isSelected = useSimulatorStore(state => isIdSelected(state, node.id));
   const toggleInputNode = useSimulatorStore(state => state.toggleInputNode);
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
@@ -60,7 +57,7 @@ export const SchematicIONode: React.FC<IONodeProps> = React.memo(({ node }) => {
   
   const borderStroke = isInputLike ? canvasTheme.inputNodeBorder : canvasTheme.outputNodeBorder;
 
-  const isPlacing = useSimulatorStore(state => state.placingNodeId === node.id || Boolean(state.pastingNodeIds && state.pastingNodeIds.includes(node.id)));
+  const isPlacing = useSimulatorStore(state => isNodeBeingPlaced(state, node.id));
 
   return (
     <SchematicNodeWrapper node={node} cursor={isInput ? 'pointer' : 'grab'}>

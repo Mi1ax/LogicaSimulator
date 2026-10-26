@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Group, Rect, Text, Path } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
-import { useSimulatorStore } from '../../../../store/useSimulatorStore';
+import { useSimulatorStore, isIdSelected } from '../../../../store/useSimulatorStore';
 import { getSchematicDimensions } from '../../../../core/utils/schematicLayout';
 import { getCanvasTheme } from '../../theme';
 import { Pin } from '../../primitives/Pin';
@@ -14,10 +14,7 @@ interface Props {
 export const SchematicDipSwitchNode: React.FC<Props> = React.memo(({ node }) => {
   const updateNodeProperties = useSimulatorStore(state => state.updateNodeProperties);
   const theme = useSimulatorStore(state => state.theme);
-  const isSelected = useSimulatorStore(state =>
-    (state.selection?.type === 'node' && state.selection.id === node.id) ||
-    state.multiSelection.includes(node.id)
-  );
+  const isSelected = useSimulatorStore(state => isIdSelected(state, node.id));
   
   const canvasTheme = getCanvasTheme(theme === 'dark');
   const { width, height } = getSchematicDimensions(node);
