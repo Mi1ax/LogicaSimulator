@@ -1,16 +1,18 @@
 import { SchematicJunctionNode } from "./nodes/schematic/SchematicJunctionNode";
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import Konva from 'konva';
+import { SceneCanvas } from 'konva/lib/Canvas';
 import { Stage, Layer, Rect } from 'react-konva';
 import { Tag, X, RotateCcw } from 'lucide-react';
-import { useSimulatorStore, formatLabelFromPattern, getNodeByIdFast, getPastingIdsSet } from '../../store/useSimulatorStore';
-import { Grid } from './Grid';
+import { useSimulatorStore, formatLabelFromPattern, getNodeByIdFast, getPastingIdsSet, getMultiSelectionSet } from '../../store/useSimulatorStore';
+import { Grid, updateGridDomBackground } from './Grid';
 import { SchematicGateNode } from './nodes/schematic/SchematicGateNode';
 import { SchematicIONode } from './nodes/schematic/SchematicIONode';
 import { SchematicNetLabelNode, getNetLabelTextWidth } from './nodes/schematic/SchematicNetLabelNode';
 import { SchematicICNode } from './nodes/schematic/SchematicICNode';
 import { SchematicDipSwitchNode } from './nodes/schematic/SchematicDipSwitchNode';
-import { WireRenderer, ViewportBounds } from './wires/WireRenderer';
+import { WireRenderer, ViewportBounds, findWireAtWorldPos } from './wires/WireRenderer';
+import { BatchedPinsScene } from './primitives/Pin';
 import { getNodeDefinition } from '../../core/engine/nodes';
 import { getSchematicDimensions, getSchematicAnchor } from '../../core/utils/schematicLayout';
 import { computeAllWirePaths } from '../../core/engine/routing';
@@ -29,6 +31,7 @@ import {
 
 
 let hasInitializedSchematicViewport = false;
+const OVERSCAN_PAD = 480;
 
 function areNodesVisualEqual(a: LogicNode, b: LogicNode): boolean {
   if (a === b) return true;
@@ -281,17 +284,19 @@ export const SchematicCanvas: React.FC = () => {
   const updateDraftWire = useSimulatorStore(state => state.updateDraftWire);
   const select = useSimulatorStore(state => state.select);
   const settings = useSimulatorStore(state => state.settings);
+  const theme = useSimulatorStore(state => state.theme);
 
   const shouldUseViewportCulling = nodes.length > 2000;
   const shouldUseViewportCullingRef = useRef(shouldUseViewportCulling);
   shouldUseViewportCullingRef.current = shouldUseViewportCulling;
 
   const stageRef = useRef<any>(null);
-  const bgLayerRef = useRef<any>(null);
   const mainLayerRef = useRef<any>(null);
   const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wheelRafRef = useRef<number | null>(null);
+  const viewDrawRafRef = useRef<number | null>(null);
   const isWheelPanningRef = useRef(false);
+  const panJustMovedRef = useRef(false);
   const stagePanDragRef = useRef<{
     active: boolean;
     moved: boolean;
@@ -300,15 +305,59 @@ export const SchematicCanvas: React.FC = () => {
     startStageX: number;
     startStageY: number;
   } | null>(null);
+  const overscanRef = useRef<{
+    active: boolean;
+    baseX: number;
+    baseY: number;
+    scale: number;
+    width: number;
+    height: number;
+    sceneCanvas: any;
+  } | null>(null);
   const forceHitDrawRef = useRef(false);
   const hitCanvasDirtyRef = useRef(false);
   const invalidateHitCacheRef = useRef<(() => void) | null>(null);
   const lastMousePosRef = useRef({ x: 0, y: 0 });
 
+  const hideOverscanCanvas = () => {
+    const ov = overscanRef.current;
+    if (ov && ov.active) {
+      ov.active = false;
+      const domCan = ov.sceneCanvas?._canvas as HTMLCanvasElement | undefined;
+      if (domCan) {
+        domCan.style.display = 'none';
+      }
+      const nativeCan = mainLayerRef.current?.getNativeCanvasElement?.() as HTMLCanvasElement | undefined;
+      if (nativeCan) {
+        nativeCan.style.visibility = 'visible';
+      }
+    }
+  };
+
+  useEffect(() => {
+    updateGridDomBackground(
+      containerRef.current,
+      viewRef.current.x,
+      viewRef.current.y,
+      viewRef.current.scale,
+      theme === 'dark'
+    );
+    hideOverscanCanvas();
+  }, [dimensions.width, dimensions.height, theme]);
+
+  useEffect(() => {
+    return () => {
+      const domCan = overscanRef.current?.sceneCanvas?._canvas as HTMLCanvasElement | undefined;
+      if (domCan && domCan.parentNode) {
+        domCan.parentNode.removeChild(domCan);
+      }
+      overscanRef.current = null;
+    };
+  }, []);
+
   const refreshLayerHits = () => {
     hitCanvasDirtyRef.current = false;
     forceHitDrawRef.current = true;
-    bgLayerRef.current?.drawHit();
     mainLayerRef.current?.drawHit();
     forceHitDrawRef.current = false;
     invalidateHitCacheRef.current?.();
@@ -321,16 +370,114 @@ export const SchematicCanvas: React.FC = () => {
     nextScale: number,
     shiftKey = false
   ) => {
+    const prevScale = viewRef.current.scale;
+    const isPurePan = nextScale === prevScale;
     viewRef.current = { x: nextX, y: nextY, scale: nextScale };
     isWheelPanningRef.current = true;
     hitCanvasDirtyRef.current = true;
 
-    if (stage) {
-      if (stage.scaleX() !== nextScale || stage.scaleY() !== nextScale) {
-        stage.scale({ x: nextScale, y: nextScale });
-      }
-      stage.position({ x: nextX, y: nextY });
-      stage.batchDraw();
+    // Coalesce high-frequency mouse/wheel events (250–1000 Hz) into at most one update per animation frame
+    if (stage && viewDrawRafRef.current === null) {
+      viewDrawRafRef.current = requestAnimationFrame(() => {
+        viewDrawRafRef.current = null;
+        const stg = stageRef.current;
+        const layer = mainLayerRef.current;
+        const container = containerRef.current;
+        if (!stg || !layer || !container) return;
+
+        const { x, y, scale } = viewRef.current;
+        const st = useSimulatorStore.getState();
+        updateGridDomBackground(container, x, y, scale, st.theme === 'dark');
+
+        const canUseGpuPan =
+          isPurePan &&
+          !st.simRunning &&
+          !st.draftWire &&
+          !st.placingNodeId &&
+          !st.pastingNodeIds;
+
+        if (canUseGpuPan) {
+          const w = stg.width();
+          const h = stg.height();
+          let ov = overscanRef.current;
+          if (!ov || ov.width !== w || ov.height !== h) {
+            if (ov?.sceneCanvas?._canvas?.parentNode) {
+              ov.sceneCanvas._canvas.parentNode.removeChild(ov.sceneCanvas._canvas);
+            }
+            const pr = layer.getCanvas().getPixelRatio();
+            const sc = new SceneCanvas({
+              width: w + OVERSCAN_PAD * 2,
+              height: h + OVERSCAN_PAD * 2,
+              pixelRatio: pr,
+            });
+            sc._canvas.style.position = 'absolute';
+            sc._canvas.style.left = `${-OVERSCAN_PAD}px`;
+            sc._canvas.style.top = `${-OVERSCAN_PAD}px`;
+            sc._canvas.style.pointerEvents = 'none';
+            sc._canvas.style.zIndex = '1';
+            sc._canvas.style.display = 'none';
+            sc._canvas.style.willChange = 'transform';
+            container.insertBefore(sc._canvas, container.firstChild);
+            ov = {
+              active: false,
+              baseX: x,
+              baseY: y,
+              scale,
+              width: w,
+              height: h,
+              sceneCanvas: sc,
+            };
+            overscanRef.current = ov;
+          }
+
+          const dx = x - ov.baseX;
+          const dy = y - ov.baseY;
+          if (
+            !ov.active ||
+            ov.scale !== scale ||
+            Math.abs(dx) > OVERSCAN_PAD ||
+            Math.abs(dy) > OVERSCAN_PAD
+          ) {
+            ov.baseX = x;
+            ov.baseY = y;
+            ov.scale = scale;
+            ov.active = true;
+
+            const prevAuto = Konva.autoDrawEnabled;
+            Konva.autoDrawEnabled = false;
+            if (stg.scaleX() !== scale || stg.scaleY() !== scale) {
+              stg.scale({ x: scale, y: scale });
+            }
+            stg.position({ x: x + OVERSCAN_PAD, y: y + OVERSCAN_PAD });
+            (stg as any)._overscanPad = OVERSCAN_PAD;
+            layer.drawScene(ov.sceneCanvas);
+            (stg as any)._overscanPad = 0;
+            Konva.autoDrawEnabled = prevAuto;
+
+            ov.sceneCanvas._canvas.style.transform = 'translate3d(0px, 0px, 0)';
+            ov.sceneCanvas._canvas.style.display = 'block';
+            const nativeCan = layer.getNativeCanvasElement() as HTMLCanvasElement | undefined;
+            if (nativeCan) {
+              nativeCan.style.visibility = 'hidden';
+            }
+          } else {
+            ov.sceneCanvas._canvas.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+          }
+          return;
+        }
+
+        hideOverscanCanvas();
+        const prevAuto = Konva.autoDrawEnabled;
+        Konva.autoDrawEnabled = false;
+        if (stg.scaleX() !== scale || stg.scaleY() !== scale) {
+          stg.scale({ x: scale, y: scale });
+        }
+        if (stg.x() !== x || stg.y() !== y) {
+          stg.position({ x, y });
+        }
+        Konva.autoDrawEnabled = prevAuto;
+        layer.drawScene();
+      });
     }
 
     const store = useSimulatorStore.getState();
@@ -361,10 +508,29 @@ export const SchematicCanvas: React.FC = () => {
   };
 
   const syncCommittedView = (nextX: number, nextY: number, nextScale: number) => {
+    if (viewDrawRafRef.current !== null) {
+      cancelAnimationFrame(viewDrawRafRef.current);
+      viewDrawRafRef.current = null;
+    }
+    const st = useSimulatorStore.getState();
+    updateGridDomBackground(containerRef.current, nextX, nextY, nextScale, st.theme === 'dark');
+    const stg = stageRef.current;
+    if (stg) {
+      const prevAuto = Konva.autoDrawEnabled;
+      Konva.autoDrawEnabled = false;
+      if (stg.scaleX() !== nextScale || stg.scaleY() !== nextScale) {
+        stg.scale({ x: nextScale, y: nextScale });
+      }
+      if (stg.x() !== nextX || stg.y() !== nextY) {
+        stg.position({ x: nextX, y: nextY });
+      }
+      Konva.autoDrawEnabled = prevAuto;
+      mainLayerRef.current?.drawScene();
+    }
+    hideOverscanCanvas();
     viewRef.current = { x: nextX, y: nextY, scale: nextScale };
     isWheelPanningRef.current = false;
     refreshLayerHits();
-    const st = useSimulatorStore.getState();
     if (st.schematicPos.x !== nextX || st.schematicPos.y !== nextY) {
       st.setSchematicPos({ x: nextX, y: nextY });
     }
@@ -442,7 +608,6 @@ export const SchematicCanvas: React.FC = () => {
         return origDrawHit(can, top);
       };
     };
-    patchLayerDrawHit(bgLayerRef.current);
     patchLayerDrawHit(mainLayerRef.current);
 
     const stage = stageRef.current;
@@ -519,6 +684,10 @@ export const SchematicCanvas: React.FC = () => {
   useEffect(() => {
     const flushPendingWheelView = () => {
       isWheelPanningRef.current = false;
+      if (viewDrawRafRef.current !== null) {
+        cancelAnimationFrame(viewDrawRafRef.current);
+        viewDrawRafRef.current = null;
+      }
       if (wheelRafRef.current !== null) {
         cancelAnimationFrame(wheelRafRef.current);
         wheelRafRef.current = null;
@@ -698,6 +867,7 @@ export const SchematicCanvas: React.FC = () => {
       const dy = e.clientY - pan.startClientY;
       if (!pan.moved && Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
       pan.moved = true;
+      panJustMovedRef.current = true;
 
       const nextX = pan.startStageX + dx;
       const nextY = pan.startStageY + dy;
@@ -753,6 +923,10 @@ export const SchematicCanvas: React.FC = () => {
       if (wheelTimeoutRef.current) {
         clearTimeout(wheelTimeoutRef.current);
         wheelTimeoutRef.current = null;
+      }
+      if (viewDrawRafRef.current !== null) {
+        cancelAnimationFrame(viewDrawRafRef.current);
+        viewDrawRafRef.current = null;
       }
       if (wheelRafRef.current !== null) {
         cancelAnimationFrame(wheelRafRef.current);
@@ -902,6 +1076,15 @@ export const SchematicCanvas: React.FC = () => {
             const gridX = Math.round((pos.x - offsetX) / 20) * 20;
             const gridY = Math.round((pos.y - offsetY) / 20) * 20;
             store.updatePlacingNode(gridX, gridY);
+          } else if (e.target === stage) {
+            const container = stage.container();
+            if (container) {
+              const wireHit = findWireAtWorldPos(pos.x, pos.y, curScale);
+              const nextCursor = wireHit ? 'pointer' : 'grab';
+              if (container.style.cursor !== nextCursor) {
+                container.style.cursor = nextCursor;
+              }
+            }
           }
         }}
         onMouseUp={(e) => {
@@ -998,6 +1181,10 @@ export const SchematicCanvas: React.FC = () => {
           }
         }}
         onClick={(e) => {
+          if (panJustMovedRef.current) {
+            panJustMovedRef.current = false;
+            return;
+          }
           const store = useSimulatorStore.getState();
           if (store.pastingNodeIds) {
             store.finishPastingNodes();
@@ -1010,23 +1197,67 @@ export const SchematicCanvas: React.FC = () => {
 
           const isBackground = e.target === e.target.getStage() || e.target.name() === 'grid';
           if (isBackground) {
-            if (store.draftWire) {
-              const stage = e.target.getStage();
-              const pointer = stage?.getPointerPosition();
-              if (stage && pointer) {
-                const transform = stage.getAbsoluteTransform().copy().invert();
-                const pos = transform.point(pointer);
-                // Snap to grid
+            const stage = e.target.getStage();
+            const pointer = stage?.getPointerPosition();
+            if (stage && pointer) {
+              const curX = viewRef.current.x;
+              const curY = viewRef.current.y;
+              const curScale = viewRef.current.scale;
+              const pos = {
+                x: (pointer.x - curX) / curScale,
+                y: (pointer.y - curY) / curScale,
+              };
+              const wireHit = !store.simRunning ? findWireAtWorldPos(pos.x, pos.y, curScale) : null;
+              if (wireHit) {
+                if (store.draftWire) {
+                  const nx = Math.round(pos.x / 20) * 20;
+                  const ny = Math.round(pos.y / 20) * 20;
+                  const splitWp1 = wireHit.wire.waypoints?.slice(0, wireHit.segmentIndex);
+                  const splitWp2 = wireHit.wire.waypoints?.slice(wireHit.segmentIndex);
+                  store.completeWireOnWire(wireHit.wire.id, nx, ny, splitWp1, splitWp2, e.evt.shiftKey);
+                } else {
+                  store.select({ type: 'wire', id: wireHit.wire.id }, e.evt.shiftKey);
+                }
+                return;
+              }
+              if (store.draftWire) {
                 const nx = Math.round(pos.x / 20) * 20;
                 const ny = Math.round(pos.y / 20) * 20;
                 store.addWaypoint(nx, ny, e.evt.shiftKey);
+                return;
               }
-            } else {
-              select(null);
             }
+            select(null);
           }
         }}
+        onDblClick={(e) => {
+          if (e.target !== e.target.getStage()) return;
+          const store = useSimulatorStore.getState();
+          if (store.simRunning || store.draftWire || store.placingNodeId || store.pastingNodeIds) return;
+          const stage = e.target.getStage();
+          const pointer = stage?.getPointerPosition();
+          if (!stage || !pointer) return;
+          const curX = viewRef.current.x;
+          const curY = viewRef.current.y;
+          const curScale = viewRef.current.scale;
+          const pos = {
+            x: (pointer.x - curX) / curScale,
+            y: (pointer.y - curY) / curScale,
+          };
+          const wireHit = findWireAtWorldPos(pos.x, pos.y, curScale);
+          if (!wireHit) return;
+          const nx = Math.round(pos.x / 20) * 20;
+          const ny = Math.round(pos.y / 20) * 20;
+          if (wireHit.points.some(p => Math.round(p.x / 20) * 20 === nx && Math.round(p.y / 20) * 20 === ny)) {
+            return;
+          }
+          const newWaypoints = [...(wireHit.wire.waypoints || [])];
+          newWaypoints.splice(wireHit.segmentIndex, 0, { x: nx, y: ny });
+          store.saveHistory();
+          store.updateWireWaypoints(wireHit.wire.id, newWaypoints);
+        }}
         onMouseDown={(e) => {
+          panJustMovedRef.current = false;
           const store = useSimulatorStore.getState();
           if (e.evt.button === 2) {
             // Right click
@@ -1043,6 +1274,26 @@ export const SchematicCanvas: React.FC = () => {
             if (store.placingNodeId) {
               store.finishPlacingNode();
               return;
+            }
+          }
+          if (e.target === e.target.getStage() && e.evt.button === 0 && !store.simRunning && !store.draftWire && !store.placingNodeId && !store.pastingNodeIds) {
+            const stage = e.target.getStage();
+            const pointer = stage?.getPointerPosition();
+            if (stage && pointer) {
+              const curX = viewRef.current.x;
+              const curY = viewRef.current.y;
+              const curScale = viewRef.current.scale;
+              const pos = {
+                x: (pointer.x - curX) / curScale,
+                y: (pointer.y - curY) / curScale,
+              };
+              const wireHit = findWireAtWorldPos(pos.x, pos.y, curScale);
+              if (wireHit) {
+                if (!e.evt.shiftKey && !getMultiSelectionSet(store).has(wireHit.wire.id)) {
+                  store.select({ type: 'wire', id: wireHit.wire.id }, false);
+                }
+                return;
+              }
             }
           }
           if (e.target === e.target.getStage() && e.evt.shiftKey && !store.simRunning && !store.draftWire && (!store.placingNodeId && !store.pastingNodeIds)) {
@@ -1074,7 +1325,6 @@ export const SchematicCanvas: React.FC = () => {
             return;
           }
           if (e.target === e.target.getStage()) {
-            select(null);
             if (!store.draftWire && !store.placingNodeId && !store.pastingNodeIds) {
               const stage = e.target.getStage();
               if (stage) {
@@ -1095,18 +1345,16 @@ export const SchematicCanvas: React.FC = () => {
         onContextMenu={(e) => e.evt.preventDefault()}
         style={{ cursor: isDrawingWire ? 'crosshair' : 'grab' }}
       >
-        <Grid 
-          width={dimensions.width} 
-          height={dimensions.height} 
-        />
+        <Layer ref={mainLayerRef}>
+          <Grid 
+            width={dimensions.width} 
+            height={dimensions.height} 
+          />
 
-        <Layer ref={bgLayerRef}>
           {backgroundNodeIds.map((id) => (
             <ConnectedNode key={id} id={id} />
           ))}
-        </Layer>
 
-        <Layer ref={mainLayerRef}>
           <WireRenderer viewportBounds={viewportBounds} />
           {selectionBox && (
             <Rect
@@ -1123,6 +1371,7 @@ export const SchematicCanvas: React.FC = () => {
           {foregroundNodeIds.map((id) => (
             <ConnectedNode key={id} id={id} />
           ))}
+          <BatchedPinsScene />
         </Layer>
       </Stage>
       )}

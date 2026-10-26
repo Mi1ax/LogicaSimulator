@@ -1,10 +1,19 @@
 import React, { useMemo, useRef } from 'react';
-import { Path, Group, Circle } from 'react-konva';
+import { Path, Group, Circle, Shape } from 'react-konva';
 import { useSimulatorStore, isIdSelected, getMultiSelectionSet, getNodeByIdFast } from '../../../store/useSimulatorStore';
 import { computeAllWirePaths, computeDraftWirePath } from '../../../core/engine/routing';
 import { getCanvasTheme } from '../theme';
 import { getSchematicPinPosition } from '../../../core/utils/schematicLayout';
 import { Wire } from '../../../core/models/types';
+
+export type WirePathInfo = {
+  path: string;
+  points: { x: number; y: number }[];
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+};
 
 function distToSegmentSquared(p: {x:number, y:number}, v: {x:number, y:number}, w: {x:number, y:number}) {
   const l2 = (w.x - v.x) ** 2 + (w.y - v.y) ** 2;
@@ -14,6 +23,71 @@ function distToSegmentSquared(p: {x:number, y:number}, v: {x:number, y:number}, 
   return (p.x - (v.x + t * (w.x - v.x))) ** 2 + (p.y - (v.y + t * (w.y - v.y))) ** 2;
 }
 
+const latestWireHitData: {
+  wires: Wire[];
+  wirePaths: Map<string, WirePathInfo>;
+  busPinIds: Set<string>;
+} = {
+  wires: [],
+  wirePaths: new Map(),
+  busPinIds: new Set(),
+};
+
+export interface WireHitResult {
+  wire: Wire;
+  points: { x: number; y: number }[];
+  segmentIndex: number;
+}
+
+export function findWireAtWorldPos(
+  worldX: number,
+  worldY: number,
+  scale: number
+): WireHitResult | null {
+  const { wires, wirePaths, busPinIds } = latestWireHitData;
+  if (wires.length === 0) return null;
+
+  const invScale = 1 / Math.max(0.2, scale || 1);
+  const pt = { x: worldX, y: worldY };
+
+  let bestWire: Wire | null = null;
+  let bestPoints: { x: number; y: number }[] | null = null;
+  let bestSegIdx = 0;
+  let bestDistSq = Infinity;
+
+  for (let i = wires.length - 1; i >= 0; i--) {
+    const w = wires[i];
+    const info = wirePaths.get(w.id);
+    if (!info || info.points.length < 2) continue;
+
+    const isBus = busPinIds.has(w.sourcePinId);
+    const tol = (isBus ? 8 : 6) * invScale;
+    if (
+      worldX < info.minX - tol ||
+      worldX > info.maxX + tol ||
+      worldY < info.minY - tol ||
+      worldY > info.maxY + tol
+    ) {
+      continue;
+    }
+
+    const tolSq = tol * tol;
+    const pts = info.points;
+    for (let j = 0; j < pts.length - 1; j++) {
+      const dSq = distToSegmentSquared(pt, pts[j], pts[j + 1]);
+      if (dSq <= tolSq && dSq < bestDistSq) {
+        bestDistSq = dSq;
+        bestWire = w;
+        bestPoints = pts;
+        bestSegIdx = j;
+      }
+    }
+  }
+
+  if (!bestWire || !bestPoints) return null;
+  return { wire: bestWire, points: bestPoints, segmentIndex: bestSegIdx };
+}
+
 function pointHitFunc(ctx: any, shape: any) {
   const sx = Math.abs(shape.scaleX()) || 1;
   ctx.beginPath();
@@ -21,130 +95,6 @@ function pointHitFunc(ctx: any, shape: any) {
   ctx.closePath();
   ctx.fillStrokeShape(shape);
 }
-
-const SingleWire = React.memo(({
-  wire,
-  pathData,
-  points,
-  isBusWire,
-  canvasTheme,
-}: {
-  wire: Wire;
-  pathData: string;
-  points: { x: number; y: number }[];
-  isBusWire: boolean;
-  canvasTheme: any;
-}) => {
-  const signal = useSimulatorStore(state => state.simState.wireStates[wire.id]);
-  const isSelected = useSimulatorStore(state => isIdSelected(state, wire.id));
-
-  let strokeColor = canvasTheme.wireColor;
-  if (signal === 1) strokeColor = canvasTheme.signalHigh;
-  else if (signal === 0) strokeColor = canvasTheme.signalLow;
-  else if (signal === 'X') strokeColor = '#ef4444';
-
-  if (isSelected) strokeColor = canvasTheme.selectedWireColor;
-  else if (isBusWire) strokeColor = '#3b82f6';
-
-  return (
-    <Path
-      data={pathData}
-      stroke={strokeColor}
-      strokeWidth={isBusWire ? 4 : 2}
-      hitStrokeWidth={isBusWire ? 16 : 10}
-      perfectDrawEnabled={false}
-      shadowForStrokeEnabled={false}
-      onMouseEnter={(e) => {
-        const store = useSimulatorStore.getState();
-        if (store.simRunning) return;
-        const container = e.target.getStage()?.container();
-        if (container) {
-          container.style.cursor = store.draftWire ? 'crosshair' : 'pointer';
-        }
-      }}
-      onMouseLeave={(e) => {
-        const store = useSimulatorStore.getState();
-        if (store.simRunning) return;
-        const container = e.target.getStage()?.container();
-        if (container) {
-          container.style.cursor = store.draftWire ? 'crosshair' : 'default';
-        }
-      }}
-      onMouseDown={(e) => {
-        if (e.evt.button !== 0) return;
-        e.cancelBubble = true;
-        const store = useSimulatorStore.getState();
-        if (store.simRunning || store.draftWire) return;
-        if (!e.evt.shiftKey && !getMultiSelectionSet(store).has(wire.id)) {
-          store.select({ type: 'wire', id: wire.id }, false);
-        }
-      }}
-      onClick={(e) => {
-        e.cancelBubble = true;
-        const store = useSimulatorStore.getState();
-        if (store.simRunning) return;
-        if (store.draftWire) {
-          const stage = e.target.getStage();
-          const pointer = stage?.getPointerPosition();
-          if (!stage || !pointer || points.length < 2) return;
-
-          const transform = stage.getAbsoluteTransform().copy().invert();
-          const pos = transform.point(pointer);
-
-          let minIdx = 0;
-          let minDist = Infinity;
-          for (let i = 0; i < points.length - 1; i++) {
-            const d = distToSegmentSquared(pos, points[i], points[i + 1]);
-            if (d < minDist) {
-              minDist = d;
-              minIdx = i;
-            }
-          }
-
-          const nx = Math.round(pos.x / 20) * 20;
-          const ny = Math.round(pos.y / 20) * 20;
-          const splitWp1 = wire.waypoints?.slice(0, minIdx);
-          const splitWp2 = wire.waypoints?.slice(minIdx);
-          store.completeWireOnWire(wire.id, nx, ny, splitWp1, splitWp2, e.evt.shiftKey);
-          return;
-        }
-        store.select({ type: 'wire', id: wire.id }, e.evt.shiftKey);
-      }}
-      onDblClick={(e) => {
-        e.cancelBubble = true;
-        if (useSimulatorStore.getState().simRunning) return;
-        const stage = e.target.getStage();
-        const pointer = stage?.getPointerPosition();
-        if (!stage || !pointer || points.length < 2) return;
-        
-        const transform = stage.getAbsoluteTransform().copy().invert();
-        const pos = transform.point(pointer);
-        
-        let minIdx = 0;
-        let minDist = Infinity;
-        for (let i = 0; i < points.length - 1; i++) {
-          const d = distToSegmentSquared(pos, points[i], points[i+1]);
-          if (d < minDist) {
-            minDist = d;
-            minIdx = i;
-          }
-        }
-        
-        const nx = Math.round(pos.x / 20) * 20;
-        const ny = Math.round(pos.y / 20) * 20;
-        if (points.some(p => Math.round(p.x / 20) * 20 === nx && Math.round(p.y / 20) * 20 === ny)) {
-          return;
-        }
-        
-        const newWaypoints = [...(wire.waypoints || [])];
-        newWaypoints.splice(minIdx, 0, { x: nx, y: ny });
-        const store = useSimulatorStore.getState();
-        store.saveHistory();
-        store.updateWireWaypoints(wire.id, newWaypoints);
-      }}
-    />
-  );
-});
 
 const SingleWireWaypoints = React.memo(({
   wire,
@@ -340,6 +290,123 @@ const DraftWirePreview: React.FC<{ draftWireColor: string }> = React.memo(({ dra
   );
 });
 
+const BatchedWiresScene: React.FC<{
+  wires: Wire[];
+  wirePaths: Map<string, WirePathInfo>;
+  busPinIds: Set<string>;
+  canvasTheme: any;
+}> = React.memo(({ wires, wirePaths, busPinIds, canvasTheme }) => {
+  // Subscribe to wireStates and selection so this single Shape triggers a Konva redraw when they change
+  const wireStates = useSimulatorStore(state => state.simState.wireStates);
+  const selection = useSimulatorStore(state => state.selection);
+  const multiSelection = useSimulatorStore(state => state.multiSelection);
+
+  const stateRef = useRef({ wires, wirePaths, busPinIds, canvasTheme, wireStates, selection, multiSelection });
+  stateRef.current = { wires, wirePaths, busPinIds, canvasTheme, wireStates, selection, multiSelection };
+
+  return (
+    <Shape
+      listening={false}
+      perfectDrawEnabled={false}
+      shadowForStrokeEnabled={false}
+      sceneFunc={(ctx, shape) => {
+        const {
+          wires: curWires,
+          wirePaths: curPaths,
+          busPinIds: curBusPins,
+          canvasTheme: curTheme,
+          wireStates: curWireStates,
+        } = stateRef.current;
+
+        if (curWires.length === 0) return;
+
+        const store = useSimulatorStore.getState();
+        const stage = shape.getStage();
+
+        let minX = -Infinity;
+        let maxX = Infinity;
+        let minY = -Infinity;
+        let maxY = Infinity;
+        if (stage) {
+          const sx = stage.x();
+          const sy = stage.y();
+          const scale = stage.scaleX() || 1;
+          const pad = (stage as any)._overscanPad || 0;
+          const sw = stage.width() + pad * 2;
+          const sh = stage.height() + pad * 2;
+          minX = (-sx - 40) / scale;
+          maxX = (sw - sx + 40) / scale;
+          minY = (-sy - 40) / scale;
+          maxY = (sh - sy + 40) / scale;
+        }
+
+        const unpowered: { x: number; y: number }[][] = [];
+        const low: { x: number; y: number }[][] = [];
+        const high: { x: number; y: number }[][] = [];
+        const conflict: { x: number; y: number }[][] = [];
+        const bus: { x: number; y: number }[][] = [];
+        const selected1Bit: { x: number; y: number }[][] = [];
+        const selectedBus: { x: number; y: number }[][] = [];
+
+        for (let i = 0; i < curWires.length; i++) {
+          const w = curWires[i];
+          const info = curPaths.get(w.id);
+          if (!info || info.points.length < 2) continue;
+          if (info.maxX < minX || info.minX > maxX || info.maxY < minY || info.minY > maxY) {
+            continue;
+          }
+
+          const isBus = curBusPins.has(w.sourcePinId);
+          const isSel = isIdSelected(store, w.id);
+
+          if (isSel) {
+            if (isBus) selectedBus.push(info.points);
+            else selected1Bit.push(info.points);
+          } else if (isBus) {
+            bus.push(info.points);
+          } else {
+            const sig = curWireStates[w.id];
+            if (sig === 1) high.push(info.points);
+            else if (sig === 0) low.push(info.points);
+            else if (sig === 'X') conflict.push(info.points);
+            else unpowered.push(info.points);
+          }
+        }
+
+        const rawCtx = (ctx as any)._context as CanvasRenderingContext2D;
+        rawCtx.save();
+        rawCtx.lineCap = 'butt';
+        rawCtx.lineJoin = 'miter';
+
+        const strokeBucket = (bucket: { x: number; y: number }[][], color: string, width: number) => {
+          if (bucket.length === 0) return;
+          rawCtx.beginPath();
+          for (let i = 0; i < bucket.length; i++) {
+            const pts = bucket[i];
+            rawCtx.moveTo(pts[0].x, pts[0].y);
+            for (let j = 1; j < pts.length; j++) {
+              rawCtx.lineTo(pts[j].x, pts[j].y);
+            }
+          }
+          rawCtx.strokeStyle = color;
+          rawCtx.lineWidth = width;
+          rawCtx.stroke();
+        };
+
+        strokeBucket(unpowered, curTheme.wireColor, 2);
+        strokeBucket(low, curTheme.signalLow, 2);
+        strokeBucket(high, curTheme.signalHigh, 2);
+        strokeBucket(conflict, '#ef4444', 2);
+        strokeBucket(bus, '#3b82f6', 4);
+        strokeBucket(selected1Bit, curTheme.selectedWireColor, 2);
+        strokeBucket(selectedBus, curTheme.selectedWireColor, 4);
+
+        rawCtx.restore();
+      }}
+    />
+  );
+});
+
 export interface ViewportBounds {
   minX: number;
   maxX: number;
@@ -391,35 +458,20 @@ export const WireRenderer: React.FC<{ viewportBounds?: ViewportBounds | null }> 
     return set;
   }, [nodes]);
 
+  latestWireHitData.wires = wires;
+  latestWireHitData.wirePaths = wirePaths;
+  latestWireHitData.busPinIds = busPinIds;
+
   const cullWires = Boolean(viewportBounds && wires.length > 100);
 
   return (
     <>
-      {wires.map(wire => {
-        const wireInfo = wirePaths.get(wire.id);
-        if (!wireInfo) return null;
-        if (
-          cullWires &&
-          viewportBounds &&
-          (wireInfo.maxX < viewportBounds.minX ||
-            wireInfo.minX > viewportBounds.maxX ||
-            wireInfo.maxY < viewportBounds.minY ||
-            wireInfo.minY > viewportBounds.maxY)
-        ) {
-          return null;
-        }
-        
-        return (
-          <SingleWire 
-            key={wire.id} 
-            wire={wire} 
-            pathData={wireInfo.path} 
-            points={wireInfo.points}
-            isBusWire={busPinIds.has(wire.sourcePinId)}
-            canvasTheme={canvasTheme}
-          />
-        );
-      })}
+      <BatchedWiresScene
+        wires={wires}
+        wirePaths={wirePaths}
+        busPinIds={busPinIds}
+        canvasTheme={canvasTheme}
+      />
 
       {wires.map(wire => {
         if (!wire.waypoints || wire.waypoints.length === 0) return null;

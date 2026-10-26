@@ -204,18 +204,30 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
   }, [node.type, node.inputs, node.outputs, def, width, height, flipX]);
 
   const partLabel = def?.type?.startsWith('SUBCIRCUIT:') ? def.label : (def?.type || 'IC');
+  const customLabel = node.properties?.label || '';
+  const hitRectRef = useRef<any>(null);
 
-  // Cache static IC body + legs + wedges + bubbles + 30-50 pin texts into a single offscreen bitmap
-  // so simulation and zoom frames perform 1 fast drawImage() blit per IC instead of 40+ CPU fillText() calls.
+  useLayoutEffect(() => {
+    const r = hitRectRef.current;
+    if (r && !r._logicaHitOnly) {
+      r._logicaHitOnly = true;
+      r.drawScene = function () {
+        return this;
+      };
+    }
+  }, []);
+
+  // Cache static IC body + legs + wedges + bubbles + 30-50 pin texts + custom label into a single 2x HiDPI offscreen bitmap
+  // so simulation, pan, and zoom frames perform 1 fast drawImage() blit per IC instead of 40+ CPU fillText() calls.
   useLayoutEffect(() => {
     const grp = staticGroupRef.current;
     if (!grp || width <= 0 || height <= 0) return;
     try {
       grp.cache({
         x: -28,
-        y: -28,
+        y: -32,
         width: width + 56,
-        height: height + 56,
+        height: height + 64,
         pixelRatio: 2,
       });
     } catch {
@@ -229,23 +241,25 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
     flipScaleX,
     flipScaleY,
     partLabel,
+    customLabel,
     allPinsCount,
   ]);
 
   return (
     <SchematicNodeWrapper node={node}>
-      {/* Lightweight interactive hit target for clicking/dragging the IC body */}
+      {/* Lightweight interactive hit target for clicking/dragging the IC body (hit-only, 0 scene draw cost) */}
       <Rect
+        ref={hitRectRef}
         x={0}
         y={0}
         width={width}
         height={height}
-        fill="rgba(0,0,0,0)"
+        fill="#000000"
         strokeEnabled={false}
         perfectDrawEnabled={false}
       />
 
-      {/* Bitmap-cached Static Visuals (IC body, legs, wedges, bubbles, part name, pin numbers & names) */}
+      {/* Bitmap-cached Static Visuals (IC body, legs, wedges, bubbles, part name, custom label, pin numbers & names) */}
       <Group ref={staticGroupRef} listening={false}>
         {/* IC Body */}
         <Rect
@@ -381,6 +395,26 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
             )}
           </React.Fragment>
         ))}
+
+        {/* Custom Name Label (inside staticGroupRef so it is bitmap-cached) */}
+        {customLabel && (
+          <Text
+            text={customLabel}
+            x={width / 2}
+            y={-20}
+            offsetX={width / 2}
+            rotation={invRot}
+            scaleX={flipScaleX}
+            scaleY={flipScaleY}
+            width={width}
+            align="center"
+            fontSize={11}
+            fontFamily="sans-serif"
+            fill={canvasTheme.textColor}
+            perfectDrawEnabled={false}
+            listening={false}
+          />
+        )}
       </Group>
 
       {/* Lightweight selection border outside staticGroupRef so selecting/deselecting never rebuilds bitmap cache */}
@@ -393,26 +427,6 @@ export const SchematicICNode: React.FC<ICNodeProps> = React.memo(({ node }) => {
           fillEnabled={false}
           stroke={canvasTheme.selectedNodeColor}
           strokeWidth={3}
-          perfectDrawEnabled={false}
-          listening={false}
-        />
-      )}
-
-      {/* Custom Name Label */}
-      {node.properties?.label && (
-        <Text
-          text={node.properties.label}
-          x={width / 2}
-          y={-20}
-          offsetX={width / 2}
-          rotation={invRot}
-          scaleX={flipScaleX}
-          scaleY={flipScaleY}
-          width={width}
-          align="center"
-          fontSize={11}
-          fontFamily="sans-serif"
-          fill={canvasTheme.textColor}
           perfectDrawEnabled={false}
           listening={false}
         />

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useLayoutEffect } from 'react';
 import { Group, Rect, Text, Path } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore, isIdSelected } from '../../../../store/useSimulatorStore';
@@ -50,41 +50,71 @@ export const SchematicBusNode: React.FC<BusProps> = React.memo(({ node }) => {
   }, [node.type, node.properties, node.inputs, node.outputs, width, height]);
 
   const label = node.properties?.label || 'DB[7..0]';
+  const staticGroupRef = useRef<any>(null);
+  const hitRectRef = useRef<any>(null);
+  const invRot = -(node.properties?.rotation || 0);
+  const flipScaleX = node.properties?.flipX ? -1 : 1;
+  const flipScaleY = node.properties?.flipY ? -1 : 1;
+
+  useLayoutEffect(() => {
+    const r = hitRectRef.current;
+    if (r && !r._logicaHitOnly) {
+      r._logicaHitOnly = true;
+      r.drawScene = function () {
+        return this;
+      };
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    const grp = staticGroupRef.current;
+    if (!grp || width <= 0 || height <= 0) return;
+    try {
+      grp.cache({
+        x: -30,
+        y: -36,
+        width: width + 60,
+        height: height + 48,
+        pixelRatio: 2,
+      });
+    } catch {
+      // Fallback to uncached rendering
+    }
+  }, [width, height, theme, invRot, flipScaleX, flipScaleY, label, pinLayouts.length]);
 
   return (
     <SchematicNodeWrapper node={node}>
-      <Rect x={0} y={0} width={width} height={height} fill="transparent" perfectDrawEnabled={false} />
-      
-      {/* Bus backbone + thick right leg */}
-      <Path data={rightAndBackbonePath} stroke={canvasTheme.nodeBorder} strokeWidth={4} listening={false} perfectDrawEnabled={false} />
-      {/* Thin left bit legs */}
-      {leftLegsPath && (
-        <Path data={leftLegsPath} stroke={canvasTheme.nodeBorder} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
-      )}
-      
-      {/* Label for the bus */}
-      <Group x={width / 2} y={-10} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
-        <Text 
-          x={-100}
-          y={-14}
-          width={200}
-          text={label} 
-          align="center"
-          verticalAlign="bottom"
-          fontSize={14} 
-          fontFamily="sans-serif"
-          fontStyle="bold"
-          fill={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.textColor}
-          listening={false}
-        />
-      </Group>
+      <Rect ref={hitRectRef} x={0} y={0} width={width} height={height} fill="#000000" strokeEnabled={false} perfectDrawEnabled={false} />
 
-      {isSelected && <Rect x={-5} y={0} width={width + 10} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={1} dash={SELECTION_DASH} listening={false} perfectDrawEnabled={false} />}
-      
-      {pinLayouts.map(({ pin, side, pinX, pinY }) => (
-        <React.Fragment key={pin.id}>
-          {side === 'left' && (
-            <Group x={pinX + 10} y={pinY - 9} rotation={-(node.properties?.rotation || 0)} scaleX={node.properties?.flipX ? -1 : 1} scaleY={node.properties?.flipY ? -1 : 1} listening={false}>
+      <Group ref={staticGroupRef} listening={false}>
+        {/* Bus backbone + thick right leg */}
+        <Path data={rightAndBackbonePath} stroke={canvasTheme.nodeBorder} strokeWidth={4} listening={false} perfectDrawEnabled={false} />
+        {/* Thin left bit legs */}
+        {leftLegsPath && (
+          <Path data={leftLegsPath} stroke={canvasTheme.nodeBorder} strokeWidth={2} listening={false} perfectDrawEnabled={false} />
+        )}
+        
+        {/* Label for the bus */}
+        <Group x={width / 2} y={-10} rotation={invRot} scaleX={flipScaleX} scaleY={flipScaleY} listening={false}>
+          <Text 
+            x={-100}
+            y={-14}
+            width={200}
+            text={label} 
+            align="center"
+            verticalAlign="bottom"
+            fontSize={14} 
+            fontFamily="sans-serif"
+            fontStyle="bold"
+            fill={canvasTheme.textColor}
+            listening={false}
+            perfectDrawEnabled={false}
+          />
+        </Group>
+
+        {pinLayouts.map(({ pin, side, pinX, pinY }) =>
+          side === 'left' ? (
+            <Group key={`lbl-${pin.id}`} x={pinX + 10} y={pinY - 9} rotation={invRot} scaleX={flipScaleX} scaleY={flipScaleY} listening={false}>
               <Text 
                 x={-6}
                 y={-5}
@@ -93,17 +123,24 @@ export const SchematicBusNode: React.FC<BusProps> = React.memo(({ node }) => {
                 fontFamily="sans-serif"
                 fill={canvasTheme.textColor}
                 listening={false}
+                perfectDrawEnabled={false}
               />
             </Group>
-          )}
-          <Pin
-            id={pin.id}
-            nodeId={node.id}
-            x={pinX}
-            y={pinY}
-            type={pin.type}
-          />
-        </React.Fragment>
+          ) : null
+        )}
+      </Group>
+
+      {isSelected && <Rect x={-5} y={0} width={width + 10} height={height} stroke={canvasTheme.selectedNodeColor} strokeWidth={1} dash={SELECTION_DASH} listening={false} perfectDrawEnabled={false} />}
+      
+      {pinLayouts.map(({ pin, pinX, pinY }) => (
+        <Pin
+          key={pin.id}
+          id={pin.id}
+          nodeId={node.id}
+          x={pinX}
+          y={pinY}
+          type={pin.type}
+        />
       ))}
     </SchematicNodeWrapper>
   );

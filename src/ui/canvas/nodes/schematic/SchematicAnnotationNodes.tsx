@@ -1,4 +1,4 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useLayoutEffect } from 'react';
 import { Group, Rect, Text, Line, Path, Circle } from 'react-konva';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore, isIdSelected, isNodeBeingPlaced, getNodeByIdFast } from '../../../../store/useSimulatorStore';
@@ -378,6 +378,23 @@ export const SchematicRegionBoxNode: React.FC<Props> = React.memo(({ node }) => 
   const maxBadgeW = Math.max(44, width - 20);
   const isClampedToBox = measuredTextW + 20 > maxBadgeW;
   const headerBadgeWidth = Math.min(maxBadgeW, Math.max(40, measuredTextW + 20));
+  const headerGroupRef = useRef<any>(null);
+
+  useLayoutEffect(() => {
+    const grp = headerGroupRef.current;
+    if (!grp || !title || headerBadgeWidth <= 0) return;
+    try {
+      grp.cache({
+        x: -2,
+        y: -2,
+        width: headerBadgeWidth + 4,
+        height: 28,
+        pixelRatio: 2,
+      });
+    } catch {
+      // Fallback to uncached rendering
+    }
+  }, [title, headerBadgeWidth, isDark, colorKey, isSelected]);
 
   return (
     <SchematicNodeWrapper
@@ -425,6 +442,7 @@ export const SchematicRegionBoxNode: React.FC<Props> = React.memo(({ node }) => 
       {/* Interactive Header Badge (Title Bar) */}
       {title && (
         <Group
+          ref={headerGroupRef}
           x={10}
           y={-12}
           onMouseDown={(e) => {
@@ -557,73 +575,118 @@ export const SchematicStickyNoteNode: React.FC<Props> = React.memo(({ node }) =>
   const fontFamily = node.properties?.fontFamily === 'mono' ? 'monospace' : 'sans-serif';
 
   const headerH = 26;
+  const staticGroupRef = useRef<any>(null);
+
+  useLayoutEffect(() => {
+    const grp = staticGroupRef.current;
+    if (!grp || width <= 0 || height <= 0) return;
+    try {
+      grp.cache({
+        x: -2,
+        y: -2,
+        width: width + 4,
+        height: height + 4,
+        pixelRatio: 2,
+      });
+    } catch {
+      // Fallback to uncached rendering
+    }
+  }, [width, height, isDark, colorKey, title, bodyText, fontSize, fontFamily]);
 
   return (
     <SchematicNodeWrapper node={node}>
-      {/* Card Body */}
       <Rect
         x={0}
         y={0}
         width={width}
         height={height}
-        fill={isDark ? palette.cardBgDark : palette.cardBgLight}
-        stroke={isSelected ? canvasTheme.selectedNodeColor : palette.stroke}
-        strokeWidth={isSelected ? 2.5 : 1.5}
-        cornerRadius={6}
+        fill="rgba(0,0,0,0)"
+        strokeEnabled={false}
         perfectDrawEnabled={false}
       />
 
-      {/* Card Header Strip */}
-      <Rect
-        x={0}
-        y={0}
-        width={width}
-        height={headerH}
-        fill={isDark ? palette.headerBgDark : palette.headerBgLight}
-        cornerRadius={[6, 6, 0, 0]}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
+      <Group ref={staticGroupRef} listening={false}>
+        {/* Card Body */}
+        <Rect
+          x={0}
+          y={0}
+          width={width}
+          height={height}
+          fill={isDark ? palette.cardBgDark : palette.cardBgLight}
+          stroke={palette.stroke}
+          strokeWidth={1.5}
+          cornerRadius={6}
+          perfectDrawEnabled={false}
+          listening={false}
+        />
 
-      <Line
-        points={[0, headerH, width, headerH]}
-        stroke={palette.stroke}
-        strokeWidth={1}
-        opacity={0.5}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
+        {/* Card Header Strip */}
+        <Rect
+          x={0}
+          y={0}
+          width={width}
+          height={headerH}
+          fill={isDark ? palette.headerBgDark : palette.headerBgLight}
+          cornerRadius={[6, 6, 0, 0]}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
 
-      {/* Header Title */}
-      <Text
-        text={title || 'Note'}
-        x={10}
-        y={7}
-        width={width - 20}
-        fontSize={12}
-        fontStyle="bold"
-        fontFamily="sans-serif"
-        fill={isDark ? palette.textDark : palette.textLight}
-        wrap="none"
-        ellipsis={true}
-        listening={false}
-        perfectDrawEnabled={false}
-      />
+        <Line
+          points={[0, headerH, width, headerH]}
+          stroke={palette.stroke}
+          strokeWidth={1}
+          opacity={0.5}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
 
-      {/* Multiline Body Text */}
-      {bodyText && (
+        {/* Header Title */}
         <Text
-          text={bodyText}
+          text={title || 'Note'}
           x={10}
-          y={headerH + 8}
-          width={Math.max(20, width - 20)}
-          height={Math.max(10, height - headerH - 14)}
-          fontSize={fontSize}
-          fontFamily={fontFamily}
-          fill={canvasTheme.textColor}
-          lineHeight={1.35}
-          wrap="word"
+          y={7}
+          width={width - 20}
+          fontSize={12}
+          fontStyle="bold"
+          fontFamily="sans-serif"
+          fill={isDark ? palette.textDark : palette.textLight}
+          wrap="none"
           ellipsis={true}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+
+        {/* Multiline Body Text */}
+        {bodyText && (
+          <Text
+            text={bodyText}
+            x={10}
+            y={headerH + 8}
+            width={Math.max(20, width - 20)}
+            height={Math.max(10, height - headerH - 14)}
+            fontSize={fontSize}
+            fontFamily={fontFamily}
+            fill={canvasTheme.textColor}
+            lineHeight={1.35}
+            wrap="word"
+            ellipsis={true}
+            listening={false}
+            perfectDrawEnabled={false}
+          />
+        )}
+      </Group>
+
+      {isSelected && (
+        <Rect
+          x={0}
+          y={0}
+          width={width}
+          height={height}
+          fillEnabled={false}
+          stroke={canvasTheme.selectedNodeColor}
+          strokeWidth={2.5}
+          cornerRadius={6}
           listening={false}
           perfectDrawEnabled={false}
         />
@@ -896,21 +959,51 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
       }`
     : '';
 
+  const staticGroupRef = useRef<any>(null);
+
+  useLayoutEffect(() => {
+    const grp = staticGroupRef.current;
+    if (!grp || width <= 0 || height <= 0) return;
+    try {
+      grp.cache({
+        x: -2,
+        y: -2,
+        width: width + 4,
+        height: height + 4,
+        pixelRatio: 2,
+      });
+    } catch {
+      // Fallback to uncached rendering
+    }
+  }, [width, height, isDark, colorKey, titleText, statusText, galTargetSig, positions]);
+
   return (
     <SchematicNodeWrapper node={node}>
-      {/* Background Card Body */}
       <Rect
         x={0}
         y={0}
         width={width}
         height={height}
-        fill={isDark ? palette.cardBgDark : palette.cardBgLight}
-        opacity={0.92}
-        stroke={isSelected ? canvasTheme.selectedNodeColor : palette.stroke}
-        strokeWidth={isSelected ? 2.5 : 1.5}
-        cornerRadius={8}
+        fill="rgba(0,0,0,0)"
+        strokeEnabled={false}
         perfectDrawEnabled={false}
       />
+
+      <Group ref={staticGroupRef} listening={false}>
+        {/* Background Card Body */}
+        <Rect
+          x={0}
+          y={0}
+          width={width}
+          height={height}
+          fill={isDark ? palette.cardBgDark : palette.cardBgLight}
+          opacity={0.92}
+          stroke={palette.stroke}
+          strokeWidth={1.5}
+          cornerRadius={8}
+          perfectDrawEnabled={false}
+          listening={false}
+        />
 
       {/* Sticky-Note Header Strip */}
       <Rect
@@ -1346,6 +1439,22 @@ export const SchematicFsmDiagramNode: React.FC<Props> = React.memo(({ node }) =>
           </Group>
         )}
       </Group>
+      </Group>
+
+      {isSelected && (
+        <Rect
+          x={0}
+          y={0}
+          width={width}
+          height={height}
+          fillEnabled={false}
+          stroke={canvasTheme.selectedNodeColor}
+          strokeWidth={2.5}
+          cornerRadius={8}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+      )}
 
       {isSelected && !isPlacing && (
         <ResizeHandles

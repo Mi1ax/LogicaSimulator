@@ -1,9 +1,9 @@
-import React, { useRef } from 'react';
+import React, { useRef, useLayoutEffect } from 'react';
 import { Group } from 'react-konva';
 import { KonvaEventObject } from 'konva/lib/Node';
 import { LogicNode } from '../../../../core/models/types';
 import { useSimulatorStore, getNodeByIdFast, getMultiSelectionSet, getPastingIdsSet, isNodeBeingPlaced } from '../../../../store/useSimulatorStore';
-import { getSchematicAnchor } from '../../../../core/utils/schematicLayout';
+import { getSchematicAnchor, getSchematicDimensions } from '../../../../core/utils/schematicLayout';
 
 interface SchematicNodeWrapperProps {
   node: LogicNode;
@@ -33,13 +33,52 @@ export const SchematicNodeWrapper: React.FC<SchematicNodeWrapperProps> = ({
   const isLabelToolActive = (wrapperMask & 2) !== 0;
   const posX = useSimulatorStore(state => getNodeByIdFast(state, node.id)?.x ?? node.x);
   const posY = useSimulatorStore(state => getNodeByIdFast(state, node.id)?.y ?? node.y);
+  const groupRef = useRef<any>(null);
   const extraDragIdsRef = useRef<string[] | undefined>(undefined);
   const lastGridPosRef = useRef<{ x: number; y: number }>({ x: posX, y: posY });
 
   const { x: anchorX, y: anchorY } = getSchematicAnchor(node);
+  const { width: nodeW, height: nodeH } = getSchematicDimensions(node);
+  const maxExtent = Math.max(nodeW, nodeH) + 80;
+
+  useLayoutEffect(() => {
+    const grp = groupRef.current;
+    if (!grp) return;
+    grp._cullRadius = maxExtent;
+    if (!grp._logicaPatchedDrawScene) {
+      grp._logicaPatchedDrawScene = true;
+      const origDrawScene = grp.drawScene.bind(grp);
+      grp.drawScene = function (can?: any, top?: any, bufferCanvas?: any) {
+        if (!top) {
+          const stage = this.getStage();
+          if (stage) {
+            const scale = stage.scaleX() || 1;
+            const sx = stage.x();
+            const sy = stage.y();
+            const pad = (stage as any)._overscanPad || 0;
+            const sw = stage.width() + pad * 2;
+            const sh = stage.height() + pad * 2;
+            const r = this._cullRadius || 200;
+            const gx = this.x();
+            const gy = this.y();
+            if (
+              (gx + r) * scale + sx < 0 ||
+              (gx - r) * scale + sx > sw ||
+              (gy + r) * scale + sy < 0 ||
+              (gy - r) * scale + sy > sh
+            ) {
+              return this;
+            }
+          }
+        }
+        return origDrawScene(can, top, bufferCanvas);
+      };
+    }
+  }, [maxExtent]);
 
   return (
     <Group
+      ref={groupRef}
       x={posX + anchorX}
       y={posY + anchorY}
       offsetX={anchorX}
