@@ -3,17 +3,24 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
 // https://vitejs.dev/config/
-export default defineConfig(({ command }) => ({
-  plugins: [react(), tailwindcss()],
-  base: command === 'build' ? '/LogicaSimulator/' : '/',
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-konva', 'zustand'],
-          'vendor-konva': ['konva'],
+export default defineConfig(({ command }) => {
+  const isTauri = Boolean(process.env.TAURI_ENV_PLATFORM);
+  return {
+    plugins: [react(), tailwindcss()],
+    base: command === 'build' && !isTauri ? '/LogicaSimulator/' : '/',
+    server: {
+      port: 5173,
+      strictPort: true,
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom', 'react-konva', 'zustand'],
+            'vendor-konva': ['konva'],
+          },
         },
       },
     },
-  },
-}));
+  };
+});

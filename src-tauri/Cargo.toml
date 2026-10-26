@@ -1,0 +1,25 @@
+[package]
+name = "logica-simulator"
+version = "1.2.2"
+description = "Logica Digital Logic & IC Simulator (Tauri + Rust Hybrid Engine)"
+authors = ["Logica"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.dev]
+opt-level = 3
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+
+

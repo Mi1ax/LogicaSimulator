@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+# Ensure Rust/Cargo toolchain is in PATH
+export PATH="$HOME/.cargo/bin:$PATH"
+
+# Use local GIO VFS/volume monitor to avoid D-Bus warnings for masked gvfs-* services (GPhoto2, GOA, AFC)
+export GIO_USE_VFS="${GIO_USE_VFS:-local}"
+export GIO_USE_VOLUME_MONITOR="${GIO_USE_VOLUME_MONITOR:-unix}"
+
+exec npm run tauri:dev -- "$@"
