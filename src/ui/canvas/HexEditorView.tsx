@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { getNodeDefinition } from '../../core/engine/nodes';
 
@@ -108,6 +108,12 @@ export const HexEditorView: React.FC = () => {
   const selectedNode = nodes.find(n => n.id === selectedNodeId);
   const memSize = (selectedNode && getNodeDefinition(selectedNode.type)?.memorySize) || 32768;
 
+  useEffect(() => {
+    if (!selectedNode && memoryNodes.length > 0) {
+      setSelectedNodeId(memoryNodes[0].id);
+    }
+  }, [selectedNode, memoryNodes, setSelectedNodeId]);
+
   // Local copy of memory for editing
   const [memory, setMemory] = useState<Uint8Array>(new Uint8Array(memSize));
   const liveMemory = useSimulatorStore(state => state.simState.nodeStates?.[selectedNode?.id || '']?.memory);
@@ -118,35 +124,74 @@ export const HexEditorView: React.FC = () => {
   const [jumpAddressInput, setJumpAddressInput] = useState('');
   const [highlightedRow, setHighlightedRow] = useState<number | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  const [followAddress, setFollowAddress] = useState(false);
 
-  const handleJump = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    let addr = parseInt(jumpAddressInput, 16);
-    if (isNaN(addr)) return;
-    addr = Math.max(0, Math.min(addr, memSize - 1));
-    const targetPage = Math.floor(addr / PAGE_SIZE);
+  const addressPins = useMemo(() => {
+    if (!selectedNode) return [];
+    const pins: { bit: number; pinId: string }[] = [];
+    for (let i = 0; i < selectedNode.inputs.length; i++) {
+      const p = selectedNode.inputs[i];
+      const m = p.name?.match(/^A(\d+)$/);
+      if (m) {
+        pins.push({ bit: parseInt(m[1], 10), pinId: p.id });
+      }
+    }
+    return pins;
+  }, [selectedNode]);
+
+  const liveAddress = useSimulatorStore(state => {
+    if (!selectedNode || addressPins.length === 0) return null;
+    const pinStates = state.simState.pinStates;
+    let addr = 0;
+    for (let i = 0; i < addressPins.length; i++) {
+      const { bit, pinId } = addressPins[i];
+      if (pinStates[pinId] === 1) {
+        addr |= (1 << bit);
+      }
+    }
+    return addr & (memSize - 1);
+  });
+
+  const jumpToAddr = (addr: number) => {
+    const clamped = Math.max(0, Math.min(addr, memSize - 1));
+    const targetPage = Math.floor(clamped / PAGE_SIZE);
     setCurrentPage(targetPage);
-    
-    const absoluteRowIndex = Math.floor(addr / 16);
+
+    const absoluteRowIndex = Math.floor(clamped / 16);
     setHighlightedRow(absoluteRowIndex);
-    
-    // Remove highlight after 2 seconds
+
     setTimeout(() => {
       setHighlightedRow(current => current === absoluteRowIndex ? null : current);
     }, 2000);
-    
+
     setTimeout(() => {
-      const rowId = `hex-row-${Math.floor(addr / 16)}`;
+      const rowId = `hex-row-${Math.floor(clamped / 16)}`;
       const el = document.getElementById(rowId);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      
-      const cellId = `hex-cell-${addr}`;
+
+      const cellId = `hex-cell-${clamped}`;
       const cellEl = document.getElementById(cellId) as HTMLInputElement;
       if (cellEl) {
         cellEl.focus();
         cellEl.select();
       }
     }, 50);
+  };
+
+  useEffect(() => {
+    if (followAddress && liveAddress !== null) {
+      const targetPage = Math.floor(liveAddress / PAGE_SIZE);
+      if (targetPage !== currentPage) {
+        setCurrentPage(targetPage);
+      }
+    }
+  }, [followAddress, liveAddress, currentPage]);
+
+  const handleJump = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const addr = parseInt(jumpAddressInput, 16);
+    if (isNaN(addr)) return;
+    jumpToAddr(addr);
   };
 
   useEffect(() => {
@@ -301,9 +346,9 @@ export const HexEditorView: React.FC = () => {
   return (
     <div className="flex flex-1 overflow-hidden bg-white dark:bg-slate-900 text-gray-800 dark:text-slate-200">
       {/* Sidebar */}
-      <div className="w-64 border-r border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50 flex flex-col">
-        <div className="p-4 border-b border-gray-200 dark:border-slate-700">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-700 dark:text-slate-300">
+      <div className="w-44 lg:w-60 xl:w-64 shrink-0 border-r border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50 flex flex-col">
+        <div className="p-3 lg:p-4 border-b border-gray-200 dark:border-slate-700">
+          <h2 className="text-xs lg:text-sm font-semibold uppercase tracking-wider text-gray-700 dark:text-slate-300">
             Memory Chips
           </h2>
         </div>
@@ -317,15 +362,15 @@ export const HexEditorView: React.FC = () => {
               <button
                 key={node.id}
                 onClick={() => setSelectedNodeId(node.id)}
-                className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                className={`w-full text-left px-2.5 lg:px-3 py-2 rounded text-xs lg:text-sm transition-colors ${
                   selectedNodeId === node.id 
                     ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium' 
                     : 'hover:bg-gray-200 dark:hover:bg-slate-700/50 text-gray-700 dark:text-slate-300'
                 }`}
               >
-                <div className="flex justify-between items-center">
-                  <span>{node.properties?.label || node.type}</span>
-                  <span className="text-[10px] bg-gray-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-gray-500 dark:text-slate-400">
+                <div className="flex justify-between items-center gap-1">
+                  <span className="truncate">{node.properties?.label || node.type}</span>
+                  <span className="text-[10px] bg-gray-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-gray-500 dark:text-slate-400 shrink-0">
                     {node.type.includes('27C') ? 'ROM' : 'RAM'}
                   </span>
                 </div>
@@ -336,19 +381,19 @@ export const HexEditorView: React.FC = () => {
       </div>
 
       {/* Main Editor Area */}
-      <div className="flex-1 flex flex-col relative bg-gray-50 dark:bg-[#1e1e1e]">
+      <div className="flex-1 flex flex-col relative bg-gray-50 dark:bg-[#1e1e1e] min-w-0">
         {!selectedNode ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-gray-400 dark:text-slate-500">
+          <div className="flex-1 flex flex-col items-center justify-center text-gray-400 dark:text-slate-500 p-4 text-center">
             <div className="text-4xl mb-4">🖧</div>
             <p>Select a memory chip from the sidebar to edit its contents.</p>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col h-full">
+          <div className="flex-1 flex flex-col h-full min-w-0">
             {/* Editor Toolbar */}
-            <div className="h-10 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-[#252526] flex items-center px-4 justify-between shrink-0">
-              <div className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-4">
-                <span>{selectedNode.properties?.label || selectedNode.type}{isDirty ? <span className="text-blue-500 ml-1">*</span> : ''}</span>
-                <div className="flex items-center gap-2">
+            <div className="min-h-10 py-1.5 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-[#252526] flex flex-wrap items-center px-3 lg:px-4 justify-between gap-2 shrink-0">
+              <div className="text-xs lg:text-sm font-medium text-gray-700 dark:text-slate-300 flex flex-wrap items-center gap-2 lg:gap-4">
+                <span className="whitespace-nowrap">{selectedNode.properties?.label || selectedNode.type}{isDirty ? <span className="text-blue-500 ml-1">*</span> : ''}</span>
+                <div className="flex items-center gap-1.5 whitespace-nowrap">
                   <button 
                     disabled={currentPage === 0}
                     onClick={() => setCurrentPage(c => c - 1)}
@@ -356,7 +401,7 @@ export const HexEditorView: React.FC = () => {
                   >
                     &lt;
                   </button>
-                  <span className="text-xs text-gray-500 w-24 text-center">
+                  <span className="text-xs text-gray-500 w-20 lg:w-24 text-center">
                     Page {currentPage + 1} / {numPages}
                   </span>
                   <button 
@@ -367,32 +412,67 @@ export const HexEditorView: React.FC = () => {
                     &gt;
                   </button>
                 </div>
-                <div className="h-4 w-px bg-gray-300 dark:bg-slate-600"></div>
-                <form onSubmit={handleJump} className="flex items-center gap-2">
+                <div className="h-4 w-px bg-gray-300 dark:bg-slate-600 hidden sm:block"></div>
+                <form onSubmit={handleJump} className="flex items-center gap-1.5 whitespace-nowrap">
                   <span className="text-xs text-gray-500">Go to: 0x</span>
                   <input 
                     type="text" 
                     value={jumpAddressInput}
                     onChange={e => setJumpAddressInput(e.target.value)}
                     placeholder="0000"
-                    className="w-16 text-xs bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-1.5 py-0.5 focus:outline-none focus:border-blue-500 uppercase font-mono"
+                    className="w-14 lg:w-16 text-xs bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-1.5 py-0.5 focus:outline-none focus:border-blue-500 uppercase font-mono"
                   />
                   <button type="submit" className="text-xs px-2 py-0.5 bg-gray-200 hover:bg-gray-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded">
                     Jump
                   </button>
                 </form>
+                {liveAddress !== null && (
+                  <>
+                    <div className="h-4 w-px bg-gray-300 dark:bg-slate-600 hidden sm:block"></div>
+                    <div className="flex items-center gap-1.5 whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => jumpToAddr(liveAddress)}
+                        title="Current address on chip A0..An pins (click to jump)"
+                        className="flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-colors tabular-nums"
+                      >
+                        <span className="text-[10px] uppercase font-sans font-semibold text-emerald-600 dark:text-emerald-400">
+                          Addr:
+                        </span>
+                        <span className="font-bold">
+                          0x{liveAddress.toString(16).padStart(4, '0').toUpperCase()}
+                        </span>
+                        <span className="text-emerald-600/80 dark:text-emerald-400/80">
+                          [{displayMemory[liveAddress]?.toString(16).padStart(2, '0').toUpperCase() ?? '00'}]
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFollowAddress(v => !v)}
+                        title="Automatically switch page to follow current memory address"
+                        className={`text-[11px] px-2 py-0.5 rounded border transition-colors ${
+                          followAddress
+                            ? 'bg-emerald-600 border-emerald-600 text-white font-medium'
+                            : 'bg-gray-100 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-400 hover:border-emerald-400'
+                        }`}
+                      >
+                        Follow
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
-              <div className="flex gap-2">
-                <button onClick={handleImport} className="text-xs px-3 py-1 bg-gray-200 hover:bg-gray-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded text-gray-700 dark:text-slate-200 transition-colors">
+              <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
+                <button onClick={handleImport} className="text-xs px-2.5 lg:px-3 py-1 bg-gray-200 hover:bg-gray-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded text-gray-700 dark:text-slate-200 transition-colors whitespace-nowrap">
                   Import .bin / .hex
                 </button>
-                <button onClick={handleExport} className="text-xs px-3 py-1 bg-gray-200 hover:bg-gray-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded text-gray-700 dark:text-slate-200 transition-colors">
+                <button onClick={handleExport} className="text-xs px-2.5 lg:px-3 py-1 bg-gray-200 hover:bg-gray-300 dark:bg-slate-700 dark:hover:bg-slate-600 rounded text-gray-700 dark:text-slate-200 transition-colors whitespace-nowrap">
                   Export .bin
                 </button>
                 <button 
                   onClick={handleSave} 
                   disabled={!isDirty}
-                  className={`text-xs px-3 py-1 rounded transition-colors ${
+                  className={`text-xs px-2.5 lg:px-3 py-1 rounded transition-colors whitespace-nowrap ${
                     isDirty 
                       ? 'bg-blue-600 hover:bg-blue-700 text-white' 
                       : 'bg-gray-200 dark:bg-slate-700 text-gray-400 dark:text-slate-500 cursor-not-allowed'
@@ -426,11 +506,18 @@ export const HexEditorView: React.FC = () => {
                 const absoluteRowIndex = Math.floor(rowStartAddr / 16);
                 
                 const isHighlighted = highlightedRow === absoluteRowIndex;
-                const rowClass = `flex mb-1 rounded px-1 -mx-1 group transition-colors duration-500 ${isHighlighted ? 'bg-yellow-100 dark:bg-yellow-900/40' : 'hover:bg-gray-200 dark:hover:bg-[#2a2d2e]'}`;
+                const isLiveRow = liveAddress !== null && Math.floor(liveAddress / 16) === absoluteRowIndex;
+                const rowClass = `flex mb-1 rounded px-1 -mx-1 group transition-colors duration-300 ${
+                  isHighlighted
+                    ? 'bg-yellow-100 dark:bg-yellow-900/40'
+                    : isLiveRow
+                    ? 'bg-emerald-50/70 dark:bg-emerald-950/30'
+                    : 'hover:bg-gray-200 dark:hover:bg-[#2a2d2e]'
+                }`;
                 
                 return (
                   <div key={rowIndex} id={`hex-row-${absoluteRowIndex}`} className={rowClass}>
-                    <div className="w-16 text-gray-400 dark:text-[#858585] select-none text-right mr-3 py-0.5">
+                    <div className={`w-16 select-none text-right mr-3 py-0.5 ${isLiveRow ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-gray-400 dark:text-[#858585]'}`}>
                       {rowAddrHex}
                     </div>
                     <div className="flex gap-2 text-gray-800 dark:text-[#d4d4d4]">
@@ -440,12 +527,17 @@ export const HexEditorView: React.FC = () => {
                         
                         const byteVal = displayMemory[addr];
                         const hexStr = byteVal.toString(16).padStart(2, '0').toUpperCase();
+                        const isLiveCell = liveAddress === addr;
                         
                         return (
                           <input
                             key={colIndex}
                             id={`hex-cell-${addr}`}
-                            className={`w-[1.2rem] bg-transparent text-center focus:bg-blue-100 dark:focus:bg-blue-900/50 outline-none rounded ${colIndex === 8 ? 'ml-2' : ''}`}
+                            className={`w-[1.2rem] text-center focus:bg-blue-100 dark:focus:bg-blue-900/50 outline-none rounded ${colIndex === 8 ? 'ml-2' : ''} ${
+                              isLiveCell
+                                ? 'bg-emerald-200/90 dark:bg-emerald-800/80 text-emerald-950 dark:text-emerald-100 ring-2 ring-emerald-500 font-bold'
+                                : 'bg-transparent'
+                            }`}
                             value={editingAddr === addr ? editingVal : hexStr}
                             maxLength={2}
                             onChange={(e) => handleByteChange(addr, e.target.value)}
@@ -468,10 +560,18 @@ export const HexEditorView: React.FC = () => {
                     <div className="ml-8 text-gray-400 dark:text-[#6A9955] whitespace-pre py-0.5">
                       {[...Array(16)].map((_, colIndex) => {
                         const addr = rowStartAddr + colIndex;
-                        if (addr >= memSize) return ' ';
+                        if (addr >= memSize) return <span key={colIndex}> </span>;
                         const byteVal = displayMemory[addr];
-                        return (byteVal >= 32 && byteVal <= 126) ? String.fromCharCode(byteVal) : '.';
-                      }).join('')}
+                        const ch = (byteVal >= 32 && byteVal <= 126) ? String.fromCharCode(byteVal) : '.';
+                        const isLiveCell = liveAddress === addr;
+                        return isLiveCell ? (
+                          <span key={colIndex} className="bg-emerald-200 dark:bg-emerald-800 text-emerald-950 dark:text-emerald-100 font-bold rounded-xs">
+                            {ch}
+                          </span>
+                        ) : (
+                          <React.Fragment key={colIndex}>{ch}</React.Fragment>
+                        );
+                      })}
                     </div>
                   </div>
                 );

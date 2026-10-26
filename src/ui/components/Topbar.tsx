@@ -3,6 +3,7 @@ import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { Trash2, Sun, Moon, Settings, Save, FolderOpen, Library, Menu as MenuIcon, ChevronRight, X } from 'lucide-react';
 import { serializeCircuit, deserializeCircuit } from '../../core/utils/serialization';
 import { globalAnalyzerBuffer } from '../../core/engine/logicAnalyzer';
+import { invalidateRustCircuitCache } from '../../core/engine/tauriBridge';
 
 export const Topbar: React.FC = () => {
   const [showMenu, setShowMenu] = useState(false);
@@ -18,6 +19,8 @@ export const Topbar: React.FC = () => {
   const toggleTheme = useSimulatorStore(state => state.toggleTheme);
   const settings = useSimulatorStore(state => state.settings);
   const updateSettings = useSimulatorStore(state => state.updateSettings);
+  const stepTicks = useSimulatorStore(state => state.stepTicks);
+  const setStepTicks = useSimulatorStore(state => state.setStepTicks);
 
   const appMode = useSimulatorStore(state => state.appMode);
   const setAppMode = useSimulatorStore(state => state.setAppMode);
@@ -30,6 +33,7 @@ export const Topbar: React.FC = () => {
       setFileName(stripExtension(loadedFileName));
     }
     globalAnalyzerBuffer.clear();
+    invalidateRustCircuitCache();
     useSimulatorStore.setState(() => ({
       nodes,
       wires,
@@ -46,6 +50,7 @@ export const Topbar: React.FC = () => {
       analyzerChannels: [],
       breakpoints: [],
       lastTriggeredBreakpointId: null,
+      simRunning: false,
       simState: { tickCount: 0, pinStates: {}, wireStates: {}, nodeStates: {} },
     }));
   };
@@ -182,50 +187,50 @@ export const Topbar: React.FC = () => {
   };
 
   return (
-    <div className="h-14 bg-white dark:bg-slate-800 border-b border-gray-300 dark:border-slate-700 flex items-center justify-between px-6 shadow-sm z-10 relative transition-colors">
-      <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 bg-blue-600 dark:bg-blue-500 rounded flex items-center justify-center shrink-0">
-          <svg viewBox="0 0 32 32" fill="none" className="w-7 h-7 text-white">
+    <div className="h-12 sm:h-14 bg-white dark:bg-slate-800 border-b border-gray-300 dark:border-slate-700 flex items-center justify-between gap-2 px-3 sm:px-6 shadow-sm z-10 relative transition-colors shrink-0">
+      <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+        <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 dark:bg-blue-500 rounded flex items-center justify-center shrink-0">
+          <svg viewBox="0 0 32 32" fill="none" className="w-6 h-6 sm:w-7 sm:h-7 text-white">
             <path d="M4 11.5H9.5M4 20.5H9.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
             <path d="M25 16H28" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
             <path d="M8.5 7.5Q13.5 16 8.5 24.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
             <path d="M12.2 7.5C18 7.5 22.4 10.7 25 16C22.4 21.3 18 24.5 12.2 24.5Q17.2 16 12.2 7.5Z" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
           </svg>
         </div>
-        <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100 mr-4">Logica Simulator</h1>
+        <h1 className="text-base lg:text-xl font-bold text-gray-800 dark:text-slate-100 mr-1 lg:mr-3 whitespace-nowrap shrink-0 hidden sm:block">
+          Logica <span className="hidden lg:inline">Simulator</span>
+        </h1>
         
         {/* Mode Switcher */}
-        <div className="flex bg-gray-100 dark:bg-slate-900 p-1 rounded-md border border-gray-200 dark:border-slate-700">
+        <div className="flex bg-gray-100 dark:bg-slate-900 p-1 rounded-md border border-gray-200 dark:border-slate-700 overflow-x-auto">
           <button
             onClick={() => setAppMode('schematic')}
-            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${appMode === 'schematic' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
+            className={`px-2.5 lg:px-3 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap shrink-0 ${appMode === 'schematic' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
           >
             Schematic
           </button>
           <button
             onClick={() => setAppMode('hex')}
-            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${appMode === 'hex' ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
+            className={`px-2.5 lg:px-3 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap shrink-0 ${appMode === 'hex' ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
           >
             Hex Editor
           </button>
           <button
             onClick={() => setAppMode('code')}
-            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${appMode === 'code' ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
+            className={`px-2.5 lg:px-3 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap shrink-0 ${appMode === 'code' ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
           >
             Code Editor
           </button>
           <button
             onClick={() => setAppMode('ne555')}
-            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${appMode === 'ne555' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
+            className={`px-2.5 lg:px-3 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap shrink-0 ${appMode === 'ne555' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'}`}
           >
             555 Lab
           </button>
         </div>
       </div>
 
-
-
-            <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
         <button
           onClick={toggleTheme}
           className="p-2 text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-md transition-colors"
@@ -291,7 +296,7 @@ export const Topbar: React.FC = () => {
                     <ChevronRight size={14} className={`transition-transform ${showExamplesSub ? 'rotate-90' : ''}`} />
                   </button>
                   {showExamplesSub && (
-                    <div className="absolute right-[100%] top-0 mr-1 w-64 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 py-2 z-50 max-h-96 overflow-y-auto">
+                    <div className="absolute right-[100%] top-0 mr-1 w-64 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 py-2 z-50 max-h-[calc(100vh-5rem)] overflow-y-auto">
                       <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-400 px-4 mb-2 uppercase tracking-wider">Circuit Examples</h3>
                       <button onClick={() => loadExample('01_logic_gates.logica')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700">01. Basic Logic Gates</button>
                       <button onClick={() => loadExample('02_74LS161_counter.logica')} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700">02. 74LS161 4-bit Counter</button>
@@ -317,7 +322,7 @@ export const Topbar: React.FC = () => {
                   </button>
                   {showSettingsSub && (
                     <div 
-                      className="absolute right-[100%] top-0 mr-1 w-72 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 p-4 z-50 cursor-default"
+                      className="absolute right-[100%] top-0 mr-1 w-72 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-gray-200 dark:border-slate-700 p-4 z-50 cursor-default max-h-[calc(100vh-5rem)] overflow-y-auto"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-100 mb-3 border-b border-gray-200 dark:border-slate-700 pb-2">Canvas Settings</h3>
@@ -376,6 +381,37 @@ export const Topbar: React.FC = () => {
                           </button>
                         </div>
 
+                        <div className="pt-2 border-t border-gray-200 dark:border-slate-700">
+                          <div className="flex justify-between mb-1.5">
+                            <label className="text-xs font-medium text-gray-500 dark:text-slate-400">Step Mode (Ticks / Step)</label>
+                            <span className="text-xs font-mono text-blue-600 dark:text-blue-400">{stepTicks}T</span>
+                          </div>
+                          <div className="grid grid-cols-4 gap-1">
+                            {[
+                              { label: '1T', val: 1 },
+                              { label: '2T', val: 2 },
+                              { label: '4T', val: 4 },
+                              { label: '16T', val: 16 },
+                              { label: '100T', val: 100 },
+                              { label: '500T', val: 500 },
+                              { label: '1kT', val: 1000 },
+                              { label: '2kT', val: 2000 },
+                            ].map(opt => (
+                              <button
+                                key={opt.val}
+                                type="button"
+                                onClick={() => setStepTicks(opt.val)}
+                                className={`py-1 text-[11px] font-mono rounded border transition-colors ${
+                                  stepTicks === opt.val
+                                    ? 'bg-blue-600 border-blue-600 text-white font-semibold'
+                                    : 'bg-gray-50 dark:bg-slate-900 border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-300 hover:border-blue-400'
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
 
                         <p className="text-[10px] text-gray-400 dark:text-slate-500 pt-2 border-t border-gray-200 dark:border-slate-700">
                           Tip: Trackpad pinch-to-zoom and two-finger pan are automatically detected on modern browsers.

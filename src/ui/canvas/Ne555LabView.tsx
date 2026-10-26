@@ -662,9 +662,9 @@ export const Ne555LabView: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col h-full bg-gray-100 dark:bg-slate-900 overflow-hidden select-none">
       {/* Compact Top Toolbar */}
-      <div className="h-11 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-4 flex items-center justify-between gap-3 shrink-0">
+      <div className="min-h-11 py-1 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-3 lg:px-4 flex flex-wrap items-center justify-between gap-2 shrink-0">
         {/* Left: Presets Menu & Target IC Selector */}
-        <div className="flex items-center gap-2.5 min-w-0" ref={menuRef}>
+        <div className="flex items-center gap-2 min-w-0" ref={menuRef}>
           {/* Presets Dropdown */}
           <div className="relative">
             <button
@@ -764,12 +764,12 @@ export const Ne555LabView: React.FC = () => {
           </div>
 
           {/* Target IC Selector */}
-          <div className="flex items-center gap-1.5 border-l border-gray-200 dark:border-slate-700 pl-3">
-            <Cpu size={14} className="text-gray-400" />
-            <span className="text-xs text-gray-400 dark:text-slate-400">IC:</span>
+          <div className="flex items-center gap-1.5 border-l border-gray-200 dark:border-slate-700 pl-2.5 lg:pl-3 min-w-0">
+            <Cpu size={14} className="text-gray-400 shrink-0" />
+            <span className="text-xs text-gray-400 dark:text-slate-400 shrink-0">IC:</span>
             {ne555Nodes.length === 0 ? (
-              <span className="text-xs text-gray-500 dark:text-slate-400">
-                None on schematic (Apply will place new NE555)
+              <span className="text-xs text-gray-500 dark:text-slate-400 truncate">
+                None on schematic <span className="hidden xl:inline">(Apply will place new NE555)</span>
               </span>
             ) : (
               <select
@@ -867,7 +867,7 @@ export const Ne555LabView: React.FC = () => {
       {/* Main Content Split: Left Parameters Panel + Right Circuit & Bottom Oscilloscope */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Panel: Mode Selector, Calculated Readout & RC Inputs/Sliders */}
-        <div className="w-80 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 flex flex-col overflow-y-auto shrink-0 p-4 space-y-4">
+        <div className="w-64 lg:w-72 xl:w-80 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 flex flex-col overflow-y-auto shrink-0 p-3 lg:p-4 space-y-3.5 lg:space-y-4">
           {/* 1. Operating Mode Selector */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-1.5">

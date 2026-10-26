@@ -1,13 +1,16 @@
 import React from 'react';
-import { useSimulatorStore } from '../../store/useSimulatorStore';
+import { useSimulatorStore, getNodeByIdFast } from '../../store/useSimulatorStore';
 import { getNodeDefinition } from '../../core/engine/nodes';
 import { getSafePinNumber } from '../../core/utils/layoutUtils';
 import { NumberInput } from './NumberInput';
 
 export const PropertiesPanel: React.FC = () => {
-  const selection = useSimulatorStore(state => state.selection);
-  const multiSelection = useSimulatorStore(state => state.multiSelection);
-  const nodes = useSimulatorStore(state => state.nodes);
+  const node = useSimulatorStore(state => {
+    if (state.appMode !== 'schematic' || state.simRunning) return undefined;
+    if (state.multiSelection && state.multiSelection.length > 1) return undefined;
+    if (state.selection?.type !== 'node') return undefined;
+    return getNodeByIdFast(state, state.selection.id);
+  });
   const updateNodeProperties = useSimulatorStore(state => state.updateNodeProperties);
   const setNodeInputCount = useSimulatorStore(state => state.setNodeInputCount);
   const setNodeOutputCount = useSimulatorStore(state => state.setNodeOutputCount);
@@ -16,17 +19,11 @@ export const PropertiesPanel: React.FC = () => {
   const simRunning = useSimulatorStore(state => state.simRunning);
   const toggleInputNode = useSimulatorStore(state => state.toggleInputNode);
 
-  const node = selection?.type === 'node' ? nodes.find(n => n.id === selection.id) : undefined;
-
   const [localLabel, setLocalLabel] = React.useState(node?.properties?.label || '');
   
   React.useEffect(() => {
     setLocalLabel(node?.properties?.label || '');
   }, [node?.id, node?.properties?.label]);
-
-  if (appMode !== 'schematic' || simRunning) return null;
-
-  if (multiSelection && multiSelection.length > 1) return null;
 
   if (!node || node.type === 'JUNCTION') return null;
 
@@ -37,14 +34,14 @@ export const PropertiesPanel: React.FC = () => {
   const isClockLike = node.type === 'CLOCK' || node.type === 'NE555';
 
   return (
-    <div className="w-64 bg-white dark:bg-slate-800 border-l border-gray-200 dark:border-slate-700 flex flex-col shadow-lg z-10 relative">
-      <div className="p-4 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/50">
+    <div className="w-52 lg:w-60 xl:w-64 shrink-0 bg-white dark:bg-slate-800 border-l border-gray-200 dark:border-slate-700 flex flex-col shadow-lg z-10 relative">
+      <div className="p-3 lg:p-4 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900/50">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-700 dark:text-slate-300">
           Properties
         </h2>
       </div>
 
-      <div className="p-4 space-y-4 overflow-y-auto">
+      <div className="p-3 lg:p-4 space-y-4 overflow-y-auto">
         {/* Node Type Info */}
         <div>
           <label className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
@@ -124,7 +121,10 @@ export const PropertiesPanel: React.FC = () => {
               : node.type === 'FSM_DIAGRAM'
               ? 'slate'
               : 'default');
-          const galNodes = nodes.filter(n => n.type === 'GAL22V10');
+          const galNodes =
+            node.type === 'FSM_DIAGRAM'
+              ? useSimulatorStore.getState().nodes.filter(n => n.type === 'GAL22V10')
+              : [];
 
           return (
             <div className="space-y-3 pt-2 border-t border-gray-200 dark:border-slate-700">

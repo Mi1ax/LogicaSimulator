@@ -861,9 +861,9 @@ export const CodeEditorView: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col h-full bg-gray-100 dark:bg-slate-900 overflow-hidden select-none">
       {/* Compact Top Toolbar */}
-      <div className="h-11 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-4 flex items-center justify-between gap-3 shrink-0">
+      <div className="min-h-11 py-1 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-3 lg:px-4 flex flex-wrap items-center justify-between gap-2 shrink-0">
         {/* Left: Menus (File, Templates), File Title, Target GAL selector */}
-        <div className="flex items-center gap-2.5 min-w-0" ref={menuContainerRef}>
+        <div className="flex items-center gap-2 min-w-0" ref={menuContainerRef}>
           <input
             type="file"
             ref={fileInputRef}
@@ -1305,7 +1305,7 @@ export const CodeEditorView: React.FC = () => {
 
         {/* Collapsible Right Panel: OLMC Summary / JEDEC Fuse Preview / Guide */}
         {isRightPanelOpen && (
-          <div className="w-80 bg-white dark:bg-slate-800 border-l border-gray-200 dark:border-slate-700 flex flex-col shrink-0 overflow-hidden">
+          <div className="w-64 lg:w-72 xl:w-80 bg-white dark:bg-slate-800 border-l border-gray-200 dark:border-slate-700 flex flex-col shrink-0 overflow-hidden">
             {/* Tabs */}
             <div className="flex border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/60 text-xs font-semibold">
               <button

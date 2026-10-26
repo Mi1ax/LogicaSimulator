@@ -1,12 +1,121 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Logica Simulator</title>
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem('logica-project-storage');
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            var theme = parsed && parsed.state && parsed.state.theme;
+            if (theme === 'light') {
+              document.documentElement.classList.remove('dark');
+            } else {
+              document.documentElement.classList.add('dark');
+            }
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background-color: #f9fafb;
+        color: #111827;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      html.dark, html.dark body {
+        background-color: #0f172a;
+        color: #f1f5f9;
+      }
+      #logica-boot-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-color: #f9fafb;
+        color: #111827;
+        z-index: 9999;
+        user-select: none;
+        -webkit-user-select: none;
+        transition: opacity 0.18s ease-out;
+      }
+      html.dark #logica-boot-splash {
+        background-color: #0f172a;
+        color: #f1f5f9;
+      }
+      .logica-boot-logo {
+        width: 52px;
+        height: 52px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #2563eb, #3b82f6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.45);
+        margin-bottom: 16px;
+      }
+      .logica-boot-title {
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        margin-bottom: 6px;
+      }
+      .logica-boot-sub {
+        font-size: 12px;
+        opacity: 0.6;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        margin-bottom: 20px;
+      }
+      .logica-boot-bar-track {
+        width: 180px;
+        height: 4px;
+        border-radius: 999px;
+        background-color: rgba(148, 163, 184, 0.2);
+        overflow: hidden;
+        position: relative;
+      }
+      .logica-boot-bar-fill {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 45%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #3b82f6, #60a5fa);
+        animation: logica-boot-slide 1.1s ease-in-out infinite;
+      }
+      @keyframes logica-boot-slide {
+        0% { left: -45%; }
+        100% { left: 100%; }
+      }
+    </style>
   </head>
   <body>
+    <div id="logica-boot-splash">
+      <div class="logica-boot-logo">
+        <svg viewBox="0 0 32 32" fill="none" width="34" height="34" style="color: #ffffff">
+          <path d="M4 11.5H9.5M4 20.5H9.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+          <path d="M25 16H28" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+          <path d="M8.5 7.5Q13.5 16 8.5 24.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+          <path d="M12.2 7.5C18 7.5 22.4 10.7 25 16C22.4 21.3 18 24.5 12.2 24.5Q17.2 16 12.2 7.5Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" />
+        </svg>
+      </div>
+      <div class="logica-boot-title">Logica Simulator</div>
+      <div class="logica-boot-sub">Initializing workspace &amp; Rust engine...</div>
+      <div class="logica-boot-bar-track">
+        <div class="logica-boot-bar-fill"></div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

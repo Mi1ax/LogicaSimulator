@@ -287,10 +287,10 @@ export const Toolbox: React.FC = () => {
   const renderedContent = displayCategories.map(cat => renderCategory(cat)).filter(Boolean);
 
   return (
-    <div className="w-64 bg-gray-100 dark:bg-slate-800 border-r border-gray-300 dark:border-slate-700 h-full flex flex-col shadow-sm z-10 relative transition-colors overflow-hidden">
-      <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex flex-col gap-3 shrink-0">
+    <div className="w-52 lg:w-60 xl:w-64 shrink-0 bg-gray-100 dark:bg-slate-800 border-r border-gray-300 dark:border-slate-700 h-full flex flex-col shadow-sm z-10 relative transition-colors overflow-hidden">
+      <div className="p-3 lg:p-4 border-b border-gray-200 dark:border-slate-700 flex flex-col gap-2.5 lg:gap-3 shrink-0">
         <div className="flex justify-between items-center">
-          <h2 className="text-lg font-bold text-gray-800 dark:text-slate-100">Components</h2>
+          <h2 className="text-base lg:text-lg font-bold text-gray-800 dark:text-slate-100">Components</h2>
           <div className="flex items-center gap-1">
             <button 
               onClick={() => setAllExpanded(true)} 

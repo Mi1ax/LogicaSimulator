@@ -8,6 +8,7 @@ import { useSimulatorStore } from './store/useSimulatorStore';
 import { ErrorBoundary } from './ui/components/ErrorBoundary';
 import { CircuitTabs } from './ui/components/CircuitTabs';
 import { LogicAnalyzerDrawer } from './ui/components/LogicAnalyzerDrawer';
+import { ensureRustCircuitCompiled, isTauriEnvironment } from './core/engine/tauriBridge';
 
 function App() {
   const theme = useSimulatorStore(state => state.theme);
@@ -16,6 +17,35 @@ function App() {
   const stepSimulationBatch = useSimulatorStore(state => state.stepSimulationBatch);
   const lastTriggeredBpId = useSimulatorStore(state => state.lastTriggeredBreakpointId);
   const [analyzerOpen, setAnalyzerOpen] = useState<boolean>(false);
+
+  // Fade out the single #logica-boot-splash element once React + Konva layout + Rust warmup finish
+  useEffect(() => {
+    const splash = document.getElementById('logica-boot-splash');
+    if (!splash) return;
+
+    let cancelled = false;
+    const st = useSimulatorStore.getState();
+    const warmup = isTauriEnvironment()
+      ? ensureRustCircuitCompiled(st.nodes, st.wires, st.savedCircuits).catch(() => {})
+      : Promise.resolve();
+
+    warmup.finally(() => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (cancelled) return;
+          splash.style.opacity = '0';
+          splash.style.pointerEvents = 'none';
+          window.setTimeout(() => {
+            splash.remove();
+          }, 200);
+        });
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (lastTriggeredBpId) {
@@ -39,9 +69,7 @@ function App() {
   useEffect(() => {
     if (!simRunning) return;
 
-    // Wake up only at the needed tick rate for low frequencies (e.g. 100ms for 10Hz),
-    // and cap batch UI flushes at ~30 FPS (33ms) for high frequencies to avoid burning CPU/GPU at 60-165Hz.
-    const intervalMs = Math.max(33, Math.floor(1000 / Math.max(1, simSpeed)));
+    const intervalMs = Math.max(16, Math.floor(1000 / Math.max(1, simSpeed)));
     lastSimTimeRef.current = performance.now();
     accumulatedTimeRef.current = 0;
 
@@ -69,7 +97,10 @@ function App() {
   }, [simRunning, simSpeed, stepSimulationBatch]);
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-slate-100 font-sans transition-colors relative">
+    <div
+      onDragStart={(e) => e.preventDefault()}
+      className="flex flex-col h-screen w-screen overflow-hidden bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-slate-100 font-sans transition-colors relative select-none"
+    >
       <Topbar />
       <div className="flex flex-1 overflow-hidden relative">
         <Toolbox />
@@ -78,10 +109,12 @@ function App() {
           <ErrorBoundary>
             <CanvasArea />
           </ErrorBoundary>
-          <LogicAnalyzerDrawer
-            isOpen={analyzerOpen}
-            onToggleOpen={() => setAnalyzerOpen(prev => !prev)}
-          />
+          {analyzerOpen && (
+            <LogicAnalyzerDrawer
+              isOpen={analyzerOpen}
+              onToggleOpen={() => setAnalyzerOpen(prev => !prev)}
+            />
+          )}
         </div>
         <PropertiesPanel />
       </div>

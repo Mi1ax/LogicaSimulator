@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { Plus, X, PanelLeftOpen } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 
 export const CircuitTabs: React.FC = () => {
   const savedCircuits = useSimulatorStore(state => state.savedCircuits);
-  const subcircuits = Object.entries(savedCircuits).map(([id, sc]) => ({id, name: sc.name}));
+  const subcircuits = Object.entries(savedCircuits).map(([id, sc]) => ({ id, name: sc.name }));
   const activeSubcircuitId = useSimulatorStore(state => state.activeSubcircuitId);
   const setActiveSubcircuit = useSimulatorStore(state => state.setActiveSubcircuit);
   const addSubcircuit = useSimulatorStore(state => state.addSubcircuit);
@@ -14,11 +14,26 @@ export const CircuitTabs: React.FC = () => {
   const isToolboxOpen = useSimulatorStore(state => state.isToolboxOpen);
   const toggleToolbox = useSimulatorStore(state => state.toggleToolbox);
 
+  const [pendingTabId, setPendingTabId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  useEffect(() => {
+    setPendingTabId(null);
+  }, [activeSubcircuitId]);
+
   if (appMode !== 'schematic') return null;
+
+  const displayedActiveId = pendingTabId ?? activeSubcircuitId;
+
+  const handleSelectTab = (id: string) => {
+    if (id === activeSubcircuitId) return;
+    setPendingTabId(id);
+    requestAnimationFrame(() => {
+      setActiveSubcircuit(id);
+    });
+  };
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +45,7 @@ export const CircuitTabs: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center bg-gray-100 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-2 h-10 overflow-x-auto select-none">
+    <div className="flex items-center bg-gray-100 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-2 h-10 overflow-x-auto select-none shrink-0">
       {!isToolboxOpen && (
         <button
           onClick={toggleToolbox}
@@ -40,25 +55,38 @@ export const CircuitTabs: React.FC = () => {
           <PanelLeftOpen size={16} />
         </button>
       )}
-      {subcircuits.map(sc => (
-        <div
-          key={sc.id}
-          onClick={() => setActiveSubcircuit(sc.id)}
-          className={`flex items-center h-full px-4 text-sm font-medium cursor-pointer border-r border-l -ml-[1px] border-transparent transition-colors
-            ${activeSubcircuitId === sc.id 
-              ? 'bg-white dark:bg-slate-900 border-x-gray-200 dark:border-x-slate-700 text-blue-600 dark:text-blue-400' 
-              : 'text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700/50'
-            }`}
-        >
-          {sc.name}
-          {sc.id !== 'main' && (
-            <div className="ml-2 hover:bg-gray-300 dark:hover:bg-slate-600 rounded-full p-0.5" onClick={(e) => { e.stopPropagation(); setDeletingId(sc.id); }}>
-              <X size={14} />
-            </div>
-          )}
-        </div>
-      ))}
-      
+      {subcircuits.map(sc => {
+        const isCurrent = displayedActiveId === sc.id;
+        const isSwitchingToThis = pendingTabId === sc.id && activeSubcircuitId !== sc.id;
+        return (
+          <div
+            key={sc.id}
+            onClick={() => handleSelectTab(sc.id)}
+            className={`flex items-center gap-1.5 h-full px-4 text-sm font-medium cursor-pointer border-r border-l -ml-[1px] border-transparent transition-colors shrink-0
+              ${isCurrent
+                ? 'bg-white dark:bg-slate-900 border-x-gray-200 dark:border-x-slate-700 text-blue-600 dark:text-blue-400'
+                : 'text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700/50'
+              }`}
+          >
+            <span>{sc.name}</span>
+            {isSwitchingToThis && (
+              <span className="w-2.5 h-2.5 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+            )}
+            {sc.id !== 'main' && (
+              <div
+                className="ml-1 hover:bg-gray-300 dark:hover:bg-slate-600 rounded-full p-0.5"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeletingId(sc.id);
+                }}
+              >
+                <X size={14} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+
       {isAdding ? (
         <form onSubmit={handleAdd} className="flex items-center h-full px-2">
           <input
