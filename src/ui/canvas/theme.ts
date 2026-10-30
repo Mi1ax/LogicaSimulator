@@ -1,7 +1,7 @@
 export const getCanvasTheme = (isDark: boolean) => ({
-  gridColor: isDark ? '#334155' : '#cbd5e1', // slate-700 : slate-300
-  nodeBg: isDark ? '#1e293b' : '#FFFFCC',    // Proteus pale yellow
-  nodeBorder: isDark ? '#475569' : '#800000',// Proteus dark red outline
+  gridColor: isDark ? '#1e2636' : '#cbd5e1',
+  nodeBg: isDark ? '#121722' : '#FFFFCC',    // Deep carbon dark : Proteus pale yellow
+  nodeBorder: isDark ? '#64748b' : '#800000',// Crisp slate outline : Proteus dark red outline
   textColor: isDark ? '#f8fafc' : '#000080', // Proteus dark blue text
   inputNodeBorder: isDark ? '#059669' : '#10b981', // emerald-600 : emerald-500
   inputIndicator: isDark ? '#047857' : '#d1fae5',
@@ -12,7 +12,7 @@ export const getCanvasTheme = (isDark: boolean) => ({
   selectedNodeColor: isDark ? '#fcd34d' : '#f59e0b',
   draftWireColor: isDark ? '#94a3b8' : '#94a3b8', // slate-400
   signalHigh: isDark ? '#4ade80' : '#22c55e', // green-400 : green-500
-  signalLow: isDark ? '#475569' : '#94a3b8', // slate-600 : slate-400
+  signalLow: isDark ? '#3b4963' : '#94a3b8',
   pinInputFill: isDark ? '#3b82f6' : '#2563eb', // blue
   pinInputStroke: isDark ? '#1e3a8a' : '#1e3a8a',
   pinOutputFill: isDark ? '#f43f5e' : '#e11d48', // rose

@@ -77,13 +77,5 @@ export const IC_NE555: NodeDefinition = {
     startHigh: true,
     ne555Mode: 'astable',
     pulseTicks: 10,
-    r1Value: 10,
-    r1Unit: 'kΩ',
-    r2Value: 47,
-    r2Unit: 'kΩ',
-    cValue: 10,
-    cUnit: 'µF',
-    vcc: 5.0,
-    bypassDiode: false,
   },
 };

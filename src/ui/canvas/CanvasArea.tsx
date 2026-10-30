@@ -3,13 +3,12 @@ import { useSimulatorStore } from '../../store/useSimulatorStore';
 import { SchematicCanvas } from './SchematicCanvas';
 import { HexEditorView } from './HexEditorView';
 import { CodeEditorView } from './CodeEditorView';
-import { Ne555LabView } from './Ne555LabView';
+import { DebugOverlay } from '../components/DebugOverlay';
 
-const MODE_LABELS: Record<'schematic' | 'hex' | 'code' | 'ne555', string> = {
+const MODE_LABELS: Record<'schematic' | 'hex' | 'code', string> = {
   schematic: 'Loading Schematic Workspace...',
   hex: 'Opening Hex Memory Editor...',
   code: 'Opening PLD / CUPL Code Editor...',
-  ne555: 'Opening NE555 Timer Lab...',
 };
 
 export const CanvasLoadingOverlay: React.FC<{ label?: string }> = ({
@@ -68,7 +67,7 @@ export const CanvasArea: React.FC = () => {
       {renderedMode === 'schematic' && <SchematicCanvas />}
       {renderedMode === 'hex' && <HexEditorView />}
       {renderedMode === 'code' && <CodeEditorView />}
-      {renderedMode === 'ne555' && <Ne555LabView />}
+      {import.meta.env.DEV && <DebugOverlay />}
     </div>
   );
 };

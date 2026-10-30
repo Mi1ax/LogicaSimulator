@@ -1,68 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, StepForward, Square, Activity, Cpu, ChevronUp } from 'lucide-react';
-import { useSimulatorStore, subscribeTickCount } from '../../store/useSimulatorStore';
-import { isTauriEnvironment, getLastRustStepElapsedUs } from '../../core/engine/tauriBridge';
-
-const TickDisplay: React.FC = React.memo(() => {
-  const spanRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    let lastUpdate = 0;
-    return subscribeTickCount((tickCount) => {
-      if (!spanRef.current) return;
-      const now = performance.now();
-      // Always update immediately on reset (0) or manual steps, and throttle rapid simulation updates to ~10 Hz
-      if (!useSimulatorStore.getState().simRunning || tickCount <= 1 || now - lastUpdate >= 90) {
-        lastUpdate = now;
-        spanRef.current.textContent = `Tick: ${tickCount}`;
-      }
-    });
-  }, []);
-
-  return (
-    <div
-      ref={spanRef}
-      className="text-xs sm:text-sm font-mono font-medium text-gray-500 dark:text-slate-400 tabular-nums whitespace-nowrap min-w-[6.25rem]"
-    >
-      Tick: {useSimulatorStore.getState().simState.tickCount}
-    </div>
-  );
-});
-
-const RustEngineBadge: React.FC = React.memo(() => {
-  const usRef = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    let lastUpdate = 0;
-    return subscribeTickCount((tickCount) => {
-      if (!usRef.current) return;
-      const now = performance.now();
-      if (!useSimulatorStore.getState().simRunning || tickCount <= 1 || now - lastUpdate >= 90) {
-        lastUpdate = now;
-        usRef.current.textContent = `${getLastRustStepElapsedUs()} µs`;
-      }
-    });
-  }, []);
-
-  return (
-    <div
-      className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border bg-orange-50 dark:bg-orange-950/50 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700 whitespace-nowrap shrink-0 tabular-nums"
-      title="Native Rust Simulation Engine"
-    >
-      <Cpu size={14} className="text-orange-500 shrink-0" />
-      <span>
-        Rust
-        <span className="hidden xl:inline font-mono tabular-nums">
-          {' ('}
-          <span ref={usRef} className="inline-block w-[3.75rem] text-right">
-            {getLastRustStepElapsedUs()} µs
-          </span>
-          {')'}
-        </span>
-      </span>
-    </div>
-  );
-});
+import React, { useState, useEffect } from 'react';
+import { Play, Pause, StepForward, Square, Activity, ChevronUp } from 'lucide-react';
+import { useSimulatorStore } from '../../store/useSimulatorStore';
 
 function formatStepLabel(ticks: number): string {
   if (ticks >= 1000 && ticks % 1000 === 0) return `${ticks / 1000}kT`;
@@ -87,7 +25,6 @@ export const Bottombar: React.FC<BottombarProps> = ({
   const stepTicks = useSimulatorStore(state => state.stepTicks);
   const setStepTicks = useSimulatorStore(state => state.setStepTicks);
   const hasTicks = useSimulatorStore(state => state.simState.tickCount > 0);
-  const isTauri = isTauriEnvironment();
 
   const [localSpeed, setLocalSpeed] = useState(simSpeed.toString());
   const [showStepMenu, setShowStepMenu] = useState(false);
@@ -115,7 +52,6 @@ export const Bottombar: React.FC<BottombarProps> = ({
   return (
     <div className="h-12 bg-white dark:bg-slate-800 border-t border-gray-300 dark:border-slate-700 flex items-center justify-between gap-2 px-3 sm:px-6 shadow-[0_-1px_2px_rgba(0,0,0,0.05)] z-20 relative transition-colors shrink-0">
       <div className="flex-1 flex items-center justify-start gap-2 sm:gap-3 min-w-0">
-        <TickDisplay />
         {onToggleAnalyzer && (
           <button
             onClick={onToggleAnalyzer}
@@ -130,7 +66,6 @@ export const Bottombar: React.FC<BottombarProps> = ({
             <span className="hidden sm:inline">Waveforms</span>
           </button>
         )}
-        {isTauri && <RustEngineBadge />}
       </div>
 
       <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-slate-900/50 p-1 rounded-md border border-gray-200 dark:border-slate-600 shrink-0 relative">

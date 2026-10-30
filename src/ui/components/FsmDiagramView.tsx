@@ -539,7 +539,7 @@ export const FsmDiagramView: React.FC<FsmDiagramViewProps> = ({
                         width={pillW}
                         height={20}
                         rx={5}
-                        fill={isDark ? '#0f172a' : '#ffffff'}
+                        fill={isDark ? '#0a0d14' : '#ffffff'}
                         stroke={strokeColor}
                         strokeWidth={isLiveArmed ? 1.8 : 1}
                       />
@@ -593,7 +593,7 @@ export const FsmDiagramView: React.FC<FsmDiagramViewProps> = ({
                       width={pillW}
                       height={20}
                       rx={5}
-                      fill={isDark ? '#0f172a' : '#ffffff'}
+                      fill={isDark ? '#0a0d14' : '#ffffff'}
                       stroke={strokeColor}
                       strokeWidth={isLiveArmed ? 1.8 : 1}
                     />
@@ -705,7 +705,7 @@ export const FsmDiagramView: React.FC<FsmDiagramViewProps> = ({
                     width={FSM_CARD_WIDTH}
                     height={cardH}
                     rx={9}
-                    fill={isDark ? '#0f172a' : '#ffffff'}
+                    fill={isDark ? '#0a0d14' : '#ffffff'}
                     stroke={borderColor}
                     strokeWidth={isCurrent || isSelected ? 2.5 : 1.5}
                   />
@@ -723,7 +723,7 @@ export const FsmDiagramView: React.FC<FsmDiagramViewProps> = ({
                           ? '#1e3a8a'
                           : '#dbeafe'
                         : isDark
-                        ? '#1e293b'
+                        ? '#121722'
                         : '#f1f5f9'
                     }
                   />

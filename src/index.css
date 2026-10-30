@@ -1,6 +1,14 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+@theme {
+  --color-slate-600: #2e3a52;
+  --color-slate-700: #1e2636;
+  --color-slate-800: #111621;
+  --color-slate-900: #0a0d14;
+  --color-slate-950: #06080d;
+}
+
 :root {
   color-scheme: light;
 }
@@ -47,7 +55,7 @@ select option {
 }
 
 .dark select option {
-  background-color: #1e293b;
+  background-color: #111621;
   color: #e2e8f0;
 }
 

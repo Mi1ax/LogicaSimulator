@@ -25,4 +25,4 @@ trigger: always_on
 ## 3. Responsive UI & Half-Screen / Tiling WM Support
 - **Window Minimum Size**: Keep `"minWidth": 480` and `"minHeight": 360` in `src-tauri/tauri.conf.json` so tiling window managers (Hyprland, Sway, i3) and half-screen splits do not squash or clip the WebKitGTK viewport.
 - **No Overlapping Absolute Toolbars**: Never use `absolute left-*` / `absolute right-*` for toolbar groups (`Topbar`, `Bottombar`) that will collide with centered controls on half-screen widths (`640px–960px`). Always use flex containers (`justify-between gap-2`, `whitespace-nowrap`, `shrink-0`, `flex-wrap`).
-- **Adaptive Sidebar Widths**: Use responsive widths (`w-52 lg:w-60 xl:w-64 shrink-0` for `Toolbox` / `PropertiesPanel`, `w-64 lg:w-72 xl:w-80 shrink-0` for `CodeEditorView` / `Ne555LabView` panels) so sidebars do not crowd the main workspace on half-screen windows.
+- **Adaptive Sidebar Widths**: Use responsive widths (`w-52 lg:w-60 xl:w-64 shrink-0` for `Toolbox` / `PropertiesPanel`, `w-64 lg:w-72 xl:w-80 shrink-0` for `CodeEditorView` panels) so sidebars do not crowd the main workspace on half-screen windows.

@@ -67,7 +67,7 @@ export const SchematicKeypadNode: React.FC<Props> = React.memo(({ node }) => {
         y={0}
         width={width}
         height={height}
-        fill={theme === 'dark' ? '#1e293b' : '#f8fafc'}
+        fill={theme === 'dark' ? '#121722' : '#f8fafc'}
         stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
         strokeWidth={isSelected ? 3 : 2}
         cornerRadius={6}
@@ -132,7 +132,7 @@ export const SchematicKeypadNode: React.FC<Props> = React.memo(({ node }) => {
                 isActive
                   ? '#3b82f6'
                   : theme === 'dark'
-                  ? '#334155'
+                  ? '#1e2636'
                   : '#e2e8f0'
               }
               stroke={isActive ? '#2563eb' : canvasTheme.nodeBorder}

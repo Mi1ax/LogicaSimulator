@@ -100,6 +100,10 @@ export function getLastRustStepElapsedUs(): number {
   return lastStepElapsedUs;
 }
 
+export function getCompiledRustPinCount(): number {
+  return cachedRustPinIds.length;
+}
+
 export function invalidateRustCircuitCache(preserveState: boolean = false): void {
   lastCompiledNodesRef = null;
   lastCompiledWiresRef = null;

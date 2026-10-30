@@ -572,9 +572,9 @@ export const LogicAnalyzerDrawer: React.FC<LogicAnalyzerDrawerProps> = ({
     }
 
     // 5. Draw Top Ruler Bar (painted before cursors so cursor flags sit cleanly on top)
-    ctx.fillStyle = isDark ? '#0f172a' : '#f8fafc';
+    ctx.fillStyle = isDark ? '#0a0d14' : '#f8fafc';
     ctx.fillRect(0, 0, viewW, RULER_HEIGHT);
-    ctx.strokeStyle = isDark ? '#1e293b' : '#e2e8f0';
+    ctx.strokeStyle = isDark ? '#121722' : '#e2e8f0';
     ctx.beginPath();
     ctx.moveTo(0, RULER_HEIGHT - 0.5);
     ctx.lineTo(viewW, RULER_HEIGHT - 0.5);
@@ -589,7 +589,7 @@ export const LogicAnalyzerDrawer: React.FC<LogicAnalyzerDrawerProps> = ({
     for (let s = startIdx; s <= endIdx; s++) {
       if (s < 0) continue;
       const x = Math.floor(s * tickWidth - scrollLeft) + 0.5;
-      ctx.strokeStyle = isDark ? '#1e293b' : '#e2e8f0';
+      ctx.strokeStyle = isDark ? '#121722' : '#e2e8f0';
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, RULER_HEIGHT);

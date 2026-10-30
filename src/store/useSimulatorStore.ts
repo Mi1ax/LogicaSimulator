@@ -101,8 +101,8 @@ export interface PointerSettings {
 }
 
 interface SimulatorState {
-  appMode: 'schematic' | 'hex' | 'code' | 'ne555';
-  setAppMode: (mode: 'schematic' | 'hex' | 'code' | 'ne555') => void;
+  appMode: 'schematic' | 'hex' | 'code';
+  setAppMode: (mode: 'schematic' | 'hex' | 'code') => void;
 
   savedCircuits: Record<string, { name: string, nodes: LogicNode[], wires: Wire[], history: any[], future: any[] }>;
   activeSubcircuitId: string;

@@ -79,7 +79,7 @@ export const Schematic7SegNode: React.FC<Props> = React.memo(({ node }) => {
         y={0}
         width={width}
         height={height}
-        fill={theme === 'dark' ? '#0f172a' : '#f1f5f9'}
+        fill={theme === 'dark' ? '#0a0d14' : '#f1f5f9'}
         stroke={isSelected ? canvasTheme.selectedNodeColor : canvasTheme.nodeBorder}
         strokeWidth={isSelected ? 3 : 2}
         cornerRadius={4}

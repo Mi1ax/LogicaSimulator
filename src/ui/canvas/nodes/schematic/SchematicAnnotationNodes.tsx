@@ -112,9 +112,9 @@ export const ANNOTATION_COLORS: Record<string, AnnotationColorTheme> = {
     textLight: '#334155',
     textDark: '#94a3b8',
     cardBgLight: '#f8fafc',
-    cardBgDark: '#1e293b',
+    cardBgDark: '#121722',
     headerBgLight: '#e2e8f0',
-    headerBgDark: '#334155',
+    headerBgDark: '#1e2636',
   },
 };
 
